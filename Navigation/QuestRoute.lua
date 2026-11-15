@@ -1,0 +1,139 @@
+local _, addon = ...
+local QuestRoute = {}
+addon.QuestRoute = QuestRoute
+
+local SHARED_STOP_RADIUS = 40
+local MINIMUM_SAVING = 40
+local OUTING_RADIUS = 500
+local MAX_APPROACH_DETOUR = 100
+local MINIMUM_OUTING_SAVING = 120
+
+-- Compare orders that visit the same targets, with no assumed return destination.
+function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel)
+    local anchor = ranked[1]
+    local main = anchor and measurements[anchor.id]
+    if not main or addon.QuestPrioritizer.IsHighLevel(anchor, playerLevel) then return end
+    local distance = addon.QuestLocation.GetDistanceMetric(mapAPI, main.marker)
+    if not distance then return end
+
+    local candidates = {}
+    for index = 2, #ranked do
+        local quest = ranked[index]
+        local target = measurements[quest.id]
+        if target and not addon.QuestPrioritizer.IsHighLevel(quest, playerLevel) then
+            local gap = distance(main.marker, target.marker)
+            if gap then
+                local detour = math.max(0, target.yards + gap - main.yards)
+                local onApproach = target.yards < main.yards and detour <= MAX_APPROACH_DETOUR
+                if onApproach or gap <= OUTING_RADIUS then
+                    candidates[#candidates + 1] = { quest = quest, score = onApproach and detour or gap }
+                end
+            end
+        end
+    end
+    if #candidates == 0 then return end
+    table.sort(candidates, function(a, b)
+        if a.score ~= b.score then return a.score < b.score end
+        return a.quest.id < b.quest.id
+    end)
+
+    local stops = { anchor, candidates[1].quest, candidates[2] and candidates[2].quest }
+    local function Length(first, second, third)
+        local a, b = measurements[stops[first].id], measurements[stops[second].id]
+        local leg = distance(a.marker, b.marker)
+        if not leg then return math.huge end
+        if third then
+            local tail = distance(b.marker, measurements[stops[third].id].marker)
+            if not tail then return math.huge end
+            leg = leg + tail
+        end
+        return a.yards + leg
+    end
+    local orders = #stops == 2 and { {1, 2}, {2, 1} }
+        or { {1, 2, 3}, {1, 3, 2}, {2, 1, 3}, {2, 3, 1}, {3, 1, 2}, {3, 2, 1} }
+    local bestOrder, bestLength, baseline, bestGain
+    for _, order in ipairs(orders) do
+        local first = stops[order[1]]
+        local length = Length(unpack(order))
+        if first == anchor then
+            if not baseline or length < baseline then
+                bestOrder, bestLength, baseline, bestGain = order, length, length, MINIMUM_OUTING_SAVING
+            end
+        elseif measurements[first.id].yards < main.yards then
+            local gain = baseline - length
+            if gain > bestGain then bestOrder, bestLength, bestGain = order, length, gain end
+        end
+    end
+    if bestLength == math.huge then return end
+    local ordered = {}
+    for index, position in ipairs(bestOrder) do ordered[index] = stops[position] end
+    return { stops = ordered, saving = baseline - bestLength }
+end
+
+local function MeasureChain(distance, a, b, chain)
+    local firstLeg = distance(a, b)
+    local toFinisher = distance(b, chain.finisher)
+    if not (firstLeg and toFinisher) or (chain.ready and toFinisher > SHARED_STOP_RADIUS) then return end
+    local legs, shared = {}, {}
+    local previous = chain.finisher
+    for index, stop in ipairs(chain.stops) do
+        local leg, gap = distance(previous, stop), distance(a, stop)
+        if not (leg and gap) then return end
+        legs[index], shared[index] = leg, gap
+        previous = stop
+    end
+    return firstLeg, legs, shared
+end
+
+-- Both orders visit the same chain stops. Compare inserting A before B
+-- with inserting A at a later stop that is near A.
+function QuestRoute.Recommend(mapAPI, ranked, measurements, chains, playerLevel)
+    local original = ranked[1]
+    local a = original and measurements[original.id]
+    if not (a and a.marker and chains) then return end
+
+    local distance = addon.QuestLocation.GetDistanceMetric(mapAPI, a.marker)
+    if not distance then return end
+
+    local best, saving, sharedDepth
+    local bestGain = MINIMUM_SAVING
+    local originalPenalty = addon.QuestPrioritizer.GetLevelPenalty(original, playerLevel)
+    local originalIsHigh = addon.QuestPrioritizer.IsHighLevel(original, playerLevel)
+    for index = 2, #ranked do
+        local candidate = ranked[index]
+        local b, chain = measurements[candidate.id], chains[candidate.id]
+        local firstLeg, legs, shared
+        if b and b.marker and chain
+            and (originalIsHigh or not addon.QuestPrioritizer.IsHighLevel(candidate, playerLevel)) then
+            firstLeg, legs, shared = MeasureChain(distance, a.marker, b.marker, chain)
+        end
+        if firstLeg then
+            local savingsBeforeInsertion = a.yards + firstLeg - b.yards
+            local penalty = addon.QuestPrioritizer.GetLevelPenalty(candidate, playerLevel)
+            local extraDifficulty = math.max(0, penalty - originalPenalty)
+            if savingsBeforeInsertion - extraDifficulty >= bestGain then
+                for stopIndex, stop in ipairs(chain.stops) do
+                    local sharedDistance = shared[stopIndex]
+                    if sharedDistance <= SHARED_STOP_RADIUS then
+                        local nextIndex = stopIndex + 1
+                        local insertionCost = sharedDistance
+                        if shared[nextIndex] then
+                            insertionCost = insertionCost + shared[nextIndex] - legs[nextIndex]
+                        end
+                        local gain = savingsBeforeInsertion - insertionCost
+                        if gain - extraDifficulty > bestGain then
+                            best, saving, sharedDepth = candidate, gain, stop.depth
+                            bestGain = gain - extraDifficulty
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if not best then return end
+    local chain = chains[best.id]
+    return best, {
+        saving = saving, depth = sharedDepth,
+        original = original, followUps = chain.followUps,
+    }
+end

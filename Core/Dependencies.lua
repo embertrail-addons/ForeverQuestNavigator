@@ -1,18 +1,13 @@
 local _, addon = ...
+local L = addon.L
 
-function addon.ReadDependencyStatus(api)
+function addon.ReadQuestieStatus(api)
     if not (api and api.IsAddOnLoaded) then
-        return { Questie = "Unknown", TomTom = "Unknown" }
+        return L.DependencyUnknown
     end
-
-    local status = {}
-    for _, name in ipairs({ "Questie", "TomTom" }) do
-        if api.DoesAddOnExist and not api.DoesAddOnExist(name) then
-            status[name] = "Not installed"
-        else
-            local _, loaded = api.IsAddOnLoaded(name)
-            status[name] = loaded and "Loaded" or "Not loaded"
-        end
+    if api.DoesAddOnExist and not api.DoesAddOnExist("Questie") then
+        return L.DependencyMissing
     end
-    return status
+    local _, loaded = api.IsAddOnLoaded("Questie")
+    return loaded and L.DependencyLoaded or L.DependencyUnloaded
 end
