@@ -44,6 +44,8 @@ local confirmedFlightPoints, flightRoutes, taxiMapOpen
 local questJourneys, turnInLocations = nil, {}
 local savedAccessPoints, passedAccessPoints = {}, {}
 local session
+local questNotes = {}
+local isFlying, flightQuestID = false, nil
 
 local function SessionTime()
     return GetTime and GetTime() or 0
@@ -204,6 +206,8 @@ function addon.DescribeQuest(quest, measurement)
         text = text .. "\n" .. L.AccessRoute:format(marker.accessName or L.SavedAccess, marker.x * 100, marker.y * 100, measurement.accessLeg)
     end
     text = text .. "\n" .. L.QuestMenuHint
+    local progress = addon.QuestTools.ProgressHint(quest)
+    if progress then text = text .. "\n" .. progress end
     return text
 end
 
@@ -407,7 +411,7 @@ end
 
 local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, playerLevel, xpNeeded, nextQuest, forecast)
     local quest = ranked[1]
-    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID)
+    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or flightQuestID
     if selectedQuestID then
         local manualQuest
         for _, candidate in ipairs(ranked) do
@@ -422,15 +426,18 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
             manualQuestID = nil
             heldQuest = nil
             objectiveLock = nil
+            flightQuestID = nil
         end
     end
-    if not (manualQuestID or objectiveLock) and routeQuest then
+    if not (manualQuestID or objectiveLock or flightQuestID) and routeQuest then
         quest = routeQuest
     else
         routeNote = manualQuestID and (heldQuest and L.HeldQuestReason or L.ManualSelection)
             or DescribeRecommendation(quest, playerLevel)
         routeDetails = nil
     end
+    local progressHint = addon.QuestTools.ProgressHint(quest)
+    if progressHint then routeNote = routeNote and (routeNote .. " · " .. progressHint) or progressHint end
     local destination = GetQuestDestination(quest.id)
     if manualQuestID then ranked = RankFromQuest(ranked, quest, destination, playerLevel) end
     local alternatives = {}
@@ -637,10 +644,32 @@ local function UpdateOuting(ranked, measurements, playerLevel, followUp)
     return outing
 end
 
+local function FlightStep(quest)
+    if not quest then return L.FlightGeneric end
+    if quest.readyToTurnIn then return L.FlightTurnIn end
+    local goals = C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(quest.id)
+    local measured = questMeasurements and questMeasurements[quest.id]
+    local selected = measured and measured.marker.objectiveIndex
+    local goal = selected and goals and goals[selected]
+    if not goal then goal = addon.QuestLog.GetNextObjective(C_QuestLog, quest.id) end
+    return goal and L.FlightObjective:format(goal.text) or L.FlightGeneric
+end
+
+local function UpdateFlightState()
+    local onTaxi = UnitOnTaxi and UnitOnTaxi("player")
+    local flying = onTaxi == true or onTaxi == 1
+    if flying ~= isFlying then
+        isFlying = flying
+        flightQuestID = flying and shownQuests and shownQuests[1] and shownQuests[1].id or nil
+    end
+    tracker:SetFlightView(flying, FlightStep(shownQuests and shownQuests[1]))
+end
+
 local function UpdateDirection()
+    UpdateFlightState()
     local facing
     local inInstance = IsInInstance and IsInInstance()
-    if not inInstance and GetPlayerFacing then
+    if not inInstance and not isFlying and GetPlayerFacing then
         facing = GetPlayerFacing()
     end
     local right, forward = addon.QuestLocation.GetRelativeDirection(activeDirection, facing)
@@ -649,7 +678,9 @@ local function UpdateDirection()
     local arrived
     arrivalState, arrived = addon.TrackerState.Arrival(arrivalState, active, measurement)
     local status
-    if inInstance then
+    if isFlying then
+        status, arrived, arrivalState = FlightStep(active), false, nil
+    elseif inInstance then
         status = L.NavigationInstance
     elseif not measurement then
         status = active and next(avoidedObjectives[active.id] or {}) and L.NavigationAvoided or L.NavigationUnknown
@@ -658,7 +689,7 @@ local function UpdateDirection()
     elseif not right then
         status = L.NavigationFacingUnavailable
     end
-    if arrived or inInstance then right, forward = nil, nil end
+    if arrived or inInstance or isFlying then right, forward = nil, nil end
     tracker:RenderDirection(right, forward, status, arrived and not inInstance)
     tracker:RenderRowDirections(facing)
 end
@@ -671,7 +702,7 @@ local function UpdateDirectionTicker()
     if TrackingVisible() and settings.showDirectionArrow then
         UpdateDirection()
         local canRotate = GetPlayerFacing and (measurableQuestIDs or nearbyOffers)
-            and not (IsInInstance and IsInInstance())
+            and not isFlying and not (IsInInstance and IsInInstance())
         if canRotate and not directionTicker then
             directionTicker = C_Timer.NewTicker(0.2, UpdateDirection)
         elseif not canRotate and directionTicker then
@@ -690,6 +721,7 @@ local function UpdateDirectionTicker()
 end
 
 local function UpdateDistances()
+    UpdateFlightState()
     if measurableQuestIDs and not refreshPending then
         local measurements
         measurements, objectiveDistances = addon.QuestLocation.MeasureQuests(C_Map, questMarkers, measurableQuestIDs,
@@ -726,14 +758,20 @@ local function UpdateDistances()
         local ranked
         local playerLevel = UnitLevel and UnitLevel("player")
         ranked, distanceOrder = addon.QuestPrioritizer.RankByDistance(eligibleQuests, measurements, distanceOrder, playerLevel, questJourneys)
-        local routeQuest, route = addon.QuestRoute.Recommend(C_Map, ranked, measurements, routeChains, playerLevel)
+        if isFlying then
+            local found
+            for _, candidate in ipairs(ranked) do if candidate.id == flightQuestID then found = true break end end
+            if not found then flightQuestID = ranked[1] and ranked[1].id end
+        end
+        local routeQuest, route
+        if not isFlying then routeQuest, route = addon.QuestRoute.Recommend(C_Map, ranked, measurements, routeChains, playerLevel) end
         local xpNeeded = addon.QuestLog.GetXPToNextLevel()
         local levelUpQuest, nextQuest
-        if not manualQuestID then
+        if not manualQuestID and not isFlying then
             levelUpQuest, nextQuest = addon.QuestRoute.RecommendLevelUp(C_Map, ranked, measurements, playerLevel, xpNeeded)
         end
         local note, details
-        local trip = UpdateOuting(ranked, measurements, playerLevel, levelUpQuest or routeQuest or objectiveLock)
+        local trip = not isFlying and UpdateOuting(ranked, measurements, playerLevel, levelUpQuest or routeQuest or objectiveLock)
         if levelUpQuest then
             routeQuest, note = levelUpQuest, L.LevelUpOnTurnIn
         elseif trip then
@@ -754,6 +792,7 @@ local function UpdateDistances()
         end
         local forecast = not (trip or levelUpQuest) and route
         RenderQuestList(ranked, routeQuest, note, details, playerLevel, xpNeeded, nextQuest, forecast)
+        tracker:SetFlightView(isFlying, FlightStep(shownQuests[1]))
         UpdateMapMarker()
         local activeMeasurement = measurements[shownQuests[1].id]
         activeDirection = activeMeasurement and activeMeasurement.east and activeMeasurement or nil
@@ -763,6 +802,7 @@ local function UpdateDistances()
 end
 
 local function UpdateDistanceTicker()
+    UpdateFlightState()
     if TrackingVisible() and measurableQuestIDs then
         UpdateDistances()
         if not distanceTicker then
@@ -783,11 +823,13 @@ local function RenderEmpty(message)
     outing = nil
     shownReason, shownRouteDetails, questMeasurements = nil, nil, nil
     arrivalState = nil
+    flightQuestID = nil
     questJourneys = nil
     objectiveLock, previousObjectives = nil, {}
     UpdateMapMarker()
     tracker:Render(nil, message, skippedQuestIDs)
     UpdateDistanceTicker()
+    addon.RefreshQuestNotepad()
 end
 
 local function UpdateQuestieTicker()
@@ -946,6 +988,7 @@ local function Refresh()
     end
     UpdateDistanceTicker()
     RefreshNearbyOffers(localMaps, targetMaps, mapType)
+    addon.RefreshQuestNotepad()
 end
 
 ScheduleRefresh = function()
@@ -974,6 +1017,7 @@ end
 local function SelectQuest(questID)
     heldQuest = nil
     manualQuestID = questID
+    if isFlying then flightQuestID = questID end
     objectiveLock = nil
     outing = nil
     UpdateQuestLogButton()
@@ -1241,6 +1285,15 @@ local function OpenQuestMenu(owner, questID, isOffer)
         menu:CreateTitle(L.AccessMenu)
         menu:SetScrollMode(260)
         menu:CreateButton(L.PositionReport, function() ShowTargetReport(questID, isOffer) end)
+        menu:CreateButton(questNotes[questID] and L.UnmarkQuest or L.MarkQuest, function()
+            local chosen
+            for _, quest in ipairs(isOffer and nearbyOffers or eligibleQuests or {}) do
+                if quest.id == questID then chosen = quest break end
+            end
+            local point = isOffer and chosen and chosen.marker or target
+            addon.QuestTools.ToggleNote(questNotes, questID, chosen and chosen.title, point, isOffer)
+            addon.RefreshQuestNotepad()
+        end)
         if isOffer or ready or not target then return end
         menu:CreateButton(L.SaveAccessHere, function()
             if IsInInstance and IsInInstance() then print(L.AccessUnavailable) return end
@@ -1289,6 +1342,7 @@ local function ShowAccessManager()
     end
     addon.ShowAccessManager({
         list = function() return addon.TravelSupport.ListAccess(savedAccessPoints, C_Map, Title) end,
+        filter = function(entries, query, mode) return addon.QuestTools.FilterAccess(entries, query, mode, C_QuestLog) end,
         map = function(entry) OpenRouteStop({ target = entry.point }) end,
         rename = function(entry, name)
             local changed = addon.TravelSupport.RenameAccess(savedAccessPoints, entry.questID, entry.index, name)
@@ -1299,6 +1353,21 @@ local function ShowAccessManager()
             addon.TravelSupport.RemoveAccess(savedAccessPoints, entry.questID, entry.index)
             Changed(entry)
         end,
+    })
+end
+
+local function ShowNotepad()
+    addon.ShowQuestNotepad({
+        list = function()
+            return addon.QuestTools.Notes(questNotes, C_QuestLog, function(id)
+                if C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(id) then
+                    local destination = GetQuestDestination(id)
+                    return destination and destination.target
+                end
+            end)
+        end,
+        map = function(entry) if entry.point then OpenRouteStop({ target = entry.point }) end end,
+        remove = function(id) questNotes[id] = nil end,
     })
 end
 
@@ -1367,6 +1436,10 @@ local function RegisterSettings()
         ShowSession, L.OpenSessionHelp, true))
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.AccessManager, L.AccessManager,
         ShowAccessManager, L.AccessManagerHelp, true))
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.QuestNotepad, L.QuestNotepad,
+        ShowNotepad, L.NotepadIndependent, true))
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.Introduction, L.Introduction,
+        function() addon.ShowIntroduction(settings) end, L.IntroductionHelp, true))
     local function RefreshQuestieSettings()
         UpdateQuestieTicker()
         ScheduleRefresh()
@@ -1573,6 +1646,8 @@ local function AddonLoaded(name)
         settings.opacityPercent = type(opacity) == "number" and opacity >= 0 and opacity <= 100 and opacity or DEFAULT_OPACITY
         LoadSkippedQuests()
         local character = ForeverQuestNavigatorCharacterDB
+        questNotes = type(character.questNotes) == "table" and character.questNotes or {}
+        character.questNotes = questNotes
         savedAccessPoints = type(character.accessPoints) == "table" and character.accessPoints or {}
         character.accessPoints = savedAccessPoints
         session = addon.Session.New(character.session, SessionTime())
@@ -1603,6 +1678,17 @@ local function AddonLoaded(name)
             refreshMeasurements = UpdateDistances,
         }, version)
         tracker:UpdateListSettings()
+        BINDING_HEADER_FOREVERQUESTNAVIGATOR = "Forever Quest Navigator"
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_TOGGLE = L.BindingToggle
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_MAP = L.BindingMap
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_HOLD = L.BindingHold
+        ForeverQuestNavigator_HandleBinding = function(action)
+            if action == "toggle" then ToggleTracker()
+            elseif action == "map" then
+                local quest = shownQuests and shownQuests[1]
+                if quest then OpenQuestMap(quest.id) end
+            elseif action == "hold" then ToggleQuestHold() end
+        end
         AddQuestLogMenu()
         local function UpdateTrackers()
             UpdateDistanceTicker()
@@ -1612,6 +1698,9 @@ local function AddonLoaded(name)
         tracker:HookScript("OnHide", UpdateTrackers)
 
         events:RegisterEvent("PLAYER_ENTERING_WORLD")
+        events:RegisterEvent("PLAYER_CONTROL_LOST")
+        events:RegisterEvent("PLAYER_CONTROL_GAINED")
+        events:RegisterEvent("PLAYER_REGEN_ENABLED")
         events:RegisterEvent("PLAYER_LEVEL_UP")
         events:RegisterEvent("PLAYER_XP_UPDATE")
         events:RegisterEvent("PLAYER_LOGOUT")
@@ -1641,6 +1730,10 @@ local function AddonLoaded(name)
                 ShowSession()
             elseif command == "access" then
                 ShowAccessManager()
+            elseif command == "notes" then
+                ShowNotepad()
+            elseif command == "help" then
+                addon.ShowIntroduction(settings)
             elseif command == "session reset" then
                 session = addon.Session.New(nil, SessionTime())
                 ForeverQuestNavigatorCharacterDB.session = session.data
@@ -1692,6 +1785,8 @@ events:SetScript("OnEvent", function(_, event, arg, rewardXP)
                 minimapButton = addon.CreateMinimapButton(settings, CycleDisplayMode, OpenSettings)
             end
         end
+        if (event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_ENABLED") and not settings.introSeen
+            and not (InCombatLockdown and InCombatLockdown()) then addon.ShowIntroduction(settings) end
         if event == "TAXIMAP_OPENED" then taxiMapOpen = true end
         if event == "TAXIMAP_CLOSED" or event == "PLAYER_ENTERING_WORLD" then taxiMapOpen = false end
         if taxiMapOpen and (event == "TAXIMAP_OPENED" or event == "TAXI_NODE_STATUS_CHANGED") then

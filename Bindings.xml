@@ -1,0 +1,11 @@
+<Bindings>
+    <Binding name="FOREVERQUESTNAVIGATOR_TOGGLE" header="FOREVERQUESTNAVIGATOR" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("toggle")
+    </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_MAP" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("map")
+    </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_HOLD" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("hold")
+    </Binding>
+</Bindings>

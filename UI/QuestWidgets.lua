@@ -98,6 +98,7 @@ local function FormatQuestTitle(quest)
     local level = addon.QuestPrioritizer.GetLevel(quest)
     local result = level and ("[%d] %s"):format(level, title) or title
     if quest.elite or quest.group then result = result .. " |cffffc447+|r" end
+    if quest.progress and quest.progress.nearly then result = result .. " |cff80cc80(" .. L.NearlyDone .. ")|r" end
     return result
 end
 

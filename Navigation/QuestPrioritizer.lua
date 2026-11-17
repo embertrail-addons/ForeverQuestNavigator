@@ -56,6 +56,11 @@ function QuestPrioritizer.GetLevelPenalty(quest, playerLevel)
     return LevelPenalty(quest, playerLevel, QuestPrioritizer.GetDifficulty(quest, playerLevel))
 end
 
+function QuestPrioritizer.GetProgressBonus(quest, playerLevel)
+    if quest.readyToTurnIn or not QuestPrioritizer.GetLevel(quest) or QuestPrioritizer.IsLowPriority(quest, playerLevel) then return 0 end
+    return quest.progress and quest.progress.nearly and math.min(40, quest.progress.bonus or 0) or 0
+end
+
 function QuestPrioritizer.Rank(quests, skippedQuestIDs, localQuestIDs)
     local ranked = {}
     for _, quest in ipairs(quests) do
@@ -87,6 +92,7 @@ function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrde
             levelOrder[quest.id] = index
             scores[quest.id] = measurements[quest.id].yards + LevelPenalty(quest, playerLevel, difficulty)
                 + addon.TravelSupport.PlanningPenalty(quest, journeys and journeys[quest.id], journeys ~= nil)
+                - QuestPrioritizer.GetProgressBonus(quest, playerLevel)
         else
             unknownQuests[#unknownQuests + 1] = quest
         end

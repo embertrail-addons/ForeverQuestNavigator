@@ -34,6 +34,52 @@ end
 
 local addon = loadAddon(getfenv(), false)
 
+test("Nearly complete hints require known counters and only give attainable quests a small bonus", function()
+    local goals = { { text = "Enemies", type = "monster", numFulfilled = 8, numRequired = 10 } }
+    local api = { GetQuestObjectives = function() return goals end }
+    local progress = addon.QuestTools.Progress(api, 1)
+    equal(progress.nearly, true)
+    equal(progress.remaining, 2)
+    local quest = { id = 1, level = 10, progress = progress }
+    equal(addon.QuestTools.ProgressHint(quest), "Almost done · 2 enemies left")
+    equal(addon.QuestPrioritizer.GetProgressBonus(quest, 10), 30)
+    local other = { id = 2, level = 10 }
+    local ranked = addon.QuestPrioritizer.RankByDistance({other, quest}, {[1] = {yards = 105}, [2] = {yards = 100}}, {other, quest}, 10)
+    equal(ranked[1].id, 1)
+    quest.level = 14
+    equal(addon.QuestPrioritizer.GetProgressBonus(quest, 10), 0)
+    goals[1].numFulfilled = nil
+    equal(addon.QuestTools.Progress(api, 1), nil)
+    goals[1].numFulfilled, goals[1].numRequired = 0, 1
+    equal(addon.QuestTools.Progress(api, 1).nearly, false)
+end)
+
+test("Access search is literal, matches German names and distinguishes active from turned-in quests", function()
+    local entries = {
+        {questID = 1, title = "Ältere Quest", zone = "Hillsbrad", name = "Cave [north]"},
+        {questID = 2, title = "Other quest", zone = "Alterac", name = "Entrance"},
+    }
+    local api = { IsOnQuest = function(id) return id == 1 end, IsQuestFlaggedCompleted = function(id) return id == 2 end }
+    equal(#addon.QuestTools.FilterAccess(entries, "ältere", "all", api), 1)
+    equal(#addon.QuestTools.FilterAccess(entries, "[north]", "all", api), 1)
+    equal(addon.QuestTools.FilterAccess(entries, "", "current", api)[1].questID, 1)
+    equal(addon.QuestTools.FilterAccess(entries, "", "completed", api)[1].questID, 2)
+    equal(#addon.QuestTools.FilterAccess(entries, "Hillsbrad", "completed", api), 0)
+end)
+
+test("Quest notes retain saved positions and have no selection side effects", function()
+    local saved = {}
+    local point = {mapID = 10, x = 0.2, y = 0.3}
+    equal(addon.QuestTools.ToggleNote(saved, 1, "Later", point, true), true)
+    point.x = 0.8
+    local api = { IsOnQuest = function() return false end }
+    local notes = addon.QuestTools.Notes(saved, api, function() end)
+    near(notes[1].point.x, 0.2)
+    equal(notes[1].status, "Remembered for later")
+    equal(addon.QuestTools.ToggleNote(saved, 1), false)
+    equal(next(saved), nil)
+end)
+
 test("Access management distinguishes objectives and retains unrelated records", function()
     local point = { mapID = 10, x = 0.3, y = 0.4 }
     local saved = { [1] = { [0] = { point = point, name = "A" }, [2] = { point = point, name = "B" } },
@@ -894,7 +940,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 return ticker
             end,
         },
-        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false,
+        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false, introSeen = true,
             sortByDistance = false, currentZoneOnly = true },
         MinimalSliderWithSteppersMixin = { Label = { Right = 3 } },
         Settings = {
@@ -1003,6 +1049,10 @@ test("TOC startup and quest events update the tracker with or without optional a
                         settingsByKey.preview = initializer
                     elseif initializer.name == "Open diagnostic report" then
                         settingsByKey.diagnostics = initializer
+                    elseif initializer.name == "Quest notepad" then
+                        settingsByKey.notepad = initializer
+                    elseif initializer.name == "Quick introduction" then
+                        settingsByKey.introduction = initializer
                     else
                         settingsByKey.resetPositions = initializer
                     end
@@ -1075,7 +1125,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(#frames, 1)
     env.CreateSettingsButtonInitializer = function(name, buttonText, callback, help, searchable)
         assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions"
-            or name == "Open session overview" or name == "Saved access points" or name == "Appearance preview" or name == "Open diagnostic report")
+            or name == "Open session overview" or name == "Saved access points" or name == "Appearance preview" or name == "Open diagnostic report"
+            or name == "Quest notepad" or name == "Quick introduction")
         equal(buttonText, name)
         equal(searchable, true)
         return { name = name, callback = callback }
@@ -2930,6 +2981,128 @@ test("TOC startup and quest events update the tracker with or without optional a
     sessionWindow.copy:Click()
     local copy = Window("Copy session summary")
     local snapshot = copy.edit.text
+
+    -- Search and status filters apply before pagination, including completed quests.
+    mainMapButton:Click("RightButton")
+    MenuAction("Save my position as this objective's access point")
+    flush()
+    local oldCompleted = api.IsQuestFlaggedCompleted
+    api.IsQuestFlaggedCompleted = function(id) return id >= 99991 or oldCompleted and oldCompleted(id) end
+    settingsByKey.accessManager.callback()
+    manager.search:SetText("99991")
+    manager.search.scripts.OnTextChanged()
+    equal(manager.rows[1].entry.questID, 99991)
+    equal(manager.rows[2]:IsShown(), false)
+    manager.search:SetText("")
+    manager.search.scripts.OnTextChanged()
+    manager.filter:Click()
+    equal(manager.filterMode, "current")
+    equal(manager.rows[1].entry.questID, 1002)
+    equal(manager.rows[2]:IsShown(), false)
+    manager.filter:Click()
+    equal(manager.filterMode, "completed")
+    equal(manager.rows[1].entry.questID, 99991)
+    manager.filter:Click()
+    manager.rows[1].remove:Click()
+    flush()
+    api.IsQuestFlaggedCompleted = oldCompleted
+
+    -- The actual taxi state freezes the current target, then restores normal UI/ranking.
+    env.LibQuestieDB.Npc.spawns = function() return { [100] = { {68, 50} } } end
+    env.ForeverQuestNavigator_HandleBinding("hold")
+    flush()
+    env.ForeverQuestNavigator_HandleBinding("hold")
+    flush()
+    playerX = 0.5
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    equal(activeCheckbox.quest.id, 1001)
+    local onTaxi = false
+    env.UnitOnTaxi = function() return onTaxi end
+    onTaxi = true
+    fire("PLAYER_CONTROL_LOST")
+    flush()
+    equal(rowOne:IsShown(), false)
+    equal(navigation.arrow:IsShown(), false)
+    equal(navigation.status.text, "After landing: turn in the selected quest")
+    settingsByKey.showDirectionArrow:SetValue(false)
+    equal(navigation:IsShown(), false)
+    local flightSummaryShown
+    for _, label in ipairs(updatedContent.labels) do
+        if label.text == "After landing: turn in the selected quest" and label:IsShown() then flightSummaryShown = true end
+    end
+    equal(flightSummaryShown, true)
+    equal(env.ForeverQuestNavigatorDB.detailMode, "detailed")
+    playerX = 0.7
+    distanceTicker.tick()
+    equal(activeCheckbox.quest.id, 1001)
+    onTaxi = false
+    fire("PLAYER_CONTROL_GAINED")
+    flush()
+    equal(activeCheckbox.quest.id, 1002)
+    equal(rowOne:IsShown(), true)
+    settingsByKey.showDirectionArrow:SetValue(true)
+    fire("PLAYER_CONTROL_LOST")
+    flush()
+    equal(rowOne:IsShown(), true)
+
+    objectives[1002] = { {text = "Patrol enemies: 8/10", type = "monster", numFulfilled = 8, numRequired = 10} }
+    fire("QUEST_LOG_CRITERIA_UPDATE", 1002)
+    flush()
+    assert(title.text:find("Almost done", 1, true))
+    assert(routeNote.text:find("2 enemies left", 1, true))
+    local beforeNotes = title.text
+    mainMapButton:Click("RightButton")
+    MenuAction("Remember for later")
+    equal(title.text, beforeNotes)
+    assert(env.ForeverQuestNavigatorCharacterDB.questNotes[1002])
+    settingsByKey.notepad.callback()
+    local notepad = Window("Quest notepad")
+    equal(notepad.rows[1].entry.id, 1002)
+    notepad.rows[1].map:Click()
+    equal(title.text, beforeNotes)
+    notepad.rows[1].remove:Click()
+    equal(env.ForeverQuestNavigatorCharacterDB.questNotes[1002], nil)
+    equal(notepad.empty:IsShown(), true)
+
+    equal(env.BINDING_NAME_FOREVERQUESTNAVIGATOR_MAP, "Open active FQN quest map")
+    env.ForeverQuestNavigator_HandleBinding("map")
+    equal(selectedQuest, 1002)
+    env.ForeverQuestNavigator_HandleBinding("toggle")
+    equal(updatedTracker:IsShown(), false)
+    env.ForeverQuestNavigator_HandleBinding("toggle")
+    equal(updatedTracker:IsShown(), true)
+
+    env.ForeverQuestNavigatorDB.introSeen = nil
+    fire("PLAYER_ENTERING_WORLD")
+    flush()
+    local introduction = Window("Quick introduction")
+    equal(introduction:IsShown(), true)
+    introduction.next:Click()
+    equal(introduction.step, 2)
+    introduction.skip:Click()
+    equal(env.ForeverQuestNavigatorDB.introSeen, true)
+    fire("PLAYER_ENTERING_WORLD")
+    flush()
+    equal(introduction:IsShown(), false)
+    settingsByKey.introduction.callback()
+    equal(introduction.step, 1)
+    introduction.next:Click()
+    introduction.next:Click()
+    introduction.next:Click()
+    equal(introduction:IsShown(), false)
+    env.ForeverQuestNavigatorDB.introSeen = nil
+    local previousCombat = env.InCombatLockdown
+    env.InCombatLockdown = function() return true end
+    fire("PLAYER_ENTERING_WORLD")
+    flush()
+    equal(introduction:IsShown(), false)
+    env.InCombatLockdown = function() return false end
+    fire("PLAYER_REGEN_ENABLED")
+    flush()
+    equal(introduction:IsShown(), true)
+    introduction.skip:Click()
+    env.InCombatLockdown = previousCombat
     updatedTracker:Hide()
     equal(questieTicker.cancelled, true)
     currentXP, sessionNow = 300, 190

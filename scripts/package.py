@@ -39,6 +39,8 @@ def build(root, output, tag=None, channel=None):
 
     for name in (toc.name, "LICENSE", "README.md"):
         include(name)
+    if (root / "Bindings.xml").is_file():
+        include("Bindings.xml")
     for line in lines:
         if line.strip() and not line.lstrip().startswith("#"):
             include(line.strip())

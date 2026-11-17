@@ -34,6 +34,7 @@ function QuestLog.Read(api)
             local questID = info.questID
             local tag = api.GetQuestTagInfo and api.GetQuestTagInfo(questID)
             local group = tag and tag.tagID == 1 or addon.QuestieIntegration.GetQuestTagID(questID) == 1
+            local ready = api.IsComplete(questID)
             quests[#quests + 1] = {
                 id = questID,
                 title = info.title,
@@ -41,9 +42,10 @@ function QuestLog.Read(api)
                 elite = api.IsEliteQuest and api.IsEliteQuest(questID) == true,
                 group = group,
                 special = QuestLog.IsSpecialQuest(api, questID),
-                readyToTurnIn = api.IsComplete(questID),
+                readyToTurnIn = ready,
                 failed = api.IsFailed and api.IsFailed(questID),
                 disabled = api.IsQuestDisabledForSession and api.IsQuestDisabledForSession(questID),
+                progress = not ready and addon.QuestTools.Progress(api, questID) or nil,
             }
         end
     end

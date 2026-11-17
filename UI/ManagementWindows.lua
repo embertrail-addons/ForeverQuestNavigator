@@ -115,15 +115,17 @@ end
 
 function addon.ShowAccessManager(actions)
     if not accessWindow then
-        accessWindow = Panel(650, 490, L.AccessManager)
-        accessWindow.page, accessWindow.rows = 0, {}
+        accessWindow = Panel(650, 570, L.AccessManager)
+        accessWindow.page, accessWindow.rows, accessWindow.filterMode = 0, {}, "all"
         accessWindow.empty = addon.UI.CreateLabel(accessWindow, "GameFontHighlightSmall")
-        accessWindow.empty:SetPoint("TOPLEFT", 16, -55)
+        accessWindow.empty:SetPoint("TOPLEFT", 16, -105)
+        accessWindow.empty:SetPoint("TOPRIGHT", -16, -105)
+        accessWindow.empty:SetJustifyH("LEFT")
         accessWindow.empty:SetText(L.NoSavedAccess)
         for index = 1, 5 do
             local row = CreateFrame("Frame", nil, accessWindow)
-            row:SetPoint("TOPLEFT", 16, -50 - (index - 1) * 76)
-            row:SetPoint("TOPRIGHT", -16, -50 - (index - 1) * 76)
+            row:SetPoint("TOPLEFT", 16, -110 - (index - 1) * 76)
+            row:SetPoint("TOPRIGHT", -16, -110 - (index - 1) * 76)
             row:SetHeight(72)
             row.label = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
             row.label:SetPoint("TOPLEFT")
@@ -176,12 +178,14 @@ function addon.ShowAccessManager(actions)
         accessWindow.count = addon.UI.CreateLabel(accessWindow, "GameFontHighlightSmall")
         accessWindow.count:SetPoint("BOTTOMRIGHT", -16, 20)
         function accessWindow:Refresh()
-            local entries = self.actions.list()
+            local all = self.actions.list()
+            local entries = self.actions.filter(all, self.search:GetText(), self.filterMode)
             self.page = math.min(self.page, math.max(0, math.ceil(#entries / 5) - 1))
             self.empty:SetShown(#entries == 0)
+            self.empty:SetText(#all == 0 and L.NoSavedAccess or L.NoAccessMatches)
             self.previous:SetEnabled(self.page > 0)
             self.next:SetEnabled((self.page + 1) * 5 < #entries)
-            self.count:SetText(L.AccessCount:format(#entries))
+            self.count:SetText(L.AccessShowing:format(#entries, #all))
             for index, row in ipairs(self.rows) do
                 local entry = entries[self.page * 5 + index]
                 row.entry = entry
@@ -193,11 +197,39 @@ function addon.ShowAccessManager(actions)
                 end
             end
         end
+        local label = addon.UI.CreateLabel(accessWindow, "GameFontDisableSmall")
+        label:SetPoint("TOPLEFT", 16, -40)
+        label:SetText(L.SearchAccess)
+        accessWindow.search = CreateFrame("EditBox", nil, accessWindow, "InputBoxTemplate")
+        accessWindow.search:SetSize(400, 24)
+        accessWindow.search:SetPoint("TOPLEFT", 24, -61)
+        accessWindow.search:SetAutoFocus(false)
+        accessWindow.search:SetMaxLetters(100)
+        accessWindow.search:SetText("")
+        accessWindow.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        accessWindow.search:SetScript("OnTextChanged", function()
+            if not accessWindow.actions then return end
+            accessWindow.page = 0
+            accessWindow:Refresh()
+        end)
+        accessWindow.filter = Button(accessWindow, L.FilterAll, 185, function()
+            local modes = { "all", "current", "completed" }
+            for index, mode in ipairs(modes) do
+                if mode == accessWindow.filterMode then accessWindow.filterMode = modes[index % 3 + 1] break end
+            end
+            accessWindow.filter:SetText(({ all = L.FilterAll, current = L.FilterCurrent, completed = L.FilterCompleted })[accessWindow.filterMode])
+            accessWindow.page = 0
+            accessWindow:Refresh()
+        end)
+        accessWindow.filter:SetPoint("TOPRIGHT", -16, -61)
     end
     accessWindow.actions = actions
     accessWindow:Refresh()
     accessWindow:Show()
 end
+
+addon.UI.CreateUtilityPanel = Panel
+addon.UI.CreateUtilityButton = Button
 
 function addon.ShowAppearancePreview(settings)
     if not preview then

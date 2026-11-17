@@ -119,7 +119,8 @@ function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel, journe
             local gain = baseline - length
             local extraReturnCost = math.max(0,
                 addon.TravelSupport.PlanningPenalty(first, journeys and journeys[first.id], journeys ~= nil)
-                - addon.TravelSupport.PlanningPenalty(anchor, journeys and journeys[anchor.id], journeys ~= nil))
+                - addon.TravelSupport.PlanningPenalty(anchor, journeys and journeys[anchor.id], journeys ~= nil)
+                + addon.QuestPrioritizer.GetProgressBonus(anchor, playerLevel) - addon.QuestPrioritizer.GetProgressBonus(first, playerLevel))
             if gain > bestGain + extraReturnCost then bestOrder, bestLength, bestGain = order, length, gain end
         end
     end
@@ -167,7 +168,8 @@ function QuestRoute.Recommend(mapAPI, ranked, measurements, chains, playerLevel)
         if firstLeg then
             local savingsBeforeInsertion = a.yards + firstLeg - b.yards
             local penalty = addon.QuestPrioritizer.GetLevelPenalty(candidate, playerLevel)
-            local extraDifficulty = math.max(0, penalty - originalPenalty)
+            local extraDifficulty = math.max(0, penalty - originalPenalty
+                + addon.QuestPrioritizer.GetProgressBonus(original, playerLevel) - addon.QuestPrioritizer.GetProgressBonus(candidate, playerLevel))
             if savingsBeforeInsertion - extraDifficulty >= bestGain then
                 for stopIndex, stop in ipairs(chain.stops) do
                     local sharedDistance = shared[stopIndex]

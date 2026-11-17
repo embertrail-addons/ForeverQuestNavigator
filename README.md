@@ -8,7 +8,16 @@ The movable tracker shows one active quest and a configurable list of alternativ
 
 ## Client and installation
 
-Version **0.1.58** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
+Version **0.1.59** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
+
+### Changes in 0.1.59
+
+- **Almost done:** when all unfinished objectives have readable counters, at least 75% of counted progress is complete and only one to three units remain, FQN displays a subtle hint and the remaining enemy/item/task count. Attainable quests receive a small ranking bonus of 20–40 yards. Difficulty tiers and unknown-data handling remain in force. Drop chances and completion times are not inferred from counts.
+- **Taxi travel view:** the actual taxi-flight state temporarily condenses the tracker, hides the rotating arrow and shows the selected quest's next step after landing. The selected target stays stable during the flight, except for deliberate overrides or an invalidated quest. Landing restores the chosen Compact/Detailed view and normal recommendations. This is a continuation hint, not a prediction of where the flight lands. Ordinary mounts and non-flight control loss do not activate the view.
+- **Persistent notepad:** right-click an accepted quest or offer to remember it. `/fqn notes` or General settings opens the list. Entries have status, Map and Remove controls and are saved per character across reloads. Adding/removing notes does not pin, skip or otherwise change recommendation scores. Map uses a current known target when available, otherwise the saved position.
+- **Keyboard bindings:** configure FQN's show/hide, active quest map and hold/release actions in WoW's AddOns key bindings. No keys are assigned automatically. The native `Bindings.xml` is included in release ZIPs without being treated as a TOC UI file.
+- **Access search and filters:** search by quest, zone, saved name or ID; combine the search with All, In quest log or Completed. Filtering happens before pagination. Completed uses known turned-in flags; unknown/abandoned quests are not assumed complete.
+- **Quick introduction:** three short pages explain the arrow, skip checkboxes and right-click menus. It appears once until dismissed or completed, waits until out of combat, and can be reopened from General settings or `/fqn help`.
 
 ### Changes in 0.1.58
 
@@ -20,9 +29,9 @@ Version **0.1.58** targets **World of Warcraft: Forever 1.60.1**, interface **16
 
 ### Building a release
 
-Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.58-beta.zip`. Run `python -m unittest discover -s tests -p test_package.py` to test the packager.
+Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.59-beta.zip`. Run `python -m unittest discover -s tests -p test_package.py` to test the packager.
 
-For a tag build, first update the TOC version and changelog, commit and push the reviewed changes, then create and push a matching tag, for example `v0.1.58-beta`. A mismatched tag fails validation. The workflow's **ForeverQuestNavigator-package** artifact contains the installable addon ZIP; extract the artifact download to get that inner ZIP. Upload the addon ZIP to CurseForge yourself after reviewing and testing it in game.
+For a tag build, first update the TOC version and changelog, commit and push the reviewed changes, then create and push a matching tag, for example `v0.1.59-beta`. A mismatched tag fails validation. The workflow's **ForeverQuestNavigator-package** artifact contains the installable addon ZIP; extract the artifact download to get that inner ZIP. Upload the addon ZIP to CurseForge yourself after reviewing and testing it in game.
 
 ### Changes in 0.1.57
 
@@ -138,6 +147,10 @@ Run `lua tests/run.lua` from the addon directory with Lua 5.1. The suite compile
 21. Switch between Compact and Detailed with route details expanded. Check the active quest and goal remain the same, compact tooltips retain route/XP information, and Detailed restores the fields. Open the appearance preview and adjust opacity/text size; text must stay opaque.
 22. Open saved access points after finishing a quest. Rename, map and delete one point, checking other records remain. Test more than five entries and delete the last entry on the last page.
 23. Leave the live session dashboard open while gaining XP, then copy its summary. Earn more XP and verify the dashboard updates while the copied text stays unchanged.
+24. Progress a counted combat/item objective to one to three units remaining. Check Almost done appears, then clears at turn-in readiness. A new 0/1 objective or a quest with unknown counters must not receive the hint.
+25. Take a taxi flight with an active target. Check the condensed travel view, hidden arrow and after-landing hint, then confirm normal view/ranking return on landing. Repeat with the screen arrow disabled. A mount or fear/control-loss event without a taxi flight must keep the normal view.
+26. Remember an accepted quest and a nearby offer, open `/fqn notes`, then reload. Check entries remain and Map/Remove do not alter active selection. Search access points by zone/name and use each filter with more than one page of entries.
+27. Configure all three FQN key bindings and test them, including the map action during combat. Close the introduction and reload to confirm it stays dismissed; reopen it with `/fqn help`. Check first-run display defers during combat.
 - Click a nearby offer to open its quest giver on the map. Its tooltip shows the acceptance location, target zone, known XP, and the route reasons for a highlighted recommendation.
 13. Compare a short trip to A with a trip to B whose first or second known follow-up returns to A. Repeat with A in a neighboring zone. With a substantial estimated saving, FQN should select B, show the saving and point to B. Manually selecting A should hide the route note. Turn in B and confirm FQN recalculates from the live quest log.
 14. Open **Route details** for a quest with known coordinates and click **Map**. Verify that a gold diamond appears at the target and that it follows zoom and resizing. Switch to a different zone map and verify the diamond is hidden there. Expand the details for a follow-up route and verify the named stops.

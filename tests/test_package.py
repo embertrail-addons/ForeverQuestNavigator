@@ -49,6 +49,14 @@ class PackageTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 package.build(root, root / "out")
 
+    def test_native_bindings_are_included_without_a_toc_entry(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            (root / "Bindings.xml").write_text('<Bindings><Binding name="EXAMPLE"/></Bindings>', encoding="utf-8")
+            with ZipFile(package.build(root, root / "out")) as archive:
+                self.assertIn("ForeverQuestNavigator/Bindings.xml", archive.namelist())
+
 
 if __name__ == "__main__":
     unittest.main()
