@@ -1,8 +1,12 @@
 ## Interface: 16001
 ## Title: Forever Quest Navigator
+## Author: Embertrail Addons
 ## Notes: Recommends accepted quests by distance, level, and known follow-ups.
 ## Notes-deDE: Empfiehlt angenommene Quests nach Entfernung, Stufe und bekannten Folgequests.
 ## Version: 0.1.54
+## OptionalDeps: Questie, QuestieDB
+## X-License: All Rights Reserved
+## X-Website: https://github.com/embertrail-addons/ForeverQuestNavigator
 ## SavedVariables: ForeverQuestNavigatorDB
 ## SavedVariablesPerCharacter: ForeverQuestNavigatorCharacterDB
 

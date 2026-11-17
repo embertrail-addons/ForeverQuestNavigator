@@ -1,5 +1,7 @@
 # Forever Quest Navigator
 
+Copyright (c) 2026 Embertrail Addons. All rights reserved. See [LICENSE](LICENSE).
+
 Forever Quest Navigator recommends accepted quests using distance, level fit, and known follow-ups. It reads Blizzard quest log and map data and can compare targets across zone borders on the same continent. The separate level order breaks ties by quest ID and ranks quests without a usable level after quests with a known level. Failed and session-disabled quests are ineligible.
 
 The movable tracker shows one active quest and a configurable list of alternatives. The active quest shows its level and all quest objectives with the game's progress text when available. A completed quest in the log is labeled **Ready to turn in** and remains eligible until it is handed in. Each row shows an approximate distance when the map supplies usable coordinates. The active quest also has a direction arrow when the game exposes the character's facing. The tracker refreshes at login and on quest events. Events that arrive within the same 100 ms window share a refresh.
