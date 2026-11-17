@@ -2,17 +2,26 @@
 ## Title: Forever Quest Navigator
 ## Notes: Recommends accepted quests by distance, level, and known follow-ups.
 ## Notes-deDE: Empfiehlt angenommene Quests nach Entfernung, Stufe und bekannten Folgequests.
-## Version: 0.1.31
+## Version: 0.1.54
 ## SavedVariables: ForeverQuestNavigatorDB
 ## SavedVariablesPerCharacter: ForeverQuestNavigatorCharacterDB
 
 Core\Locale.lua
 Core\QuestLog.lua
 Core\QuestLocation.lua
+Core\AreaOverview.lua
 Core\Dependencies.lua
 Core\QuestieIntegration.lua
 Core\QuestieRoutes.lua
 Navigation\QuestPrioritizer.lua
 Navigation\QuestRoute.lua
+UI\NavigationDisplay.lua
+UI\QuestWidgets.lua
+UI\ActiveQuestCard.lua
+UI\QuestLists.lua
+UI\RoutePreview.lua
+UI\AreaOverview.lua
 UI\QuestTracker.lua
+UI\QuestMap.lua
+UI\QuestMap.xml
 Core\Bootstrap.lua

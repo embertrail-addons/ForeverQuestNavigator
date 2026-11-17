@@ -1,0 +1,7 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="ForeverQuestNavigatorTargetPinTemplate" virtual="true" enableMouse="true" enableMouseClicks="true">
+        <Scripts>
+            <OnLoad function="ForeverQuestNavigator_InitializeTargetPin"/>
+        </Scripts>
+    </Frame>
+</Ui>

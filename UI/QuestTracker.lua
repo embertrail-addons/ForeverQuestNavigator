@@ -1,135 +1,21 @@
 local _, addon = ...
 local L = addon.L
 
-local mapMarker, markedTarget, updateMapMarker
-
-function addon.ShowQuestMapMarker(target, removeMarker)
-    if target == markedTarget and mapMarker then return end
-    markedTarget = target
-    if not target then
-        if mapMarker then mapMarker:Hide() end
-        return
-    end
-    if not mapMarker then
-        local map = WorldMapFrame
-        if not (map and map.GetCanvas and map.GetMapID and map.OnMapChanged and hooksecurefunc) then return end
-        local canvas = map:GetCanvas()
-        if not canvas then return end
-        mapMarker = CreateFrame("Button", nil, canvas)
-        mapMarker:SetSize(20, 20)
-        mapMarker:SetFrameLevel(canvas:GetFrameLevel() + 50)
-        mapMarker:RegisterForClicks("RightButtonUp")
-        if mapMarker.SetPassThroughButtons then mapMarker:SetPassThroughButtons("LeftButton") end
-        mapMarker:SetScript("OnClick", function(_, button)
-            if button == "RightButton" then
-                GameTooltip:Hide()
-                removeMarker()
-            end
-        end)
-        mapMarker:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(L.MapMarker)
-            GameTooltip:AddLine(L.RemoveMarker)
-            GameTooltip:Show()
-        end)
-        mapMarker:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        local corners = { { 0, 10 }, { 10, 0 }, { 0, -10 }, { -10, 0 } }
-        for _, layer in ipairs({ "ARTWORK", "OVERLAY" }) do
-            for index, corner in ipairs(corners) do
-                local nextCorner = corners[index % #corners + 1]
-                local line = mapMarker:CreateLine(nil, layer)
-                if layer == "ARTWORK" then
-                    line:SetColorTexture(0.1, 0.06, 0.02, 1)
-                    line:SetThickness(5)
-                else
-                    line:SetColorTexture(1, 0.82, 0.34, 1)
-                    line:SetThickness(2)
-                end
-                line:SetStartPoint("CENTER", mapMarker, corner[1], corner[2])
-                line:SetEndPoint("CENTER", mapMarker, nextCorner[1], nextCorner[2])
-            end
-        end
-        updateMapMarker = function()
-            local visible = markedTarget and markedTarget.mapID == map:GetMapID()
-            if visible then
-                local width, height = canvas:GetSize()
-                mapMarker:ClearAllPoints()
-                mapMarker:SetPoint("CENTER", canvas, "TOPLEFT", width * markedTarget.x, -height * markedTarget.y)
-            end
-            mapMarker:SetShown(visible == true)
-        end
-        hooksecurefunc(map, "OnMapChanged", updateMapMarker)
-        canvas:HookScript("OnSizeChanged", updateMapMarker)
-    end
-    updateMapMarker()
-end
-
-local function FormatQuestTitle(quest)
-    local title = quest.title
-    if not title or title == "" then
-        title = L.QuestNumber:format(quest.id)
-    end
-    local level = addon.QuestPrioritizer.GetLevel(quest)
-    return level and ("[%d] %s"):format(level, title) or title
-end
+local FormatQuestTitle = addon.UI.FormatQuestTitle
 
 local function FormatDistance(measurement)
     return measurement and ("~%.0f yd"):format(measurement.yards) or "—"
 end
 
-local function MakeButton(parent)
-    local button = CreateFrame("Button", nil, parent)
-    local label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("CENTER")
-    button:SetFontString(label)
-    button:SetNormalFontObject(GameFontHighlightSmall)
-    button:SetDisabledFontObject(GameFontDisableSmall)
-    local background = button:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints()
-    background:SetColorTexture(0.18, 0.15, 0.11, 1)
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(0.74, 0.55, 0.28, 0.19)
-    return button
-end
+local ShowTextTooltip = addon.UI.ShowTextTooltip
+local HideTextTooltip = addon.UI.HideTextTooltip
 
-local function AddRowBackground(row, index)
-    local background = row:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints()
-    background:SetColorTexture(0.66, 0.47, 0.23, index % 2 == 1 and 0.11 or 0.045)
-end
 
-local function CreateDirectionArrow(parent, size)
-    local arrow = CreateFrame("Frame", nil, parent)
-    arrow:SetSize(size, size)
-    arrow:Hide()
-    local lines = {}
-    for index = 1, 3 do
-        local line = arrow:CreateLine(nil, "ARTWORK")
-        line:SetColorTexture(1, 0.82, 0.34, 1)
-        line:SetThickness(2)
-        lines[index] = line
-    end
-    local lastRight, lastForward
-    function arrow:SetDirection(right, forward)
-        if right == lastRight and forward == lastForward then return end
-        lastRight, lastForward = right, forward
-        if not right then
-            self:Hide()
-            return
-        end
-        local scale = size / 20
-        local tipX, tipY = 8 * scale * right, 8 * scale * forward
-        lines[1]:SetStartPoint("CENTER", self, -7 * scale * right, -7 * scale * forward)
-        lines[2]:SetStartPoint("CENTER", self, scale * (2 * right - 4 * forward), scale * (2 * forward + 4 * right))
-        lines[3]:SetStartPoint("CENTER", self, scale * (2 * right + 4 * forward), scale * (2 * forward - 4 * right))
-        for _, line in ipairs(lines) do line:SetEndPoint("CENTER", self, tipX, tipY) end
-        self:Show()
-    end
-    return arrow
-end
+local MakeButton = addon.UI.MakeButton
 
-function addon.CreateMinimapButton(tracker, settings, toggleTracker, openSettings)
+local CreateDirectionArrow = addon.CreateDirectionArrow
+
+function addon.CreateMinimapButton(settings, cycleDisplayMode, openSettings)
     local minimap = Minimap
     if not minimap then return end
     local button = CreateFrame("Button", nil, minimap)
@@ -165,7 +51,10 @@ function addon.CreateMinimapButton(tracker, settings, toggleTracker, openSetting
     local function ShowTooltip(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("Forever Quest Navigator")
-        GameTooltip:AddLine(tracker:IsShown() and L.HideTracker or L.ShowTracker)
+        local mode = settings.displayMode
+        local hint = mode == "off" and L.ShowTracker or L.HideAll
+        if mode == "full" and settings.showDirectionArrow then hint = L.OnlyArrow end
+        GameTooltip:AddLine(hint)
         GameTooltip:AddLine(L.MoveButton)
         GameTooltip:AddLine(L.OpenSettingsHint)
         GameTooltip:Show()
@@ -205,28 +94,14 @@ function addon.CreateMinimapButton(tracker, settings, toggleTracker, openSetting
             GameTooltip:Hide()
             openSettings()
         elseif not dragged then
-            toggleTracker()
+            cycleDisplayMode()
             ShowTooltip(self)
         end
     end)
     return button
 end
 
-local function CreateSkipCheckbox(parent, skipQuest)
-    local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    checkbox:SetSize(22, 22)
-    checkbox:SetScript("OnClick", function(self)
-        self:SetChecked(false)
-        skipQuest(self.quest)
-    end)
-    checkbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L.SkipQuest)
-        GameTooltip:Show()
-    end)
-    checkbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    return checkbox
-end
+local CreateSkipCheckbox = addon.UI.CreateSkipCheckbox
 
 local function ShowSkippedQuests(button, restoreQuest, restoreAll)
     local entries = {}
@@ -246,10 +121,34 @@ local function ShowSkippedQuests(button, restoreQuest, restoreAll)
     end)
 end
 
+local DEFAULT_TRACKER_WIDTH = 352
+local MIN_TRACKER_WIDTH = 330
+local MAX_TRACKER_WIDTH = 640
+
+local function ClampTrackerWidth(width)
+    if type(width) ~= "number" or width ~= width then return DEFAULT_TRACKER_WIDTH end
+    return math.min(MAX_TRACKER_WIDTH, math.max(MIN_TRACKER_WIDTH, width))
+end
+
 function addon.CreateQuestTracker(settings, actions, version)
+    addon.UI.SetFontSize(settings.fontPercent or 100)
     local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    frame:SetSize(352, 170)
-    frame:SetPoint("CENTER", UIParent, "CENTER", settings.x, settings.y)
+    settings.trackerWidth = ClampTrackerWidth(settings.trackerWidth)
+    frame:SetSize(settings.trackerWidth, 170)
+    local navigation, navigationStatus, undoSkip, routeStopPreview, restoreAvoided, areaOverview
+    local lastQuestID, lastGoalIndex, lastReady
+    local recommendationReason
+    local function AnchorTracker()
+        frame:ClearAllPoints()
+        frame:SetPoint("TOP", UIParent, "CENTER", settings.x, settings.y)
+    end
+    local function MigrateTrackerAnchor()
+        if settings.trackerTopAnchored then return end
+        if not settings.collapsed then settings.y = settings.y + frame:GetHeight() / 2 end
+        settings.trackerTopAnchored = true
+        AnchorTracker()
+    end
+    AnchorTracker()
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:SetBackdrop({
@@ -258,184 +157,172 @@ function addon.CreateQuestTracker(settings, actions, version)
         edgeSize = 12,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    frame:SetBackdropColor(0.07, 0.06, 0.045, 1)
-    frame:SetBackdropBorderColor(0.64, 0.46, 0.22, 1)
-    frame:SetAlpha(settings.opacityPercent / 100)
+    function frame:UpdateOpacity()
+        local opacity = settings.opacityPercent / 100
+        self:SetBackdropColor(0.07, 0.06, 0.045, opacity)
+        self:SetBackdropBorderColor(0.64, 0.46, 0.22, opacity)
+        navigation:UpdateOpacity()
+    end
 
     local header = CreateFrame("Frame", nil, frame)
     header:SetPoint("TOPLEFT", 8, -5)
-    header:SetPoint("TOPRIGHT", -102, -5)
+    header:SetPoint("TOPRIGHT", -74, -5)
     header:SetHeight(24)
     header:EnableMouse(true)
     header:RegisterForDrag("LeftButton")
     header:SetScript("OnDragStart", function()
+        if settings.lockTrackerPosition then return end
         frame:StartMoving()
     end)
     header:SetScript("OnDragStop", function()
+        if settings.lockTrackerPosition then return end
         frame:StopMovingOrSizing()
         local x, y = frame:GetCenter()
         local centerX, centerY = UIParent:GetCenter()
-        settings.x, settings.y = x - centerX, y - centerY
-        frame:ClearAllPoints()
-        frame:SetPoint("CENTER", UIParent, "CENTER", settings.x, settings.y)
+        settings.x, settings.y = x - centerX, y - centerY + frame:GetHeight() / 2
+        settings.trackerTopAnchored = true
+        AnchorTracker()
     end)
 
-    local heading = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local heading = addon.UI.CreateLabel(header, "GameFontNormal")
     heading:SetPoint("LEFT", 6, 0)
+    heading:SetJustifyH("LEFT")
+    heading:SetMaxLines(1)
     heading:SetText("Forever Quest Navigator")
 
     if version then
-        local versionLabel = header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        versionLabel:SetPoint("LEFT", heading, "RIGHT", 8, 0)
+        local versionLabel = addon.UI.CreateLabel(header, "GameFontDisableSmall")
+        versionLabel:SetPoint("RIGHT", -4, 0)
+        heading:SetPoint("RIGHT", versionLabel, "LEFT", -8, 0)
         versionLabel:SetText("v" .. version)
     end
 
     local settingsButton = MakeButton(frame)
-    settingsButton:SetSize(88, 22)
-    settingsButton:SetPoint("TOPRIGHT", -31, -5)
-    settingsButton:SetText(L.Settings)
+    settingsButton:SetSize(20, 20)
+    settingsButton:SetPoint("TOPRIGHT", -52, -6)
+    local settingsIcon = settingsButton:CreateTexture(nil, "ARTWORK")
+    settingsIcon:SetSize(16, 16)
+    settingsIcon:SetPoint("CENTER")
+    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo("OptionsIcon-Brown") then
+        settingsIcon:SetAtlas("OptionsIcon-Brown")
+    else
+        settingsIcon:SetTexture("Interface\\Icons\\Trade_Engineering")
+        settingsIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+    settingsButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L.Settings)
+        GameTooltip:Show()
+    end)
+    settingsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     settingsButton:SetScript("OnClick", actions.openSettings)
 
     local close = MakeButton(frame)
     close:SetSize(20, 20)
     close:SetPoint("TOPRIGHT", -8, -6)
     close:SetText("×")
-    close:SetScript("OnClick", function() frame:Hide() end)
-    frame:SetScript("OnShow", function() settings.hidden = false end)
-    frame:SetScript("OnHide", function() settings.hidden = not frame:IsShown() end)
+    close:SetScript("OnClick", actions.hideTracker)
 
-    local activeBackdrop = frame:CreateTexture(nil, "BACKGROUND")
-    activeBackdrop:SetPoint("TOPLEFT", 8, -29)
-    activeBackdrop:SetColorTexture(0.26, 0.19, 0.10, 0.55)
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", 40, -35)
-    title:SetPoint("TOPRIGHT", -104, -35)
-    title:SetJustifyH("LEFT")
-    title:SetMaxLines(2)
+    local content = CreateFrame("Frame", nil, frame)
+    content:SetAllPoints()
 
-    local objective = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    objective:SetPoint("TOPLEFT", title, "BOTTOMLEFT", -26, -5)
-    objective:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 90, -5)
-    objective:SetJustifyH("LEFT")
-    objective:SetMaxLines(3)
+    local card = addon.CreateActiveQuestCard(content)
+    local activeBackdrop, title, objective, activeDistance = card.backdrop, card.title, card.objective, card.distance
+    local goalRows = {}
+    local finishedToggle, finishedExpanded
+    local finishedCount, firstFinishedRow = 0, nil
+    local resetObjective, alternativesToggle, offersToggle
 
-    local activeDistance = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    activeDistance:SetPoint("TOPRIGHT", -14, -36)
-
-    local history = MakeButton(frame)
+    local history = MakeButton(content)
     history:SetSize(116, 22)
     history:SetPoint("BOTTOMLEFT", 14, 12)
     history:SetText(L.SkippedCount:format(0))
     history:SetScript("OnClick", function(self) ShowSkippedQuests(self, actions.restore, actions.resetSkips) end)
     history:SetEnabled(false)
+    history:Hide()
 
-    local auto = MakeButton(frame)
+    local auto = MakeButton(content)
     auto:SetSize(90, 22)
     auto:SetPoint("BOTTOMRIGHT", -14, 12)
     auto:SetText(L.AutoSelect)
-    auto:SetScript("OnClick", function() actions.select(nil) end)
+    auto:SetScript("OnClick", actions.resumeAutoSelect)
     auto:SetEnabled(false)
     auto:Hide()
 
-    local activeCheckbox = CreateSkipCheckbox(frame, actions.skip)
+    local activeCheckbox = CreateSkipCheckbox(content, actions.skip)
     activeCheckbox:SetPoint("TOPLEFT", 12, -31)
     activeCheckbox:Hide()
 
-    local alternativesLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local alternativesLabel = addon.UI.CreateLabel(content, "GameFontNormalSmall")
     alternativesLabel:SetText(L.Alternatives)
     alternativesLabel:Hide()
 
     local rows = {}
     for index = 1, 2 do
-        local row = CreateFrame("Button", nil, frame)
-        row:SetHeight(22)
-        AddRowBackground(row, index)
-
-        local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-        highlight:SetAllPoints()
-        highlight:SetColorTexture(1, 0.8, 0.25, 0.16)
-
-        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.label:SetPoint("LEFT", 26, 0)
-        row.label:SetPoint("RIGHT", -78, 0)
-        row.label:SetJustifyH("LEFT")
-        row.label:SetMaxLines(1)
-        row:SetScript("OnClick", function(self)
-            actions.select(self.questID)
-            actions.openQuestMap(self.questID)
-        end)
-        row.checkbox = CreateSkipCheckbox(row, actions.skip)
-        row.checkbox:SetPoint("LEFT", -2, 0)
-        row.distance = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.distance:SetPoint("RIGHT", 0, 0)
-        row.zone = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        row.zone:SetPoint("TOPRIGHT", 0, -22)
-        row.zone:SetJustifyH("RIGHT")
-        row.zone:SetMaxLines(1)
-        row.zone:Hide()
-        row:Hide()
+        local row = addon.CreateAcceptedQuestRow(content, actions, index)
         rows[index] = row
     end
 
-    local arrow = CreateDirectionArrow(frame, 20)
+    local arrow = CreateDirectionArrow(content, 20)
     arrow:SetPoint("TOPRIGHT", -76, -31)
 
     for _, row in ipairs(rows) do
         row.arrow = CreateDirectionArrow(row, 15)
         row.arrow:SetPoint("RIGHT", -63, 0)
     end
-    local offersLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local offersLabel = addon.UI.CreateLabel(content, "GameFontNormalSmall")
     offersLabel:SetText(L.NearbyQuests)
     offersLabel:Hide()
-    local routeNote = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local routeNote = addon.UI.CreateLabel(content, "GameFontNormalSmall")
     routeNote:SetJustifyH("LEFT")
     routeNote:SetMaxLines(1)
     routeNote:Hide()
     local offerRows = {}
     for index = 1, 3 do
-        local row = CreateFrame("Frame", nil, frame)
-        row:SetHeight(22)
-        AddRowBackground(row, index)
-        row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.label:SetPoint("LEFT", 5, 0)
-        row.label:SetPoint("RIGHT", -82, 0)
-        row.label:SetJustifyH("LEFT")
-        row.label:SetMaxLines(1)
-        row.distance = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.distance:SetPoint("RIGHT")
-        row.arrow = CreateDirectionArrow(row, 15)
-        row.arrow:SetPoint("RIGHT", -63, 0)
-        row:Hide()
+        local row = addon.CreateOfferQuestRow(content, actions, settings, index)
         offerRows[index] = row
     end
-    local routeToggle = CreateFrame("Button", nil, frame)
-    routeToggle:SetSize(96, 18)
+    local routeToggle = CreateFrame("Button", nil, content)
+    routeToggle:SetSize(60, 18)
     routeToggle:Hide()
-    local disclosure = routeToggle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    disclosure:SetPoint("RIGHT")
-    local routeDetails = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local disclosure = addon.UI.CreateLabel(routeToggle, "GameFontNormalSmall")
+    disclosure:SetPoint("CENTER")
+    local routeDetails = addon.UI.CreateLabel(content, "GameFontHighlightSmall")
     routeDetails:SetJustifyH("LEFT")
-    routeDetails:SetMaxLines(14)
     routeDetails:Hide()
+    local approachLabel, approachRows = nil, {}
     local routeExpanded, routeQuestID
-    local otherCount, offerCount = 0, 0
-    local questMap = CreateFrame("Button", nil, frame)
+    local otherCount = 0
+    local offerCount = 0
+    local alternativeOffset, offerOffset = 0, 0
+    local lastRender, lastOffers, lastOfferXP
+    local skippedCount = 0
+    local manualSelection = false
+    local questMap = CreateFrame("Button", nil, content)
     questMap:SetAllPoints(title)
     questMap:SetScript("OnClick", function(self) actions.openQuestMap(self.questID) end)
     questMap:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L.OpenQuestMap)
-        GameTooltip:Show()
+        ShowTextTooltip(self, title:GetText(), (recommendationReason or "") .. "\n" .. L.OpenQuestMap)
     end)
-    questMap:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    questMap:SetScript("OnLeave", HideTextTooltip)
+    questMap:SetScript("OnHide", HideTextTooltip)
     questMap:Hide()
-    local activeZone = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local activeZone = addon.UI.CreateLabel(content, "GameFontNormalSmall")
     activeZone:SetPoint("TOPLEFT", title, "BOTTOMLEFT", -26, -5)
     activeZone:SetPoint("TOPRIGHT", title, "BOTTOMRIGHT", 90, -5)
     activeZone:SetJustifyH("LEFT")
     activeZone:SetMaxLines(1)
     activeZone:Hide()
-    local routeMap, nearbyStopsButton
+    local routeMap, nearbyStopsButton, activeReward
+
+    local function CreateRewardLabel(parent)
+        local label = addon.UI.CreateLabel(parent, "GameFontHighlightSmall")
+        label:SetJustifyH("LEFT")
+        label:SetTextColor(0.68, 0.86, 1)
+        label:SetMaxLines(2)
+        label:Hide()
+        return label
+    end
 
     local function CreateRouteMap(parent, details, getQuestID)
         local button = MakeButton(parent)
@@ -457,81 +344,227 @@ function addon.CreateQuestTracker(settings, actions, version)
         row.routeDetails:SetShown(row.routeExpanded == true)
         row.routeMap:SetShown(row.routeExpanded == true)
         row.routeLabel:SetText(row.routeExpanded and L.HideRoute or L.RouteDetails)
-        local detailHeight = row.routeExpanded and math.max(16, row.routeDetails:GetStringHeight()) + 8 or 0
-        local height = (row.zone:IsShown() or row.routeButton:IsShown()) and (34 + detailHeight) or 22
-        local offset = (height - 22) / 2
+        local lineHeight = math.max(22, row.label:GetStringHeight() + 6, row.distance:GetStringHeight() + 6)
+        local secondaryHeight = math.max(14, row.reward:GetStringHeight() + 2, row.zone:GetStringHeight() + 2,
+            row.routeLabel:GetStringHeight() + 2)
+        local height = lineHeight
+        if row.zone:IsShown() or row.routeButton:IsShown() or row.reward:IsShown() then
+            height = height + secondaryHeight
+        end
+        local labelRight = row.routeButton:IsShown() and -102 or -4
+        row.reward:ClearAllPoints()
+        row.reward:SetPoint("TOPLEFT", 26, -lineHeight + 2)
+        row.reward:SetPoint("TOPRIGHT", labelRight, -lineHeight + 2)
+        row.zone:ClearAllPoints()
+        row.zone:SetPoint("TOPLEFT", 26, -lineHeight + 2)
+        row.zone:SetPoint("TOPRIGHT", labelRight, -lineHeight + 2)
+        row.routeButton:SetPoint("TOPRIGHT", 0, -lineHeight + 4)
+        row.routeButton:SetHeight(secondaryHeight)
+        row.routeDetails:ClearAllPoints()
+        row.routeDetails:SetPoint("TOPLEFT", 26, -height - 3)
+        row.routeDetails:SetPoint("TOPRIGHT", -54, -height - 3)
+        if row.routeExpanded then height = height + math.max(16, row.routeDetails:GetStringHeight()) + 8 end
+        local offset = (height - lineHeight) / 2
         row:SetHeight(height)
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", 26, offset)
-        row.label:SetPoint("RIGHT", -78, offset)
+        local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
+        row.label:SetPoint("RIGHT", -distanceWidth - 18, offset)
         row.distance:ClearAllPoints()
         row.distance:SetPoint("RIGHT", 0, offset)
         row.arrow:ClearAllPoints()
-        row.arrow:SetPoint("RIGHT", -63, offset)
-        row.zone:SetPoint("TOPLEFT", row.routeButton:IsShown() and 130 or 26, -22)
+        row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
+        row.checkbox:ClearAllPoints()
+        row.checkbox:SetPoint("LEFT", -2, offset)
+    end
+
+    local function LayoutSection(toggle, label, caption, collapsed, list, count, y)
+        local shown = not settings.collapsed and count > 0
+        local expanded = shown and not collapsed
+        toggle:SetShown(shown)
+        label:SetShown(shown)
+        if shown then
+            toggle:ClearAllPoints()
+            toggle:SetPoint("TOPLEFT", 14, -y - 8)
+            toggle:SetPoint("TOPRIGHT", -14, -y - 8)
+            local offset = list == rows and alternativeOffset or offerOffset
+            local limit = list == rows and (settings.acceptedRows or 2) or (settings.offerRows or 3)
+            local countText = tostring(count)
+            if count > limit and expanded then
+                countText = ("%d–%d/%d"):format(offset + 1, math.min(offset + limit, count), count)
+            end
+            label:SetText(("%s  %s (%s)"):format(expanded and "−" or "+", caption, countText))
+            y = y + 27
+        end
+        for index, row in ipairs(list) do
+            local offset = list == rows and alternativeOffset or offerOffset
+            local limit = list == rows and (settings.acceptedRows or 2) or (settings.offerRows or 3)
+            row:SetShown(expanded and index <= math.min(limit, count - offset))
+            if row:IsShown() then
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 14, -y)
+                row:SetPoint("TOPRIGHT", -14, -y)
+                y = y + row:GetHeight() + 1
+            end
+        end
+        return y
     end
 
     local function UpdateHeight()
+        local scale = (settings.fontPercent or 100) / 100
+        resetObjective:SetSize(134 * scale, math.max(16, 16 * scale))
+        routeMap:SetSize(42 * scale, math.max(16, 16 * scale))
+        routeToggle:SetSize(60 * scale, math.max(18, 18 * scale))
+        undoSkip:SetHeight(math.max(22, undoSkip:GetFontString():GetStringHeight() + 6))
+        history:SetSize(116 * scale, math.max(22, 22 * scale))
+        auto:SetSize(90 * scale, math.max(22, 22 * scale))
+        local targeted = goalRows[1] and goalRows[1].goal and goalRows[1].active
+        local distanceWidth = math.max(60, activeDistance:GetStringWidth() + 5)
+        activeDistance:ClearAllPoints()
+        arrow:ClearAllPoints()
+        if targeted then
+            activeDistance:SetPoint("TOPRIGHT", goalRows[1], "TOPRIGHT", 0, -1)
+            arrow:SetPoint("TOPRIGHT", goalRows[1], "TOPRIGHT", -distanceWidth - 1, 4)
+        else
+            activeDistance:SetPoint("TOPRIGHT", -14, -36)
+            arrow:SetPoint("TOPRIGHT", -distanceWidth - 16, -31)
+        end
+        title:SetPoint("TOPRIGHT", targeted and -14 or -distanceWidth - 44, -35)
         local detailsBottom = 40 + title:GetStringHeight() + objective:GetStringHeight()
-        if activeZone:IsShown() then detailsBottom = detailsBottom + activeZone:GetStringHeight() + 5 end
+        finishedToggle:SetShown(finishedCount > 0)
+        if finishedCount > 0 then
+            local label = finishedCount == 1 and L.FinishedObjective or L.FinishedObjectives
+            finishedToggle:SetText((finishedExpanded and "−  " or "+  ") .. label:format(finishedCount))
+        end
+        for index, row in ipairs(goalRows) do
+            if index == firstFinishedRow then
+                finishedToggle:ClearAllPoints()
+                finishedToggle:SetPoint("TOPLEFT", 14, -detailsBottom)
+                finishedToggle:SetPoint("TOPRIGHT", -14, -detailsBottom)
+                finishedToggle:SetHeight(math.max(17, finishedToggle:GetFontString():GetStringHeight() + 5))
+                detailsBottom = detailsBottom + finishedToggle:GetHeight() + 1
+            end
+            row:SetShown(row.goal ~= nil and (not row.goal.finished or finishedExpanded == true))
+            if row:IsShown() then
+                row.label:SetPoint("TOPRIGHT", row.active and -distanceWidth - 28 or -2, -1)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 14, -detailsBottom)
+                row:SetPoint("TOPRIGHT", -14, -detailsBottom)
+                local height = math.max(15, row.label:GetStringHeight() + 2)
+                row:SetHeight(height)
+                detailsBottom = detailsBottom + height
+                if row.locked then
+                    resetObjective:ClearAllPoints()
+                    resetObjective:SetPoint("TOPLEFT", 27, -detailsBottom - 1)
+                    detailsBottom = detailsBottom + resetObjective:GetHeight() + 3
+                end
+            end
+        end
+        if activeZone:IsShown() then
+            activeZone:ClearAllPoints()
+            activeZone:SetPoint("TOPLEFT", 14, -detailsBottom - 2)
+            activeZone:SetPoint("TOPRIGHT", -14, -detailsBottom - 2)
+            detailsBottom = detailsBottom + activeZone:GetStringHeight() + 4
+        end
+        if restoreAvoided and restoreAvoided:IsShown() then
+            restoreAvoided:ClearAllPoints()
+            restoreAvoided:SetPoint("TOPLEFT", 14, -detailsBottom - 2)
+            restoreAvoided:SetPoint("TOPRIGHT", -14, -detailsBottom - 2)
+            restoreAvoided:SetHeight(math.max(20, restoreAvoided:GetFontString():GetStringHeight() + 6))
+            detailsBottom = detailsBottom + restoreAvoided:GetHeight() + 4
+        end
+        if navigationStatus and navigationStatus:IsShown() then
+            navigationStatus:ClearAllPoints()
+            navigationStatus:SetPoint("TOPLEFT", 14, -detailsBottom - 2)
+            navigationStatus:SetPoint("TOPRIGHT", -14, -detailsBottom - 2)
+            detailsBottom = detailsBottom + navigationStatus:GetStringHeight() + 4
+        end
+        local metaY = detailsBottom + 4
+        local actionsWidth = (routeMap:IsShown() and 47 * scale or 0) + (routeToggle:IsShown() and 62 * scale or 0)
+        local noteSharesRow = routeNote:IsShown() and not activeReward:IsShown()
+        routeNote:ClearAllPoints()
+        routeNote:SetPoint("TOPLEFT", 14, -metaY)
+        routeNote:SetPoint("TOPRIGHT", -14 - (noteSharesRow and actionsWidth or 0), -metaY)
+        if routeNote:IsShown() and activeReward:IsShown() then
+            metaY = metaY + routeNote:GetStringHeight() + 3
+        end
+        local metaHeight = (actionsWidth > 0 or routeNote:IsShown()) and math.max(16, 18 * scale) or 0
+        if activeReward:IsShown() then
+            activeReward:ClearAllPoints()
+            activeReward:SetPoint("TOPLEFT", 14, -metaY)
+            activeReward:SetPoint("TOPRIGHT", -14 - actionsWidth, -metaY)
+            metaHeight = math.max(metaHeight, activeReward:GetStringHeight())
+        end
+        routeToggle:ClearAllPoints()
+        routeToggle:SetPoint("TOPRIGHT", routeMap:IsShown() and -14 - 47 * scale or -14, -metaY + 2)
+        routeMap:ClearAllPoints()
+        routeMap:SetPoint("TOPRIGHT", -14, -metaY + 1)
+        local previewY = metaY + metaHeight + 2
+        routeDetails:ClearAllPoints()
+        routeDetails:SetPoint("TOPLEFT", 14, -previewY)
+        routeDetails:SetPoint("TOPRIGHT", -14, -previewY)
         local previewHeight = routeDetails:IsShown() and math.max(16, routeDetails:GetStringHeight()) + 8 or 0
-        local activeBottom = math.max(68, detailsBottom +
-            ((routeToggle:IsShown() or routeNote:IsShown()) and 23 or 8) + previewHeight)
+        local activeBottom = math.max(68, previewY + previewHeight + 2)
+        if routeStopPreview and routeStopPreview:IsShown() then
+            routeStopPreview:ClearAllPoints()
+            routeStopPreview:SetPoint("TOPLEFT", 14, -activeBottom)
+            routeStopPreview:SetPoint("TOPRIGHT", -14, -activeBottom)
+            routeStopPreview:Layout()
+            activeBottom = activeBottom + routeStopPreview:GetHeight() + 5
+        end
+        local showApproach = routeDetails:IsShown() and approachRows[1] and approachRows[1].questID ~= nil
+        approachLabel:SetShown(showApproach == true)
+        if showApproach then
+            approachLabel:ClearAllPoints()
+            approachLabel:SetPoint("TOPLEFT", 14, -activeBottom)
+            activeBottom = activeBottom + 16
+        end
+        for _, row in ipairs(approachRows) do
+            row:SetShown(showApproach == true and row.questID ~= nil)
+            if row:IsShown() then
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 14, -activeBottom)
+                row:SetPoint("TOPRIGHT", -14, -activeBottom)
+                activeBottom = activeBottom + row:GetHeight() + 2
+            end
+        end
         if nearbyStopsButton:IsShown() then
             nearbyStopsButton:ClearAllPoints()
             nearbyStopsButton:SetPoint("TOPLEFT", 14, -activeBottom)
-            activeBottom = activeBottom + 24
+            activeBottom = activeBottom + 17
+        end
+        if undoSkip and undoSkip:IsShown() then
+            undoSkip:ClearAllPoints()
+            undoSkip:SetPoint("TOPLEFT", 14, -activeBottom - 2)
+            undoSkip:SetPoint("TOPRIGHT", -14, -activeBottom - 2)
+            activeBottom = activeBottom + undoSkip:GetHeight() + 4
         end
         activeBackdrop:ClearAllPoints()
         activeBackdrop:SetPoint("TOPLEFT", 8, -29)
-        activeBackdrop:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -8, -activeBottom)
-        routeNote:ClearAllPoints()
-        routeNote:SetPoint("TOPLEFT", 14, -detailsBottom - 6)
-        routeNote:SetPoint("TOPRIGHT", routeToggle:IsShown() and -112 or -14, -detailsBottom - 6)
-        routeToggle:ClearAllPoints()
-        disclosure:ClearAllPoints()
-        if routeNote:IsShown() then
-            routeToggle:SetPoint("TOPRIGHT", -14, -detailsBottom - 3)
-            disclosure:SetPoint("RIGHT")
-        else
-            routeToggle:SetPoint("TOPLEFT", 14, -detailsBottom - 3)
-            disclosure:SetPoint("LEFT")
+        activeBackdrop:SetPoint("BOTTOMRIGHT", content, "TOPRIGHT", -8, -activeBottom)
+        local showLists = not settings.collapsed
+        history:SetShown(showLists and skippedCount > 0)
+        auto:SetShown(showLists and manualSelection)
+        local y = LayoutSection(alternativesToggle, alternativesLabel, L.Alternatives,
+            settings.alternativesCollapsed, rows, otherCount, activeBottom)
+        y = LayoutSection(offersToggle, offersLabel, L.NearbyQuests,
+            settings.offersCollapsed, offerRows, offerCount, y)
+        if areaOverview then areaOverview:Layout() end
+        if areaOverview and areaOverview:IsShown() then
+            areaOverview:ClearAllPoints()
+            areaOverview:SetPoint("TOPLEFT", 14, -y - 9)
+            areaOverview:SetPoint("TOPRIGHT", -14, -y - 9)
+            areaOverview:Layout()
+            y = y + areaOverview:GetHeight() + 9
         end
-        routeDetails:ClearAllPoints()
-        routeDetails:SetPoint("TOPLEFT", 14, -detailsBottom - 24)
-        routeDetails:SetPoint("TOPRIGHT", -64, -detailsBottom - 24)
-
-        alternativesLabel:ClearAllPoints()
-        alternativesLabel:SetPoint("TOPLEFT", 14, -activeBottom - 12)
-        local y, rowBlockHeight = -activeBottom - 30, 0
-        for _, row in ipairs(rows) do
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 14, y)
-            row:SetPoint("TOPRIGHT", -14, y)
-            if row:IsShown() then
-                local height = row:GetHeight() + 1
-                y, rowBlockHeight = y - height, rowBlockHeight + height
-            end
-        end
-        local offersHeight = offerCount > 0 and 21 + 22 * offerCount or 0
-        local sectionGap = (otherCount > 0 and offerCount > 0) and 12 or 0
-        local footerGap = (otherCount > 0 or offerCount > 0) and 10 or 0
-        frame:SetHeight(activeBottom + (otherCount > 0 and 61 + rowBlockHeight or 45)
-            + offersHeight + sectionGap + footerGap)
-        offersLabel:ClearAllPoints()
-        offersLabel:SetPoint("BOTTOMLEFT", 14, 43 + 22 * offerCount + footerGap)
-        for index, row in ipairs(offerRows) do
-            local y = 36 + 22 * (offerCount - index) + footerGap
-            row:ClearAllPoints()
-            row:SetPoint("BOTTOMLEFT", 14, y)
-            row:SetPoint("BOTTOMRIGHT", -14, y)
-        end
+        local bottomPadding = settings.allowTrackerResize and 16 or 9
+        frame:SetHeight(y + ((history:IsShown() or auto:IsShown()) and 22 + math.max(22, 22 * scale) or bottomPadding))
     end
 
     local function ShowRouteDetails(show)
         routeDetails:SetShown(show)
-        routeMap:SetShown(show)
-        disclosure:SetText(show and L.HideRoute or L.RouteDetails)
+        if routeStopPreview then routeStopPreview:SetExpanded(show) end
+        disclosure:SetText((show and "− " or "+ ") .. L.Route)
     end
 
     routeToggle:SetScript("OnClick", function()
@@ -540,15 +573,13 @@ function addon.CreateQuestTracker(settings, actions, version)
         UpdateHeight()
     end)
 
-    for _, row in ipairs(rows) do
+    local function InitializeAcceptedRow(row)
         row.routeButton = CreateFrame("Button", nil, row)
         row.routeButton:SetSize(96, 15)
-        row.routeButton:SetPoint("TOPLEFT", 26, -20)
-        row.routeLabel = row.routeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        row.routeLabel:SetPoint("LEFT")
-        row.routeDetails = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.routeDetails:SetPoint("TOPLEFT", 26, -37)
-        row.routeDetails:SetPoint("TOPRIGHT", -54, -37)
+        row.routeButton:SetPoint("TOPRIGHT", 0, -18)
+        row.routeLabel = addon.UI.CreateLabel(row.routeButton, "GameFontNormalSmall")
+        row.routeLabel:SetPoint("RIGHT")
+        row.routeDetails = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
         row.routeDetails:SetJustifyH("LEFT")
         row.routeDetails:SetMaxLines(7)
         row.routeButton:Hide()
@@ -559,13 +590,19 @@ function addon.CreateQuestTracker(settings, actions, version)
             UpdateHeight()
         end)
     end
-    routeMap = CreateRouteMap(frame, routeDetails, function() return routeQuestID end)
+    for _, row in ipairs(rows) do InitializeAcceptedRow(row) end
+    routeMap = CreateRouteMap(content, routeDetails, function() return routeQuestID end)
     frame.routeMap = routeMap
     for _, row in ipairs(rows) do
         row.routeMap = CreateRouteMap(row, row.routeDetails, function() return row.questID end)
     end
-    nearbyStopsButton = MakeButton(frame)
-    nearbyStopsButton:SetSize(196, 18)
+    nearbyStopsButton = CreateFrame("Button", nil, content)
+    nearbyStopsButton:SetSize(196, 15)
+    local nearbyLabel = addon.UI.CreateLabel(nearbyStopsButton, "GameFontNormalSmall")
+    nearbyLabel:SetPoint("LEFT")
+    nearbyStopsButton:SetFontString(nearbyLabel)
+    nearbyStopsButton:SetNormalFontObject(addon.UI.GetFont("GameFontNormalSmall"))
+    nearbyStopsButton:SetHighlightFontObject(addon.UI.GetFont("GameFontHighlightSmall"))
     nearbyStopsButton:Hide()
     frame.nearbyStopsButton = nearbyStopsButton
     nearbyStopsButton:SetScript("OnClick", function(button)
@@ -579,58 +616,248 @@ function addon.CreateQuestTracker(settings, actions, version)
             end
         end)
     end)
+    activeReward = CreateRewardLabel(content)
+    for _, row in ipairs(rows) do
+        row.reward = CreateRewardLabel(row)
+        row.reward:SetMaxLines(1)
+    end
+
+    resetObjective = MakeButton(content)
+    resetObjective:SetSize(134, 16)
+    resetObjective:SetText(L.AutomaticObjective)
+    resetObjective:SetScript("OnClick", function() actions.selectObjective() end)
+    resetObjective:Hide()
+
+    local function CreateSectionToggle(label, setting)
+        local toggle = CreateFrame("Button", nil, content)
+        toggle:SetHeight(20)
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", toggle, "LEFT", 0, 0)
+        label:SetPoint("RIGHT", toggle, "RIGHT", 0, 0)
+        label:SetJustifyH("LEFT")
+        local highlight = toggle:CreateTexture(nil, "HIGHLIGHT")
+        highlight:SetAllPoints()
+        highlight:SetColorTexture(0.74, 0.55, 0.28, 0.19)
+        toggle:SetScript("OnClick", function()
+            settings[setting] = not settings[setting]
+            UpdateHeight()
+        end)
+        return toggle
+    end
+    alternativesToggle = CreateSectionToggle(alternativesLabel, "alternativesCollapsed")
+    offersToggle = CreateSectionToggle(offersLabel, "offersCollapsed")
+
+    finishedToggle = MakeButton(content)
+    finishedToggle:SetHeight(17)
+    local finishedLabel = finishedToggle:GetFontString()
+    finishedLabel:ClearAllPoints()
+    finishedLabel:SetPoint("LEFT", 6, 0)
+    finishedLabel:SetPoint("RIGHT", -6, 0)
+    finishedLabel:SetJustifyH("LEFT")
+    finishedToggle:SetScript("OnClick", function()
+        finishedExpanded = not finishedExpanded
+        UpdateHeight()
+    end)
+    finishedToggle:Hide()
+
+    approachLabel = addon.UI.CreateLabel(content, "GameFontNormalSmall")
+    approachLabel:SetText(L.OnTheWay)
+    approachLabel:Hide()
+
+    undoSkip = MakeButton(content)
+    undoSkip:SetHeight(22)
+    undoSkip:Hide()
+    undoSkip:SetScript("OnClick", function(self)
+        local id = self.questID
+        self:Hide()
+        self.questID = nil
+        UpdateHeight()
+        if id then actions.restore(id) end
+    end)
+    undoSkip:SetScript("OnUpdate", function(self, elapsed)
+        self.remaining = self.remaining - elapsed
+        if self.remaining <= 0 then
+            self:Hide()
+            self.questID = nil
+            UpdateHeight()
+        end
+    end)
+    undoSkip:SetScript("OnEnter", function(self) ShowTextTooltip(self, self.questTitle, L.UndoSkip) end)
+    undoSkip:SetScript("OnLeave", HideTextTooltip)
+    undoSkip:SetScript("OnHide", HideTextTooltip)
+    function frame:ShowUndoSkip(quest)
+        undoSkip.questID, undoSkip.questTitle, undoSkip.remaining = quest.id, quest.title, 8
+        undoSkip:SetText(L.UndoSkip)
+        undoSkip:Show()
+        UpdateHeight()
+    end
 
     title:SetText(L.ReadingQuestLog)
     UpdateHeight()
     frame:SetShown(not settings.hidden)
 
-    function frame:RenderNearbyOffers(offers)
-        local count = 0
+    function frame:RenderNearbyOffers(offers, showXP)
+        lastOffers, lastOfferXP = offers, showXP
+        offerCount = offers and #offers or 0
+        offerOffset = math.min(offerOffset, math.max(0, offerCount - (settings.offerRows or 3)))
         for index, row in ipairs(offerRows) do
-            local offer = offers and offers[index]
+            local offer = offers and offers[index + offerOffset]
             row.measurement = offer
             if offer then
-                count = count + 1
                 row.label:SetText(FormatQuestTitle(offer))
                 row.distance:SetText(FormatDistance(offer))
+                local notes = {}
+                row.recommendation:SetShown(offer.recommended == true)
+                if offer.recommended then
+                    notes[#notes + 1] = "|cffffc447" .. L.RecommendedOffer .. "|r"
+                end
+                if showXP and offer.xp then notes[#notes + 1] = L.QuestXPReward:format(offer.xp) end
+                if offer.objectiveZone then notes[#notes + 1] = L.OfferObjectiveZone:format(offer.objectiveZone) end
+                if offer.nearActiveTarget then notes[#notes + 1] = L.OfferNearActiveTarget end
+                row.details:SetText(table.concat(notes, " · "))
+                row.details:SetShown(#notes > 0)
+                local lineHeight = math.max(22, row.label:GetStringHeight() + 6, row.distance:GetStringHeight() + 6)
+                row.details:SetPoint("TOPLEFT", 5, -lineHeight + 2)
+                row.details:SetPoint("TOPRIGHT", -3, -lineHeight + 2)
+                local height = #notes > 0 and math.max(34, lineHeight + 1 + row.details:GetStringHeight()) or lineHeight
+                row:SetHeight(height)
+                local offset = (height - lineHeight) / 2
+                row.label:SetPoint("LEFT", 5, offset)
+                local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
+                row.label:SetPoint("RIGHT", -distanceWidth - 22, offset)
+                row.distance:SetPoint("RIGHT", 0, offset)
+                row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
             end
-            row:SetShown(offer ~= nil)
         end
-        offersLabel:SetShown(count > 0)
-        if count == offerCount then return end
-        offerCount = count
         UpdateHeight()
     end
 
-    function frame:Render(quest, objectiveText, skippedQuests, alternatives, manualSelection, routeText, routePreview, zones, routes, nearbyStops)
+
+    local function RenderObjectiveTargets(targets)
+        navigation.goal:SetText("")
+        restoreAvoided:SetShown(targets ~= nil and (targets.avoidedCount or 0) > 0)
+        resetObjective:SetShown(targets ~= nil and targets.locked == true)
+        finishedCount, firstFinishedRow = 0, nil
+        local ordered = {}
+        if targets then
+            for _, goal in ipairs(targets) do ordered[#ordered + 1] = goal end
+            table.sort(ordered, function(a, b)
+                if a.index == targets.index then return b.index ~= targets.index end
+                if b.index == targets.index then return false end
+                if a.finished ~= b.finished then return not a.finished end
+                return a.index < b.index
+            end)
+        end
+        for position, goal in ipairs(ordered) do
+            local row = goalRows[position] or addon.CreateObjectiveRow(content, actions)
+            goalRows[position] = row
+            local active = goal.index == targets.index
+            row.goal = goal
+            row.active = active
+            row.locked = active and targets.locked
+            row.goalHighlight:SetShown(goal.selectable)
+            row.indicator:SetText(goal.avoided and "×" or (active and (row.locked and "•" or ">") or ""))
+            if goal.finished or goal.avoided then
+                firstFinishedRow = firstFinishedRow or position
+                finishedCount = finishedCount + 1
+                row.label:SetTextColor(0.67, 0.67, 0.67)
+            elseif active then
+                row.label:SetTextColor(1, 0.82, 0.34)
+                navigation.goal:SetText(goal.text)
+            else
+                row.label:SetTextColor(1, 1, 1)
+            end
+            row.label:SetText(goal.text)
+            row.label:ClearAllPoints()
+            row.label:SetPoint("TOPLEFT", 13, -1)
+            row.label:SetPoint("TOPRIGHT", active and -88 or -2, -1)
+        end
+        for position = #ordered + 1, #goalRows do
+            goalRows[position].goal = nil
+        end
+    end
+
+    local function RenderApproachStops(stops)
+        local count = stops and math.min(#stops, 3) or 0
+        for index = 1, count do
+            local quest = stops[index].quest
+            local row = approachRows[index]
+            if not row then
+                row = MakeButton(content)
+                row:SetHeight(20)
+                local label = row:GetFontString()
+                label:ClearAllPoints()
+                label:SetPoint("LEFT", 6, 0)
+                label:SetPoint("RIGHT", -6, 0)
+                label:SetJustifyH("LEFT")
+                label:SetMaxLines(1)
+                row:SetScript("OnClick", function(self) actions.openQuestMap(self.questID) end)
+                row:SetScript("OnEnter", function(self)
+                    ShowTextTooltip(self, self:GetText(), L.ShowMapTarget)
+                end)
+                row:SetScript("OnLeave", HideTextTooltip)
+                row:SetScript("OnHide", HideTextTooltip)
+                approachRows[index] = row
+            end
+            row.questID = quest.id
+            local format = quest.readyToTurnIn and L.OnTheWayTurnIn or L.OnTheWayObjective
+            row:SetText(format:format(FormatQuestTitle(quest)))
+        end
+        for index = count + 1, #approachRows do approachRows[index].questID = nil end
+    end
+
+    function frame:Render(quest, objectiveText, skippedQuests, alternatives, hasManualSelection, routeText, routePreview,
+        zones, routes, nearbyStops, rewards, targets, hasMap, approachStops, reason, previewStops, area)
+        lastRender = { quest, objectiveText, skippedQuests, alternatives, hasManualSelection, routeText, routePreview,
+            zones, routes, nearbyStops, rewards, targets, hasMap, approachStops, reason, previewStops, area }
+        areaOverview:SetData(area)
+        recommendationReason = reason
+        if undoSkip.questID and not skippedQuests[undoSkip.questID] then undoSkip:Hide() end
         activeCheckbox.quest = quest
+        local goalIndex = targets and targets.index
+        if quest and lastQuestID then
+            if quest.id == lastQuestID and quest.readyToTurnIn and not lastReady then
+                navigation:Notify(L.QuestNowReady)
+            elseif quest.id ~= lastQuestID then
+                navigation:Notify(L.ActiveQuestChanged)
+            elseif goalIndex and goalIndex ~= lastGoalIndex then
+                navigation:Notify(L.NavigationGoalChanged)
+            end
+        end
+        lastQuestID, lastGoalIndex, lastReady = quest and quest.id, goalIndex, quest and quest.readyToTurnIn
+        if routeQuestID ~= (quest and quest.id) then finishedExpanded = false end
+        navigation.title:SetText(quest and FormatQuestTitle(quest) or "")
+        RenderObjectiveTargets(targets)
         activeCheckbox:SetShown(quest ~= nil)
         questMap.questID = quest and quest.id
         questMap:SetShown(quest ~= nil)
         activeDistance:SetText(quest and FormatDistance() or "")
+        local reward = rewards and rewards[1]
+        activeReward:SetText(reward or "")
+        activeReward:SetShown(reward ~= nil)
         local zone = zones and zones[1]
         activeZone:SetText(zone or "")
         activeZone:SetShown(zone ~= nil)
-        local aboveObjective = zone and activeZone or title
-        objective:ClearAllPoints()
-        objective:SetPoint("TOPLEFT", aboveObjective, "BOTTOMLEFT", zone and 0 or -26, -5)
-        objective:SetPoint("TOPRIGHT", aboveObjective, "BOTTOMRIGHT", zone and 0 or 90, -5)
-        local skippedCount = 0
+        skippedCount = 0
         for _ in pairs(skippedQuests) do skippedCount = skippedCount + 1 end
         history.skippedQuests = skippedQuests
         history:SetText(L.SkippedCount:format(skippedCount))
         history:SetEnabled(skippedCount > 0)
-        auto:SetEnabled(manualSelection == true)
-        auto:SetShown(manualSelection == true)
+        manualSelection = hasManualSelection == true
+        auto:SetEnabled(manualSelection)
         local count = alternatives and #alternatives or 0
         otherCount = count
+        alternativeOffset = math.min(alternativeOffset, math.max(0, count - (settings.acceptedRows or 2)))
         routeNote:SetText(routeText or "")
         routeNote:SetShown(routeText ~= nil)
         routeToggle:SetShown(routePreview ~= nil)
         local questID = quest and quest.id
         if routeQuestID ~= questID or not routePreview then routeExpanded = false end
         routeQuestID = questID
+        routeMap:SetShown(hasMap == true)
         routeDetails:SetText(routePreview or "")
+        routeStopPreview:Render(previewStops)
+        RenderApproachStops(approachStops)
         ShowRouteDetails(routeExpanded == true)
         nearbyStopsButton.stops = nearbyStops
         nearbyStopsButton:SetShown(nearbyStops ~= nil)
@@ -638,53 +865,74 @@ function addon.CreateQuestTracker(settings, actions, version)
             local count = #nearbyStops
             nearbyStopsButton:SetText(count == 1 and L.NearbyStopOne or L.NearbyStopMany:format(count))
         end
-        alternativesLabel:SetShown(count > 0)
         for index, row in ipairs(rows) do
-            local alternative = alternatives and alternatives[index]
+            local dataIndex = index + alternativeOffset
+            local alternative = alternatives and alternatives[dataIndex]
             local id = alternative and alternative.id
-            local details = routes and routes[index]
+            local details = routes and routes[dataIndex]
             if row.questID ~= id or not details then row.routeExpanded = false end
             row.questID = id
             row.measurement = nil
             row.checkbox.quest = alternative
             if alternative then
-                local alternativeZone = zones and zones[index + 1]
+                local alternativeReward = rewards and rewards[dataIndex + 1]
+                row.reward:SetText(alternativeReward or "")
+                row.reward:SetShown(alternativeReward ~= nil)
+                local alternativeZone = zones and zones[dataIndex + 1]
                 row.zone:SetText(alternativeZone or "")
-                row.zone:SetShown(alternativeZone ~= nil)
+                row.zone:SetShown(alternativeZone ~= nil and not alternativeReward)
                 row.routeButton:SetShown(details ~= nil)
                 row.routeDetails:SetText(details or "")
                 UpdateAlternativeLayout(row)
                 row.label:SetText(FormatQuestTitle(alternative))
                 row.distance:SetText(FormatDistance())
             end
-            row:SetShown(alternative ~= nil)
         end
         if not quest then
             title:SetText(objectiveText)
             objective:SetText("")
-            UpdateHeight()
-            return
+        else
+            title:SetText(FormatQuestTitle(quest))
+            objective:SetText(objectiveText)
         end
-
-        title:SetText(FormatQuestTitle(quest))
-        objective:SetText(objectiveText)
         UpdateHeight()
+        MigrateTrackerAnchor()
     end
 
     function frame:RenderDistances(measurements)
         if activeCheckbox.quest then
-            activeDistance:SetText(FormatDistance(measurements[activeCheckbox.quest.id]))
+            local distance = FormatDistance(measurements[activeCheckbox.quest.id])
+            activeDistance:SetText(distance)
+            navigation.distance:SetText(distance)
         end
         for _, row in ipairs(rows) do
             if row.questID then
                 row.measurement = measurements[row.questID]
                 row.distance:SetText(FormatDistance(row.measurement))
+                UpdateAlternativeLayout(row)
             end
         end
+        UpdateHeight()
     end
 
-    function frame:RenderDirection(right, forward)
-        arrow:SetDirection(right, forward)
+    function frame:RenderDirection(right, forward, status)
+        if settings.showScreenArrow then
+            arrow:SetDirection()
+        else
+            arrow:SetDirection(right, forward)
+        end
+        local separate = settings.displayMode == "arrow" or (frame:IsVisible() and settings.showScreenArrow)
+        local hasQuest = activeCheckbox.quest ~= nil
+        local showNavigation = separate and hasQuest and (right ~= nil or status ~= nil)
+        navigation.arrow:SetDirection(right, forward)
+        navigation:SetStatus(status)
+        navigation:SetShown(showNavigation == true)
+        local localStatus = not separate and hasQuest and status or ""
+        if navigationStatus:GetText() ~= localStatus then
+            navigationStatus:SetText(localStatus)
+            navigationStatus:SetShown(localStatus ~= "")
+            UpdateHeight()
+        end
     end
 
     local function RenderRowDirections(list, facing)
@@ -698,6 +946,148 @@ function addon.CreateQuestTracker(settings, actions, version)
         RenderRowDirections(rows, facing)
         RenderRowDirections(offerRows, facing)
     end
+
+    local resizeGrip = CreateFrame("Button", nil, content)
+    resizeGrip:SetSize(15, 15)
+    resizeGrip:SetPoint("BOTTOMRIGHT", -4, 4)
+    resizeGrip:RegisterForDrag("LeftButton")
+    local gripTexture = resizeGrip:CreateTexture(nil, "ARTWORK")
+    gripTexture:SetAllPoints()
+    gripTexture:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    resizeGrip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    resizeGrip:SetScript("OnDragStart", function(self)
+        if settings.lockTrackerPosition then return end
+        local scale = frame:GetEffectiveScale()
+        local startCursorX = GetCursorPosition()
+        local startWidth = frame:GetWidth()
+        local x, y = frame:GetCenter()
+        local top = y + frame:GetHeight() / 2
+        local centerX, centerY = UIParent:GetCenter()
+        self:SetScript("OnUpdate", function()
+            local cursorX = GetCursorPosition()
+            local width = ClampTrackerWidth(math.floor(startWidth + (cursorX - startCursorX) / scale + 0.5))
+            if width == settings.trackerWidth then return end
+            settings.trackerWidth = width
+            settings.x, settings.y = x - centerX + (width - startWidth) / 2, top - centerY
+            settings.trackerTopAnchored = true
+            frame:SetWidth(width)
+            AnchorTracker()
+            for _, row in ipairs(rows) do
+                if row.questID and row.routeExpanded then UpdateAlternativeLayout(row) end
+            end
+            UpdateHeight()
+        end)
+    end)
+    local function StopResizing(self)
+        self:SetScript("OnUpdate", nil)
+    end
+    resizeGrip:SetScript("OnDragStop", StopResizing)
+    resizeGrip:SetScript("OnHide", StopResizing)
+    resizeGrip:SetShown(settings.allowTrackerResize == true)
+
+    function frame:UpdateResizeGrip()
+        resizeGrip:SetShown(settings.allowTrackerResize == true)
+        UpdateHeight()
+    end
+
+    local collapse = MakeButton(frame)
+    collapse:SetSize(20, 20)
+    collapse:SetPoint("TOPRIGHT", -30, -6)
+    local function UpdateCollapseButton()
+        collapse:SetText(settings.collapsed and "+" or "−")
+    end
+    local function ShowCollapseTooltip(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(settings.collapsed and L.ExpandTracker or L.CollapseTracker)
+        GameTooltip:Show()
+    end
+    collapse:SetScript("OnEnter", ShowCollapseTooltip)
+    collapse:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    collapse:SetScript("OnClick", function(self)
+        settings.collapsed = not settings.collapsed
+        UpdateHeight()
+        UpdateCollapseButton()
+        if self:IsMouseOver() then ShowCollapseTooltip(self) end
+    end)
+    UpdateCollapseButton()
+
+    navigation = addon.CreateNavigationDisplay(settings)
+    routeStopPreview = addon.CreateRoutePreview(content, actions)
+    restoreAvoided = MakeButton(content)
+    restoreAvoided:SetText(L.RestoreAvoidedObjectives)
+    restoreAvoided:SetScript("OnClick", actions.restoreAvoidedObjectives)
+    restoreAvoided:Hide()
+    areaOverview = addon.CreateAreaOverview(content, settings, { openRouteStop = actions.openRouteStop, onLayout = UpdateHeight })
+    navigationStatus = addon.UI.CreateLabel(content, "GameFontHighlightSmall")
+    navigationStatus:SetJustifyH("LEFT")
+    navigationStatus:SetMaxLines(2)
+    navigationStatus:SetText("")
+    navigationStatus:Hide()
+    function frame:ResetPositions()
+        frame:StopMovingOrSizing()
+        resizeGrip:SetScript("OnUpdate", nil)
+        settings.x, settings.y = 0, 140 + frame:GetHeight() / 2
+        settings.trackerTopAnchored = true
+        AnchorTracker()
+        navigation:ResetPosition()
+    end
+    local function SetScrollHandler(owner, kind)
+        owner:EnableMouseWheel(true)
+        if owner == alternativesToggle or owner == offersToggle then
+            owner:SetScript("OnEnter", function(self)
+                local caption = kind == "accepted" and L.Alternatives or L.NearbyQuests
+                ShowTextTooltip(self, caption, L.ListRowsHelp)
+            end)
+            owner:SetScript("OnLeave", HideTextTooltip)
+            owner:SetScript("OnHide", HideTextTooltip)
+        end
+        owner:SetScript("OnMouseWheel", function(_, delta)
+            if kind == "accepted" then
+                alternativeOffset = math.max(0, math.min(alternativeOffset - delta,
+                    otherCount - (settings.acceptedRows or 2)))
+                if lastRender then frame:Render(unpack(lastRender, 1, 17)) end
+            else
+                offerOffset = math.max(0, math.min(offerOffset - delta, offerCount - (settings.offerRows or 3)))
+                frame:RenderNearbyOffers(lastOffers, lastOfferXP)
+            end
+            if actions.refreshMeasurements then actions.refreshMeasurements() end
+        end)
+    end
+    SetScrollHandler(alternativesToggle, "accepted")
+    SetScrollHandler(offersToggle, "offers")
+    for _, row in ipairs(rows) do SetScrollHandler(row, "accepted") end
+    for _, row in ipairs(offerRows) do SetScrollHandler(row, "offers") end
+    function frame:UpdateListSettings()
+        for index = #rows + 1, settings.acceptedRows or 2 do
+            local row = addon.CreateAcceptedQuestRow(content, actions, index)
+            row.arrow = CreateDirectionArrow(row, 15)
+            InitializeAcceptedRow(row)
+            row.routeMap = CreateRouteMap(row, row.routeDetails, function() return row.questID end)
+            row.reward = CreateRewardLabel(row)
+            row.reward:SetMaxLines(1)
+            SetScrollHandler(row, "accepted")
+            rows[index] = row
+        end
+        for index = #offerRows + 1, settings.offerRows or 3 do
+            local row = addon.CreateOfferQuestRow(content, actions, settings, index)
+            SetScrollHandler(row, "offers")
+            offerRows[index] = row
+        end
+        if lastRender then self:Render(unpack(lastRender, 1, 17)) end
+        self:RenderNearbyOffers(lastOffers, lastOfferXP)
+        if actions.refreshMeasurements then actions.refreshMeasurements() end
+    end
+    function frame:UpdateFontSize()
+        addon.UI.SetFontSize(settings.fontPercent)
+        for _, row in ipairs(rows) do
+            if row.questID then UpdateAlternativeLayout(row) end
+        end
+        if lastRender then self:Render(unpack(lastRender, 1, 17)) end
+        self:RenderNearbyOffers(lastOffers, lastOfferXP)
+        navigation:UpdateLayout()
+        if actions.refreshMeasurements then actions.refreshMeasurements() end
+    end
+    frame:UpdateOpacity()
 
     return frame
 end

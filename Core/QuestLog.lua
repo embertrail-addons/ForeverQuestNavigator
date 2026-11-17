@@ -32,10 +32,14 @@ function QuestLog.Read(api)
         if info and not (info.isHeader or info.isHidden or info.isInternalOnly or info.isTask)
             and info.questID and info.questID > 0 and api.IsOnQuest(info.questID) then
             local questID = info.questID
+            local tag = api.GetQuestTagInfo and api.GetQuestTagInfo(questID)
+            local group = tag and tag.tagID == 1 or addon.QuestieIntegration.GetQuestTagID(questID) == 1
             quests[#quests + 1] = {
                 id = questID,
                 title = info.title,
                 level = info.level,
+                elite = api.IsEliteQuest and api.IsEliteQuest(questID) == true,
+                group = group,
                 special = QuestLog.IsSpecialQuest(api, questID),
                 readyToTurnIn = api.IsComplete(questID),
                 failed = api.IsFailed and api.IsFailed(questID),
@@ -55,7 +59,22 @@ function QuestLog.GetNextObjective(api, questID)
     end
 end
 
-function QuestLog.GetObjectiveText(api, questID)
-    local objective = QuestLog.GetNextObjective(api, questID)
-    return objective and objective.text
+local function IsPublicNumber(value)
+    return not (issecretvalue and issecretvalue(value)) and type(value) == "number"
+end
+
+function QuestLog.GetXPToNextLevel()
+    if not (UnitXP and UnitXPMax) or (IsXPUserDisabled and IsXPUserDisabled())
+        or (IsPlayerAtEffectiveMaxLevel and IsPlayerAtEffectiveMaxLevel()) then return end
+    local current, maximum = UnitXP("player"), UnitXPMax("player")
+    if IsPublicNumber(current) and IsPublicNumber(maximum) and current >= 0
+        and maximum > current and maximum < math.huge then
+        return maximum - current
+    end
+end
+
+function QuestLog.GetTurnInXP(quest)
+    if not GetQuestLogRewardXP then return end
+    local ok, xp = pcall(GetQuestLogRewardXP, quest.id)
+    if ok and IsPublicNumber(xp) and xp > 0 and xp < math.huge then return xp end
 end

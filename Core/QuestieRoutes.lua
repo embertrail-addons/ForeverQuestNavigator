@@ -33,7 +33,7 @@ local function IsNextQuest(db, api, id, previous, planned, player, skipped)
     local maximumLevel = db.requiredMaxLevel(id)
     if not requiredLevel or requiredLevel > player.level
         or (maximumLevel and maximumLevel > 0 and player.level > maximumLevel)
-        or addon.QuestPrioritizer.IsHighLevel({ level = db.questLevel(id) }, player.level)
+        or addon.QuestPrioritizer.IsLowPriority({ level = db.questLevel(id) }, player.level)
         or bit.band(db.specialFlags(id) or 0, 2) ~= 0
         or Restricted(db.requiredRaces(id), player.race) or Restricted(db.requiredClasses(id), player.class) then
         return false
@@ -117,7 +117,14 @@ local function FollowUpStops(db, npc, id, maps, zones, phasing, distance)
     local finish = SpawnPoint(npc.spawns(finisher), maps, zones, phasing)
     if not (start and finish and distance(start, finish)) then return end
     local creatures = objectives[1]
-    if not HasEntries(creatures) then return { start, finish } end
+    start.action, finish.action = "accept", "turnIn"
+    local function WithQuest(stops)
+        for _, stop in ipairs(stops) do
+            stop.questID, stop.title = id, db.name(id)
+        end
+        return stops
+    end
+    if not HasEntries(creatures) then return WithQuest({ start, finish }) end
     local target = creatures[1]
     if #creatures ~= 1 or not target[1] or (target[3] and target[3] ~= 0 and target[3] ~= Questie.ICON_TYPE_SLAY) then
         return
@@ -126,7 +133,10 @@ local function FollowUpStops(db, npc, id, maps, zones, phasing, distance)
         local first, last = distance(start, marker), distance(marker, finish)
         if first and last then return first + last end
     end)
-    if kill then return { start, kill, finish } end
+    if kill then
+        kill.action = "objective"
+        return WithQuest({ start, kill, finish })
+    end
 end
 
 local function FindTurnIn(mapAPI, mapType, maps, id)
@@ -159,11 +169,13 @@ function QuestieRoutes.GetOutdoorTurnInMarker(mapAPI, mapType, maps, id)
     if ok then return marker, known, name end
 end
 
-local function FindObjectiveMap(mapAPI, mapType, id)
+local function FindObjectiveMap(mapAPI, mapType, id, starter, maps)
     local db = LibQuestieDB
     local zones = QuestieLoader:ImportModule("ZoneDB")
     local phasing = QuestieLoader:ImportModule("Phasing")
     local found, ambiguous, triggerPoint, multipleTriggerPoints
+    local distance = starter and addon.QuestLocation.GetDistanceMetric(mapAPI, starter)
+    local nearest, nearestYards
     local function AddSpawns(spawns, isTrigger)
         for areaID, points in pairs(spawns or {}) do
             local mapID = zones:GetUiMapIdByAreaId(areaID)
@@ -175,9 +187,18 @@ local function FindObjectiveMap(mapAPI, mapType, id)
                         and phasing.IsSpawnVisible(point[3]) then
                         if found and found ~= mapID then ambiguous = true end
                         found = mapID
-                        if not isTrigger then break end
-                        if triggerPoint then multipleTriggerPoints = true end
-                        triggerPoint = { mapID = mapID, x = x / 100, y = y / 100 }
+                        if not isTrigger and not distance then break end
+                        local marker = { mapID = mapID, x = x / 100, y = y / 100 }
+                        if isTrigger then
+                            if triggerPoint then multipleTriggerPoints = true end
+                            triggerPoint = marker
+                        end
+                        if distance and maps[mapID] then
+                            local yards = distance(starter, marker)
+                            if yards and (not nearestYards or yards < nearestYards) then
+                                nearest, nearestYards = marker, yards
+                            end
+                        end
                     end
                 end
             end
@@ -196,8 +217,24 @@ local function FindObjectiveMap(mapAPI, mapType, id)
         for _, npcID in ipairs(db.Item.npcDrops(objective[1]) or {}) do AddSpawns(db.Npc.spawns(npcID)) end
         for _, objectID in ipairs(db.Item.objectDrops(objective[1]) or {}) do AddSpawns(db.Object.spawns(objectID)) end
     end
+    if starter then
+        if nearest then return nearest.mapID, nearest, nearestYards end
+        if found and not ambiguous then return found end
+        if not (trigger or HasEntries(objectives[1]) or HasEntries(objectives[2]) or HasEntries(objectives[3])
+            or (db.Quest.extraObjectives and HasEntries(db.Quest.extraObjectives(id)))) then
+            local finisher = FindTurnIn(mapAPI, mapType, maps, id)
+            if finisher then return finisher.mapID, finisher, distance and distance(starter, finisher) end
+        end
+        return
+    end
     if ambiguous then return nil, true end
     return found, nil, not multipleTriggerPoints and triggerPoint or nil
+end
+
+function QuestieRoutes.GetOfferTarget(mapAPI, mapType, maps, id, starter)
+    if not (LibQuestieDB and mapType) then return end
+    local ok, mapID, point, yards = pcall(FindObjectiveMap, mapAPI, mapType, id, starter, maps)
+    if ok then return mapID, point, yards end
 end
 
 function QuestieRoutes.GetObjectiveMap(mapAPI, mapType, id)

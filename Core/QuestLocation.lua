@@ -300,16 +300,28 @@ function QuestLocation.GetFlightPlan(mapAPI, target, context)
     return best
 end
 
-function QuestLocation.MeasureQuests(mapAPI, markersByQuest, questIDs, localMaps)
-    local measurements = {}
+local OBJECTIVE_SWITCH_MARGIN = 25
+
+local function BuildMeasurement(target)
+    local distance = math.sqrt(target.squared)
+    local measurement = { yards = distance, marker = target.marker }
+    if distance > 3 then
+        measurement.east, measurement.north = target.east / distance, target.north / distance
+    end
+    return measurement
+end
+
+function QuestLocation.MeasureQuests(mapAPI, markersByQuest, questIDs, localMaps, previousObjectives, objectiveLock, avoidedObjectives)
+    local measurements, objectiveDistances = {}, {}
     if not (mapAPI and mapAPI.GetPlayerMapPosition and mapAPI.GetMapWorldSize) then
-        return measurements
+        return measurements, objectiveDistances
     end
 
     local player = PlayerWorldPosition(mapAPI, localMaps)
     local geometryByMap = {}
     for _, questID in ipairs(questIDs) do
-        local closestSquared, closestEast, closestNorth, closestMarker
+        local closest, objectives = nil, {}
+        local avoided = avoidedObjectives and avoidedObjectives[questID] or {}
         for _, marker in ipairs(markersByQuest[questID] or {}) do
             local east, north
             if player then
@@ -332,22 +344,33 @@ function QuestLocation.MeasureQuests(mapAPI, markersByQuest, questIDs, localMaps
             end
             if east then
                 local squared = east * east + north * north
-                if not closestSquared or squared < closestSquared then
-                    closestSquared, closestEast, closestNorth = squared, east, north
-                    closestMarker = marker
+                if squared < math.huge then
+                    local index = marker.objectiveIndex
+                    local bestForObjective = index and objectives[index]
+                    local closer = not avoided[index] and (not closest or squared < closest.squared)
+                    if closer or (index and (not bestForObjective or squared < bestForObjective.squared)) then
+                        local target = { squared = squared, east = east, north = north, marker = marker }
+                        if closer then closest = target end
+                        if index then objectives[index] = target end
+                    end
                 end
             end
         end
-        if closestSquared and closestSquared < math.huge then
-            local distance = math.sqrt(closestSquared)
-            local measurement = { yards = distance, marker = closestMarker }
-            if distance > 3 then
-                measurement.east, measurement.north = closestEast / distance, closestNorth / distance
+        objectiveDistances[questID] = objectives
+        if closest then
+            local previousIndex = previousObjectives and previousObjectives[questID]
+            local previous = not avoided[previousIndex] and objectives[previousIndex]
+            local locked = objectiveLock and objectiveLock.questID == questID and not avoided[objectiveLock.index]
+                and objectives[objectiveLock.index]
+            if locked then
+                closest = locked
+            elseif previous and math.sqrt(previous.squared) <= math.sqrt(closest.squared) + OBJECTIVE_SWITCH_MARGIN then
+                closest = previous
             end
-            measurements[questID] = measurement
+            measurements[questID] = BuildMeasurement(closest)
         end
     end
-    return measurements
+    return measurements, objectiveDistances
 end
 
 function QuestLocation.GetRelativeDirection(direction, facing)
