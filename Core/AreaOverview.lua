@@ -1,5 +1,26 @@
 local _, addon = ...
 
+function addon.BuildTargetGroups(mapAPI, entries, zoneName)
+    local groups, metrics = {}, {}
+    for _, entry in ipairs(entries or {}) do
+        local selected
+        for _, group in ipairs(groups) do
+            local distance = metrics[group]
+            local yards = distance and distance(group.target, entry.target)
+            if yards and yards <= 80 then selected = group break end
+        end
+        if not selected then
+            selected = { key = entry.quest.id, target = entry.target, entries = {}, yards = entry.yards,
+                place = entry.target.turnInName or zoneName or addon.L.UnknownZone }
+            groups[#groups + 1] = selected
+            metrics[selected] = addon.QuestLocation.GetDistanceMetric(mapAPI, selected.target) or false
+        end
+        selected.entries[#selected.entries + 1] = entry
+        selected.key = math.min(selected.key, entry.quest.id)
+    end
+    return groups
+end
+
 function addon.BuildAreaOverview(mapAPI, mapType, zoneID, quests, markers, localMaps, avoided)
     if not zoneID then return end
     local _, zoneName = addon.QuestLocation.GetZone(mapAPI, mapType, zoneID)
@@ -46,5 +67,6 @@ function addon.BuildAreaOverview(mapAPI, mapType, zoneID, quests, markers, local
         if a.yards ~= b.yards then return a.yards < b.yards end
         return a.quest.id < b.quest.id
     end)
+    result.groups = addon.BuildTargetGroups(mapAPI, result.entries, zoneName)
     return result
 end

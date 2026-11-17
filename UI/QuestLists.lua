@@ -4,17 +4,13 @@ local CreateDirectionArrow = addon.CreateDirectionArrow
 local AddRowBackground = addon.UI.AddRowBackground
 local CreateSkipCheckbox = addon.UI.CreateSkipCheckbox
 local EnableTitleTooltip = addon.UI.EnableTitleTooltip
-local ShowTextTooltip = addon.UI.ShowTextTooltip
-local HideTextTooltip = addon.UI.HideTextTooltip
 
 function addon.CreateAcceptedQuestRow(parent, actions, index)
     local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(22)
+    row:SetHeight(addon.UI.Style.rowHeight)
     AddRowBackground(row, index)
 
-    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(1, 0.8, 0.25, 0.16)
+    addon.UI.AddRowHighlight(row)
 
     row.label = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.label:SetPoint("LEFT", 26, 0)
@@ -22,8 +18,10 @@ function addon.CreateAcceptedQuestRow(parent, actions, index)
     row.label:SetJustifyH("LEFT")
     row.label:SetMaxLines(1)
     EnableTitleTooltip(row)
-    row:SetScript("OnClick", function(self)
-        actions.openQuestMap(self.questID)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", function(self, button)
+        if button == "RightButton" and actions.openQuestMenu then actions.openQuestMenu(self, self.questID)
+        else actions.openQuestMap(self.questID) end
     end)
     row.checkbox = CreateSkipCheckbox(row, actions.skip)
     row.checkbox:SetPoint("LEFT", -2, 0)
@@ -40,8 +38,9 @@ end
 
 function addon.CreateOfferQuestRow(parent, actions, settings, index)
     local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(22)
+    row:SetHeight(addon.UI.Style.rowHeight)
     AddRowBackground(row, index)
+    addon.UI.AddRowHighlight(row)
     row.label = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.label:SetPoint("LEFT", 5, 0)
     row.label:SetPoint("RIGHT", -82, 0)
@@ -52,10 +51,13 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
     else
         row:EnableMouse(true)
     end
-    row:SetScript("OnClick", function(self)
-        if self.measurement then actions.openOfferMap(self.measurement.id) end
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:SetScript("OnClick", function(self, button)
+        if not self.measurement then return end
+        if button == "RightButton" and actions.openQuestMenu then actions.openQuestMenu(self, self.measurement.id, true)
+        else actions.openOfferMap(self.measurement.id) end
     end)
-    row:SetScript("OnEnter", function(self)
+    addon.UI.BindTooltip(row, function(self)
         local offer = self.measurement
         if not offer then return end
         local lines = {}
@@ -79,14 +81,17 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         lines[#lines + 1] = L.OfferPickupDistance:format(offer.yards)
         if offer.objectiveYards then
             lines[#lines + 1] = L.OfferObjectiveDistance:format(offer.objectiveYards)
+        else
+            lines[#lines + 1] = L.OfferTargetUnknown
         end
+        if not addon.QuestPrioritizer.GetLevel(offer) then lines[#lines + 1] = L.UnknownLevel end
         if offer.group then lines[#lines + 1] = L.GroupQuest end
         if settings.showQuestXP and offer.xp then lines[#lines + 1] = L.QuestXPReward:format(offer.xp) end
+        if settings.showQuestXP and not offer.xp then lines[#lines + 1] = L.UnknownXP end
         lines[#lines + 1] = L.OfferMapHint
-        ShowTextTooltip(self, self.label:GetText(), table.concat(lines, "\n"))
+        lines[#lines + 1] = L.QuestMenuHint
+        return self.label:GetText(), table.concat(lines, "\n")
     end)
-    row:SetScript("OnLeave", HideTextTooltip)
-    row:SetScript("OnHide", HideTextTooltip)
     row.distance = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.distance:SetPoint("RIGHT")
     row.arrow = CreateDirectionArrow(row, 15)
@@ -101,6 +106,18 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
     row.recommendation:SetPoint("BOTTOMLEFT")
     row.recommendation:SetWidth(2)
     row.recommendation:SetColorTexture(1, 0.75, 0.28, 1)
+    row.discovery = row:CreateTexture(nil, "BACKGROUND")
+    row.discovery:SetAllPoints()
+    row.discovery:SetColorTexture(1, 0.75, 0.28, 0.16)
+    row.discovery:Hide()
+    row:SetScript("OnUpdate", function(self, elapsed)
+        if not self.noticeSeconds then return end
+        self.noticeSeconds = self.noticeSeconds - elapsed
+        if self.noticeSeconds <= 0 or (self.noticeDeadline and GetTime() >= self.noticeDeadline) then
+            self.noticeSeconds, self.noticeDeadline = nil, nil
+            self.discovery:Hide()
+        end
+    end)
     row:Hide()
     return row
 end

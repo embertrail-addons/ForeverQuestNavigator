@@ -10,12 +10,13 @@ local MINIMUM_OUTING_SAVING = 120
 
 function QuestRoute.GetStopsOnApproach(mapAPI, quest, ranked, measurements, playerLevel)
     local main = measurements and measurements[quest.id]
+    if main and main.objectiveMarker then return end
     local distance = main and addon.QuestLocation.GetDistanceMetric(mapAPI, main.marker)
     if not distance then return end
     local stops = {}
     for _, candidate in ipairs(ranked) do
         local target = measurements[candidate.id]
-        if candidate.id ~= quest.id and target and target.yards < main.yards
+        if candidate.id ~= quest.id and target and not target.objectiveMarker and target.yards < main.yards
             and not addon.QuestPrioritizer.IsLowPriority(candidate, playerLevel) then
             local gap = distance(main.marker, target.marker)
             if gap and target.yards + gap - main.yards <= MAX_APPROACH_DETOUR then
@@ -38,7 +39,8 @@ function QuestRoute.RecommendLevelUp(mapAPI, ranked, measurements, playerLevel, 
     for _, quest in ipairs(ranked) do
         local level = addon.QuestPrioritizer.GetLevel(quest)
         local gap = level and level - playerLevel
-        if (gap == 3 or gap == 1) and not quest.readyToTurnIn and measurements[quest.id] then
+        if (gap == 3 or gap == 1) and not quest.readyToTurnIn and measurements[quest.id]
+            and not measurements[quest.id].objectiveMarker then
             nextStops[#nextStops + 1] = quest
         end
     end
@@ -63,10 +65,10 @@ function QuestRoute.RecommendLevelUp(mapAPI, ranked, measurements, playerLevel, 
 end
 
 -- Compare orders that visit the same targets, with no assumed return destination.
-function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel)
+function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel, journeys)
     local anchor = ranked[1]
     local main = anchor and measurements[anchor.id]
-    if not main or addon.QuestPrioritizer.IsLowPriority(anchor, playerLevel) then return end
+    if not main or main.objectiveMarker or addon.QuestPrioritizer.IsLowPriority(anchor, playerLevel) then return end
     local distance = addon.QuestLocation.GetDistanceMetric(mapAPI, main.marker)
     if not distance then return end
 
@@ -74,7 +76,7 @@ function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel)
     for index = 2, #ranked do
         local quest = ranked[index]
         local target = measurements[quest.id]
-        if target and not addon.QuestPrioritizer.IsLowPriority(quest, playerLevel) then
+        if target and not target.objectiveMarker and not addon.QuestPrioritizer.IsLowPriority(quest, playerLevel) then
             local gap = distance(main.marker, target.marker)
             if gap then
                 local detour = math.max(0, target.yards + gap - main.yards)
@@ -115,7 +117,10 @@ function QuestRoute.PlanOuting(mapAPI, ranked, measurements, playerLevel)
             end
         elseif measurements[first.id].yards < main.yards then
             local gain = baseline - length
-            if gain > bestGain then bestOrder, bestLength, bestGain = order, length, gain end
+            local extraReturnCost = math.max(0,
+                addon.TravelSupport.PlanningPenalty(first, journeys and journeys[first.id], journeys ~= nil)
+                - addon.TravelSupport.PlanningPenalty(anchor, journeys and journeys[anchor.id], journeys ~= nil))
+            if gain > bestGain + extraReturnCost then bestOrder, bestLength, bestGain = order, length, gain end
         end
     end
     if bestLength == math.huge then return end
@@ -144,7 +149,7 @@ end
 function QuestRoute.Recommend(mapAPI, ranked, measurements, chains, playerLevel)
     local original = ranked[1]
     local a = original and measurements[original.id]
-    if not (a and a.marker and chains) or addon.QuestPrioritizer.IsLowPriority(original, playerLevel) then return end
+    if not (a and a.marker and chains) or a.objectiveMarker or addon.QuestPrioritizer.IsLowPriority(original, playerLevel) then return end
 
     local distance = addon.QuestLocation.GetDistanceMetric(mapAPI, a.marker)
     if not distance then return end
@@ -156,7 +161,7 @@ function QuestRoute.Recommend(mapAPI, ranked, measurements, chains, playerLevel)
         local candidate = ranked[index]
         local b, chain = measurements[candidate.id], chains[candidate.id]
         local firstLeg, legs, shared
-        if b and b.marker and chain and not addon.QuestPrioritizer.IsLowPriority(candidate, playerLevel) then
+        if b and b.marker and not b.objectiveMarker and chain and not addon.QuestPrioritizer.IsLowPriority(candidate, playerLevel) then
             firstLeg, legs, shared = MeasureChain(distance, a.marker, b.marker, chain)
         end
         if firstLeg then

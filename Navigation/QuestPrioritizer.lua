@@ -5,6 +5,10 @@ addon.QuestPrioritizer = QuestPrioritizer
 local DISTANCE_SWITCH_MARGIN = 20
 local HIGH_LEVEL_GAP = 3
 
+function QuestPrioritizer.GetSwitchMargin(score)
+    return math.max(DISTANCE_SWITCH_MARGIN, math.min(100, math.max(0, score) * 0.08))
+end
+
 function QuestPrioritizer.GetLevel(quest)
     local level = quest.level
     if type(level) == "number" and level > 0 and level < math.huge then
@@ -40,6 +44,7 @@ end
 
 local function LevelPenalty(quest, playerLevel, difficulty)
     if quest.readyToTurnIn then return 0 end
+    if not QuestPrioritizer.GetLevel(quest) then return 150 end
     -- Express level fit in yards so close quests still matter at a zone border.
     if difficulty == "orange" then return 50 * (quest.level - playerLevel) end
     if difficulty == "green" then return 35 end
@@ -72,7 +77,7 @@ function QuestPrioritizer.Rank(quests, skippedQuestIDs, localQuestIDs)
     return ranked
 end
 
-function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrder, playerLevel)
+function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrder, playerLevel, journeys)
     local remaining, unknownQuests, levelOrder, scores, tiers = {}, {}, {}, {}, {}
     for index, quest in ipairs(levelRanked) do
         local difficulty = QuestPrioritizer.GetDifficulty(quest, playerLevel)
@@ -81,6 +86,7 @@ function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrde
             remaining[#remaining + 1] = quest
             levelOrder[quest.id] = index
             scores[quest.id] = measurements[quest.id].yards + LevelPenalty(quest, playerLevel, difficulty)
+                + addon.TravelSupport.PlanningPenalty(quest, journeys and journeys[quest.id], journeys ~= nil)
         else
             unknownQuests[#unknownQuests + 1] = quest
         end
@@ -104,7 +110,7 @@ function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrde
     while #remaining > 0 do
         local choice = 1
         local closest = remaining[1]
-        local limit = scores[closest.id] + DISTANCE_SWITCH_MARGIN
+        local limit = scores[closest.id] + QuestPrioritizer.GetSwitchMargin(scores[closest.id])
         local preferredPosition = previousPositions[closest.id] or math.huge
         for index = 2, #remaining do
             local quest = remaining[index]

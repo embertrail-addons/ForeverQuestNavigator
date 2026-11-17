@@ -123,9 +123,11 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
             local _, pickupZone = addon.QuestLocation.GetZone(mapAPI, mapType, measurement.marker.mapID)
             local gap = anchorDistance and objective and anchorDistance(anchor, objective)
             measurement.objectiveZone = zoneName
+            measurement.objectiveMarker = objective
             measurement.pickupZone = pickupZone
             measurement.levelPenalty = priority.GetLevelPenalty(measurement, playerLevel)
             measurement.nearActiveTarget = gap and gap <= 500
+            measurement.anchorGap = gap
             measurement.journeyYards = travel and distance + travel
             measurement.objectiveYards = travel
             if canEarnXP then
@@ -137,10 +139,7 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
                 measurement.xp = xp
             end
             measurement.lowPriority = priority.IsLowPriority(measurement, playerLevel)
-            local bonus = measurement.nearActiveTarget and (160 - gap * 0.2) or 0
-            local xpBonus = measurement.xp and math.min(75, measurement.xp / 50) or 0
-            measurement.score = distance + (travel or 300) + measurement.levelPenalty
-                - bonus - xpBonus
+            measurement.score = addon.Recommendation.ScoreOffer(measurement)
             offers[#offers + 1] = measurement
         end
     end
@@ -151,7 +150,7 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
         return a.id < b.id
     end)
     local best, second = offers[1], offers[2]
-    if best and not best.lowPriority and best.journeyYards then
+    if best and not best.lowPriority and best.journeyYards and priority.GetLevel(best) then
         best.recommended = (best.nearActiveTarget and best.journeyYards <= 750)
             or (best.journeyYards <= 500 and second and (second.lowPriority or second.score - best.score >= 75))
         if best.recommended then

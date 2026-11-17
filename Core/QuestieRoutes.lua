@@ -139,34 +139,87 @@ local function FollowUpStops(db, npc, id, maps, zones, phasing, distance)
     end
 end
 
-local function FindTurnIn(mapAPI, mapType, maps, id)
+local function FindTurnIn(mapAPI, mapType, maps, id, origin)
     local db = LibQuestieDB
     local givers = db.Quest.finishedBy(id)
     if not givers then return end
     local zones = QuestieLoader:ImportModule("ZoneDB")
     local phasing = QuestieLoader:ImportModule("Phasing")
-    local known
+    local known, bestPoint, bestName, bestYards
+    local metric = origin and addon.QuestLocation.GetDistanceMetric(mapAPI, origin)
+    local cost = metric and function(point) return metric(origin, point) end
     for kind, entity in ipairs({ db.Npc, db.Object }) do
         for _, giver in ipairs(givers[kind] or {}) do
             local spawns = entity.spawns(giver)
             if HasEntries(spawns) then
                 known = true
-                local point = SpawnPoint(spawns, maps, zones, phasing)
+                local point = SpawnPoint(spawns, maps, zones, phasing, cost)
                 if point and addon.QuestLocation.IsOutdoorMap(mapAPI, mapType, point.mapID, maps) then
                     local named, name
                     if type(entity.name) == "function" then named, name = pcall(entity.name, giver) end
-                    return point, true, named and type(name) == "string" and name or nil
+                    local giverName = named and type(name) == "string" and name or nil
+                    if not origin then return point, true, giverName end
+                    local yards = cost and cost(point)
+                    if yards and (not bestYards or yards < bestYards) then
+                        bestPoint, bestName, bestYards = point, giverName, yards
+                    end
                 end
             end
         end
     end
-    return nil, known
+    return bestPoint, known, bestName
 end
 
-function QuestieRoutes.GetOutdoorTurnInMarker(mapAPI, mapType, maps, id)
+function QuestieRoutes.GetOutdoorTurnInMarker(mapAPI, mapType, maps, id, origin)
     if not LibQuestieDB then return end
-    local ok, marker, known, name = pcall(FindTurnIn, mapAPI, mapType, maps, id)
+    local ok, marker, known, name = pcall(FindTurnIn, mapAPI, mapType, maps, id, origin)
     if ok then return marker, known, name end
+end
+
+local function CollectAccessHints(mapAPI, mapType, maps, id, target)
+    local db = LibQuestieDB
+    if not (db and db.Quest.extraObjectives and target) then return {} end
+    local zones = QuestieLoader:ImportModule("ZoneDB")
+    local phasing = QuestieLoader:ImportModule("Phasing")
+    local metric = addon.QuestLocation.GetDistanceMetric(mapAPI, target)
+    local hints = {}
+    local function AddSpawns(spawns, text)
+        for area, points in pairs(spawns or {}) do
+            local mapID = zones:GetUiMapIdByAreaId(area)
+            if maps[mapID] and addon.QuestLocation.IsOutdoorMap(mapAPI, mapType, mapID, maps) then
+                for _, point in ipairs(points) do
+                    local marker = { mapID = mapID, x = point[1] / 100, y = point[2] / 100 }
+                    if addon.TravelSupport.ValidPoint(marker) and phasing.IsSpawnVisible(point[3]) then
+                        local yards = metric and metric(target, marker)
+                        if yards then hints[#hints + 1] = { point = marker, text = text, yards = yards } end
+                    end
+                end
+            end
+        end
+    end
+    for _, extra in ipairs(db.Quest.extraObjectives(id) or {}) do
+        local index, text = extra[4], extra[3]
+        if type(text) == "string" and text ~= "" and (not index or index == 0 or index == target.objectiveIndex) then
+            AddSpawns(extra[1], text)
+            for _, reference in ipairs(extra[5] or {}) do
+                local entity = reference[1] == "monster" and db.Npc or reference[1] == "object" and db.Object
+                if entity and entity.spawns then AddSpawns(entity.spawns(reference[2]), text) end
+            end
+        end
+    end
+    table.sort(hints, function(a, b)
+        if a.yards ~= b.yards then return a.yards < b.yards end
+        if a.point.mapID ~= b.point.mapID then return a.point.mapID < b.point.mapID end
+        if a.point.x ~= b.point.x then return a.point.x < b.point.x end
+        return a.point.y < b.point.y
+    end)
+    while #hints > 5 do table.remove(hints) end
+    return hints
+end
+
+function QuestieRoutes.GetAccessHints(...)
+    local ok, hints = pcall(CollectAccessHints, ...)
+    return ok and hints or {}
 end
 
 local function FindObjectiveMap(mapAPI, mapType, id, starter, maps)

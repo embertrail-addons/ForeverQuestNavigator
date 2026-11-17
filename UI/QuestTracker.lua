@@ -3,9 +3,7 @@ local L = addon.L
 
 local FormatQuestTitle = addon.UI.FormatQuestTitle
 
-local function FormatDistance(measurement)
-    return measurement and ("~%.0f yd"):format(measurement.yards) or "—"
-end
+local FormatDistance = addon.UI.FormatDistance
 
 local ShowTextTooltip = addon.UI.ShowTextTooltip
 local HideTextTooltip = addon.UI.HideTextTooltip
@@ -136,6 +134,8 @@ function addon.CreateQuestTracker(settings, actions, version)
     settings.trackerWidth = ClampTrackerWidth(settings.trackerWidth)
     frame:SetSize(settings.trackerWidth, 170)
     local navigation, navigationStatus, undoSkip, routeStopPreview, restoreAvoided, areaOverview
+    local progressLine, progressData, holdButton, holdIcon, latestMeasurements
+    local newOfferIDs = {}
     local lastQuestID, lastGoalIndex, lastReady
     local recommendationReason
     local function AnchorTracker()
@@ -300,7 +300,11 @@ function addon.CreateQuestTracker(settings, actions, version)
     local manualSelection = false
     local questMap = CreateFrame("Button", nil, content)
     questMap:SetAllPoints(title)
-    questMap:SetScript("OnClick", function(self) actions.openQuestMap(self.questID) end)
+    questMap:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    questMap:SetScript("OnClick", function(self, button)
+        if button == "RightButton" and actions.openQuestMenu then actions.openQuestMenu(self, self.questID)
+        else actions.openQuestMap(self.questID) end
+    end)
     questMap:SetScript("OnEnter", function(self)
         ShowTextTooltip(self, title:GetText(), (recommendationReason or "") .. "\n" .. L.OpenQuestMap)
     end)
@@ -344,7 +348,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         row.routeDetails:SetShown(row.routeExpanded == true)
         row.routeMap:SetShown(row.routeExpanded == true)
         row.routeLabel:SetText(row.routeExpanded and L.HideRoute or L.RouteDetails)
-        local lineHeight = math.max(22, row.label:GetStringHeight() + 6, row.distance:GetStringHeight() + 6)
+        local lineHeight = addon.UI.GetRowLineHeight(row)
         local secondaryHeight = math.max(14, row.reward:GetStringHeight() + 2, row.zone:GetStringHeight() + 2,
             row.routeLabel:GetStringHeight() + 2)
         local height = lineHeight
@@ -364,18 +368,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         row.routeDetails:SetPoint("TOPLEFT", 26, -height - 3)
         row.routeDetails:SetPoint("TOPRIGHT", -54, -height - 3)
         if row.routeExpanded then height = height + math.max(16, row.routeDetails:GetStringHeight()) + 8 end
-        local offset = (height - lineHeight) / 2
-        row:SetHeight(height)
-        row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", 26, offset)
-        local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
-        row.label:SetPoint("RIGHT", -distanceWidth - 18, offset)
-        row.distance:ClearAllPoints()
-        row.distance:SetPoint("RIGHT", 0, offset)
-        row.arrow:ClearAllPoints()
-        row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
-        row.checkbox:ClearAllPoints()
-        row.checkbox:SetPoint("LEFT", -2, offset)
+        addon.UI.AlignNavigationRow(row, height, lineHeight, 26, 18)
     end
 
     local function LayoutSection(toggle, label, caption, collapsed, list, count, y)
@@ -480,7 +473,8 @@ function addon.CreateQuestTracker(settings, actions, version)
             detailsBottom = detailsBottom + navigationStatus:GetStringHeight() + 4
         end
         local metaY = detailsBottom + 4
-        local actionsWidth = (routeMap:IsShown() and 47 * scale or 0) + (routeToggle:IsShown() and 62 * scale or 0)
+        local pinWidth = holdButton and holdButton:IsShown() and 23 * scale or 0
+        local actionsWidth = (routeMap:IsShown() and 47 * scale or 0) + (routeToggle:IsShown() and 62 * scale or 0) + pinWidth
         local noteSharesRow = routeNote:IsShown() and not activeReward:IsShown()
         routeNote:ClearAllPoints()
         routeNote:SetPoint("TOPLEFT", 14, -metaY)
@@ -489,6 +483,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             metaY = metaY + routeNote:GetStringHeight() + 3
         end
         local metaHeight = (actionsWidth > 0 or routeNote:IsShown()) and math.max(16, 18 * scale) or 0
+        if routeNote:IsShown() then metaHeight = math.max(metaHeight, routeNote:GetStringHeight()) end
         if activeReward:IsShown() then
             activeReward:ClearAllPoints()
             activeReward:SetPoint("TOPLEFT", 14, -metaY)
@@ -497,6 +492,11 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         routeToggle:ClearAllPoints()
         routeToggle:SetPoint("TOPRIGHT", routeMap:IsShown() and -14 - 47 * scale or -14, -metaY + 2)
+        if holdButton then
+            holdButton:SetSize(20 * scale, 18 * scale)
+            holdButton:ClearAllPoints()
+            holdButton:SetPoint("TOPRIGHT", -14 - actionsWidth + pinWidth, -metaY + 2)
+        end
         routeMap:ClearAllPoints()
         routeMap:SetPoint("TOPRIGHT", -14, -metaY + 1)
         local previewY = metaY + metaHeight + 2
@@ -545,8 +545,19 @@ function addon.CreateQuestTracker(settings, actions, version)
         local showLists = not settings.collapsed
         history:SetShown(showLists and skippedCount > 0)
         auto:SetShown(showLists and manualSelection)
+        local listTop = activeBottom
+        if progressLine then
+            progressLine:SetShown(showLists and activeCheckbox.quest ~= nil and progressData ~= nil)
+            if progressLine:IsShown() then
+                progressLine:ClearAllPoints()
+                progressLine:SetPoint("TOPLEFT", 14, -listTop - 8)
+                progressLine:SetPoint("TOPRIGHT", -14, -listTop - 8)
+                progressLine:SetHeight(math.max(18, progressLine:GetFontString():GetStringHeight()))
+                listTop = listTop + progressLine:GetFontString():GetStringHeight() + 12
+            end
+        end
         local y = LayoutSection(alternativesToggle, alternativesLabel, L.Alternatives,
-            settings.alternativesCollapsed, rows, otherCount, activeBottom)
+            settings.alternativesCollapsed, rows, otherCount, listTop)
         y = LayoutSection(offersToggle, offersLabel, L.NearbyQuests,
             settings.offersCollapsed, offerRows, offerCount, y)
         if areaOverview then areaOverview:Layout() end
@@ -704,29 +715,37 @@ function addon.CreateQuestTracker(settings, actions, version)
             local offer = offers and offers[index + offerOffset]
             row.measurement = offer
             if offer then
+                if newOfferIDs[offer.id] then
+                    row.noticeSeconds, row.noticeQuestID = 4, offer.id
+                    row.noticeDeadline = GetTime and GetTime() + 4
+                    newOfferIDs[offer.id] = nil
+                end
+                row.discovery:SetShown(row.noticeQuestID == offer.id and (row.noticeSeconds or 0) > 0
+                    and (not row.noticeDeadline or GetTime() < row.noticeDeadline))
                 row.label:SetText(FormatQuestTitle(offer))
-                row.distance:SetText(FormatDistance(offer))
+                row.distance:SetText(L.PickupDistanceCompact:format(offer.yards))
                 local notes = {}
                 row.recommendation:SetShown(offer.recommended == true)
                 if offer.recommended then
                     notes[#notes + 1] = "|cffffc447" .. L.RecommendedOffer .. "|r"
                 end
                 if showXP and offer.xp then notes[#notes + 1] = L.QuestXPReward:format(offer.xp) end
-                if offer.objectiveZone then notes[#notes + 1] = L.OfferObjectiveZone:format(offer.objectiveZone) end
+                if showXP and not offer.xp then notes[#notes + 1] = L.UnknownXP end
+                if offer.objectiveYards then
+                    notes[#notes + 1] = L.OfferTargetSummary:format(offer.objectiveZone or L.UnknownZone, offer.objectiveYards)
+                else
+                    notes[#notes + 1] = offer.objectiveZone
+                        and (L.OfferObjectiveZone:format(offer.objectiveZone) .. " · " .. L.OfferTargetUnknown)
+                        or L.OfferTargetUnknown
+                end
                 if offer.nearActiveTarget then notes[#notes + 1] = L.OfferNearActiveTarget end
                 row.details:SetText(table.concat(notes, " · "))
                 row.details:SetShown(#notes > 0)
-                local lineHeight = math.max(22, row.label:GetStringHeight() + 6, row.distance:GetStringHeight() + 6)
-                row.details:SetPoint("TOPLEFT", 5, -lineHeight + 2)
-                row.details:SetPoint("TOPRIGHT", -3, -lineHeight + 2)
+                local lineHeight = addon.UI.GetRowLineHeight(row)
+                row.details:SetPoint("TOPLEFT", 5, -lineHeight + addon.UI.Style.detailGap)
+                row.details:SetPoint("TOPRIGHT", -3, -lineHeight + addon.UI.Style.detailGap)
                 local height = #notes > 0 and math.max(34, lineHeight + 1 + row.details:GetStringHeight()) or lineHeight
-                row:SetHeight(height)
-                local offset = (height - lineHeight) / 2
-                row.label:SetPoint("LEFT", 5, offset)
-                local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
-                row.label:SetPoint("RIGHT", -distanceWidth - 22, offset)
-                row.distance:SetPoint("RIGHT", 0, offset)
-                row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
+                addon.UI.AlignNavigationRow(row, height, lineHeight, 5, 22)
             end
         end
         UpdateHeight()
@@ -814,6 +833,11 @@ function addon.CreateQuestTracker(settings, actions, version)
         recommendationReason = reason
         if undoSkip.questID and not skippedQuests[undoSkip.questID] then undoSkip:Hide() end
         activeCheckbox.quest = quest
+        if holdButton then
+            holdButton:SetShown(quest ~= nil)
+            local held = actions.getQuestHold and actions.getQuestHold()
+            holdIcon:SetVertexColor(held and 1 or 0.55, held and 0.78 or 0.55, held and 0.2 or 0.55)
+        end
         local goalIndex = targets and targets.index
         if quest and lastQuestID then
             if quest.id == lastQuestID and quest.readyToTurnIn and not lastReady then
@@ -900,6 +924,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end
 
     function frame:RenderDistances(measurements)
+        latestMeasurements = measurements
         if activeCheckbox.quest then
             local distance = FormatDistance(measurements[activeCheckbox.quest.id])
             activeDistance:SetText(distance)
@@ -915,7 +940,25 @@ function addon.CreateQuestTracker(settings, actions, version)
         UpdateHeight()
     end
 
-    function frame:RenderDirection(right, forward, status)
+    function frame:RenderDirection(right, forward, status, arrived)
+        local quest = activeCheckbox.quest
+        if quest and latestMeasurements then
+            local measured = latestMeasurements[quest.id]
+            if measured and measured.marker.accessPoint then
+                navigation.goal:SetText(L.AccessGoal:format(measured.marker.accessName or L.SavedAccess))
+            else
+                for _, row in ipairs(goalRows) do
+                    if row.active and row.goal then navigation.goal:SetText(row.goal.text) break end
+                end
+            end
+            local distance = arrived and (quest.readyToTurnIn and L.TurnInAction or L.ArrivedShort)
+                or FormatDistance(latestMeasurements[quest.id])
+            if activeDistance:GetText() ~= distance then
+                activeDistance:SetText(distance)
+                UpdateHeight()
+            end
+            navigation.distance:SetText(distance)
+        end
         if settings.showScreenArrow then
             arrow:SetDirection()
         else
@@ -1087,6 +1130,59 @@ function addon.CreateQuestTracker(settings, actions, version)
         navigation:UpdateLayout()
         if actions.refreshMeasurements then actions.refreshMeasurements() end
     end
+    function frame:SetProgress(value)
+        progressData = value
+        progressLine:SetText((value.open == 1 and L.QuestProgressOne or L.QuestProgress):format(value.open, value.turnIns))
+        UpdateHeight()
+    end
+    function frame:ResetAppearance()
+        settings.trackerWidth = 352
+        settings.collapsed, settings.alternativesCollapsed, settings.offersCollapsed = false, false, false
+        settings.areaOverviewExpanded, settings.targetGroupsExpanded = false, {}
+        alternativeOffset, offerOffset = 0, 0
+        finishedExpanded, routeExpanded = false, false
+        ShowRouteDetails(false)
+        frame:SetWidth(352)
+        self:UpdateListSettings()
+        self:UpdateFontSize()
+        self:UpdateOpacity()
+        self:UpdateResizeGrip()
+        self:ResetPositions()
+        UpdateCollapseButton()
+    end
+    function frame:SetNewOffers(ids)
+        newOfferIDs = {}
+        local found
+        for id in pairs(ids) do newOfferIDs[id], found = true, true end
+        if found then navigation:Notify(L.NewRecommendedOffer) end
+    end
+    progressLine = CreateFrame("Button", nil, content)
+    progressLine:SetFontString(addon.UI.CreateLabel(progressLine, "GameFontDisableSmall"))
+    progressLine:GetFontString():ClearAllPoints()
+    progressLine:GetFontString():SetPoint("TOPLEFT")
+    progressLine:GetFontString():SetPoint("TOPRIGHT")
+    progressLine:GetFontString():SetJustifyH("LEFT")
+    progressLine:SetHeight(18)
+    progressLine:Hide()
+    addon.UI.BindTooltip(progressLine, function()
+        local detail = L.QuestProgressHelp
+        if progressData and progressData.unknown > 0 then
+            local text = progressData.unknown == 1 and L.QuestProgressUnknownOne or L.QuestProgressUnknown
+            detail = detail .. "\n" .. text:format(progressData.unknown)
+        end
+        return progressLine:GetText(), detail
+    end)
+    holdButton = MakeButton(content)
+    holdIcon = holdButton:CreateTexture(nil, "ARTWORK")
+    holdIcon:SetSize(16, 16)
+    holdIcon:SetPoint("CENTER")
+    holdIcon:SetAtlas("Waypoint-MapPin-Untracked")
+    holdButton:SetScript("OnClick", actions.toggleQuestHold)
+    addon.UI.BindTooltip(holdButton, function()
+        return actions.getQuestHold and actions.getQuestHold() and L.ReleaseQuest or L.HoldQuest, L.HoldQuestHelp
+    end)
+    holdButton:Hide()
+    frame.holdButton, frame.progressLine = holdButton, progressLine
     frame:UpdateOpacity()
 
     return frame

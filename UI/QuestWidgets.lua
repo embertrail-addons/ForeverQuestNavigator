@@ -2,11 +2,60 @@ local _, addon = ...
 local L = addon.L
 local ShowTextTooltip = addon.UI.ShowTextTooltip
 local HideTextTooltip = addon.UI.HideTextTooltip
-local FullTextIfTruncated = addon.UI.FullTextIfTruncated
 
 local labels = {}
 local fonts = {}
 local fontPercent = 100
+
+-- Shared row geometry and colours keep accepted quests, offers and objectives
+-- consistent without changing the user's background opacity or text opacity.
+addon.UI.Style = {
+    rowHeight = 22,
+    detailGap = 2,
+    highlight = { 0.74, 0.55, 0.28, 0.19 },
+    stripe = { 0.66, 0.47, 0.23 },
+}
+
+function addon.UI.FormatDistance(measurement)
+    return measurement and ("~%.0f yd"):format(measurement.yards) or "—"
+end
+
+function addon.UI.GetRowLineHeight(row)
+    return math.max(addon.UI.Style.rowHeight, row.label:GetStringHeight() + 6, row.distance:GetStringHeight() + 6)
+end
+
+function addon.UI.AlignNavigationRow(row, height, lineHeight, inset, arrowSpace)
+    local offset = (height - lineHeight) / 2
+    local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
+    row:SetHeight(height)
+    row.label:ClearAllPoints()
+    row.label:SetPoint("LEFT", inset, offset)
+    row.label:SetPoint("RIGHT", -distanceWidth - arrowSpace, offset)
+    row.distance:ClearAllPoints()
+    row.distance:SetPoint("RIGHT", 0, offset)
+    row.arrow:ClearAllPoints()
+    row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
+    if row.checkbox then
+        row.checkbox:ClearAllPoints()
+        row.checkbox:SetPoint("LEFT", -2, offset)
+    end
+end
+
+function addon.UI.AddRowHighlight(row)
+    local texture = row:CreateTexture(nil, "HIGHLIGHT")
+    texture:SetAllPoints()
+    texture:SetColorTexture(unpack(addon.UI.Style.highlight))
+    return texture
+end
+
+function addon.UI.BindTooltip(frame, content)
+    frame:SetScript("OnEnter", function(self)
+        local heading, detail = content(self)
+        ShowTextTooltip(self, heading, detail)
+    end)
+    frame:SetScript("OnLeave", HideTextTooltip)
+    frame:SetScript("OnHide", HideTextTooltip)
+end
 
 function addon.UI.GetFont(name)
     local entry = fonts[name]
@@ -53,13 +102,12 @@ local function FormatQuestTitle(quest)
 end
 
 local function EnableTitleTooltip(row)
-    row:SetScript("OnEnter", function(self)
+    addon.UI.BindTooltip(row, function(self)
         local quest = self.checkbox and self.checkbox.quest
-        local group = quest and (quest.elite or quest.group) and L.GroupQuest or nil
-        ShowTextTooltip(self, group and self.label:GetText() or FullTextIfTruncated(self.label), group)
+        local detail = quest and (addon.DescribeQuest and addon.DescribeQuest(quest, self.measurement)
+            or addon.Recommendation.Describe(quest, self.measurement, UnitLevel and UnitLevel("player")))
+        return self.label:GetText(), detail
     end)
-    row:SetScript("OnLeave", HideTextTooltip)
-    row:SetScript("OnHide", HideTextTooltip)
 end
 
 local function MakeButton(parent)
@@ -72,16 +120,15 @@ local function MakeButton(parent)
     local background = button:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
     background:SetColorTexture(0.18, 0.15, 0.11, 1)
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(0.74, 0.55, 0.28, 0.19)
+    addon.UI.AddRowHighlight(button)
     return button
 end
 
 local function AddRowBackground(row, index)
     local background = row:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
-    background:SetColorTexture(0.66, 0.47, 0.23, index % 2 == 1 and 0.11 or 0.045)
+    local color = addon.UI.Style.stripe
+    background:SetColorTexture(color[1], color[2], color[3], index % 2 == 1 and 0.11 or 0.045)
 end
 
 local function CreateSkipCheckbox(parent, skipQuest)

@@ -34,6 +34,239 @@ end
 
 local addon = loadAddon(getfenv(), false)
 
+test("Known return travel can outweigh proximity without overriding difficulty tiers", function()
+    local quests = { { id = 1, level = 10 }, { id = 2, level = 10 } }
+    local measurements = { [1] = { yards = 100 }, [2] = { yards = 200 } }
+    local journeys = { [1] = { extraYards = 2000 }, [2] = { extraYards = 100 } }
+    equal(addon.QuestPrioritizer.RankByDistance(quests, measurements, nil, 10)[1].id, 1)
+    equal(addon.QuestPrioritizer.RankByDistance(quests, measurements, nil, 10, journeys)[1].id, 2)
+    quests[2].level = 14
+    equal(addon.QuestPrioritizer.RankByDistance(quests, measurements, nil, 10, journeys)[1].id, 1)
+    equal(addon.TravelSupport.PlanningPenalty({ readyToTurnIn = true }, nil, true), 0)
+    equal(addon.TravelSupport.PlanningPenalty({}, nil, true), 200)
+end)
+
+test("Journey estimates require known unfinished goals and include a saved access exit", function()
+    local map = { GetMapWorldSize = function() return 1000, 1000 end }
+    local first = { mapID = 10, x = 0.2, y = 0.5, objectiveIndex = 1 }
+    local second = { mapID = 10, x = 0.4, y = 0.5, objectiveIndex = 2 }
+    local finish = { mapID = 10, x = 0.1, y = 0.5 }
+    local objectives = { { text = "A" }, { text = "B" } }
+    local distances = { { marker = first }, { marker = second } }
+    local journey = addon.TravelSupport.BuildJourney(map, {}, { yards = 100, marker = first }, objectives, distances, finish)
+    near(journey.totalYards, 600)
+    near(journey.returnYards, 300)
+    distances[2] = nil
+    equal(addon.TravelSupport.BuildJourney(map, {}, { yards = 100, marker = first }, objectives, distances, finish), nil)
+    objectives[2].finished = true
+    local measured = { yards = 50, travelYards = 150, marker = finish, objectiveMarker = first, accessLeg = 100, accessExit = finish }
+    journey = addon.TravelSupport.BuildJourney(map, {}, measured, objectives, distances, { mapID = 10, x = 0, y = 0.5 })
+    near(journey.totalYards, 350)
+    near(journey.returnYards, 200)
+    equal(journey.goals, 1)
+end)
+
+test("Saved access navigation switches to the objective at the gate and rejects a distant replacement spawn", function()
+    local playerX = 0
+    local map = { GetMapWorldSize = function() return 1000, 1000 end,
+        GetPlayerMapPosition = function() return { x = playerX, y = 0.5 } end }
+    local target = { mapID = 10, x = 0.4, y = 0.5, objectiveIndex = 1 }
+    local saved, passed = {}, {}
+    assert(addon.TravelSupport.SaveAccess(saved, 1, target, { mapID = 10, x = 0.2, y = 0.5 }, "Gate"))
+    local measured = { [1] = { yards = 400, marker = target } }
+    addon.TravelSupport.ApplyAccess(map, { { id = 1 } }, measured, { [10] = true }, saved, passed)
+    equal(measured[1].marker.accessPoint, true)
+    near(measured[1].marker.x, 0.2)
+    equal(measured[1].objectiveMarker, target)
+    near(measured[1].travelYards, 400)
+    playerX, measured[1] = 0.2, { yards = 200, marker = target }
+    addon.TravelSupport.ApplyAccess(map, { { id = 1 } }, measured, { [10] = true }, saved, passed)
+    equal(measured[1].marker, target)
+    equal(passed["1:1"], true)
+    local other = { mapID = 10, x = 0.9, y = 0.5, objectiveIndex = 1 }
+    equal(addon.TravelSupport.GetAccess(saved, 1, other, map), nil)
+end)
+
+test("Session XP crosses a level boundary once and played time resumes without counting offline time", function()
+    local session = addon.Session.New(nil, 100)
+    session:CaptureXP(34, 900, 1000)
+    session:CaptureXP(34, 200, 1200)
+    equal(session.data.xp, 0)
+    session:CaptureXP(35, 200, 1200)
+    session:CaptureXP(35, 200, 1200)
+    equal(session.data.xp, 300)
+    equal(session.data.levels, 1)
+    session:TurnIn(1, "Repeatable", 300)
+    session:TurnIn(1, "Repeatable", 0)
+    session:TurnIn(2, nil, nil)
+    equal(session.data.completed, 3)
+    equal(session.data.questXP, 300)
+    equal(session.data.unknownRewards, 1)
+    session:Save(160)
+    local resumed = addon.Session.New(session.data, 1000)
+    resumed:CaptureXP(35, 200, 1200)
+    resumed:CaptureXP(35, 250, 1200)
+    equal(resumed.data.xp, 350)
+    assert(resumed:Describe(1060):find("0 h 2 min", 1, true))
+    resumed:CaptureXP(38, 100, 1600)
+    equal(resumed.data.lowerBound, true)
+    for id = 3, 25 do resumed:TurnIn(id, nil, 10) end
+    equal(#resumed.data.recent, 20)
+end)
+
+test("Questie access hints respect phase and objective association, and route finishers use the nearest known spawn", function()
+    local extras = {
+        { { [100] = { {45, 50}, {50, 50, 3} } }, 3, "Cave entrance", 2 },
+        { { [100] = { {49, 50} } }, 3, "Other objective", 1 },
+        { nil, 3, "Path helper", 2, { { "monster", 7 } } },
+    }
+    local modules = {
+        ZoneDB = { GetUiMapIdByAreaId = function(_, area) return area / 10 end },
+        Phasing = { IsSpawnVisible = function(phase) return phase ~= 3 end },
+    }
+    local env = setmetatable({
+        QuestieLoader = { ImportModule = function(_, name) return modules[name] end },
+        LibQuestieDB = {
+            Quest = { extraObjectives = function() return extras end, finishedBy = function() return { {7} } end },
+            Npc = { spawns = function() return { [100] = { {30, 50}, {90, 50} } } end, name = function() return "Finisher" end },
+            Object = {},
+        },
+    }, { __index = _G })
+    local routes = loadAddon(env, false).QuestieRoutes
+    local map = { GetMapWorldSize = function() return 1000, 1000 end,
+        GetMapInfo = function() return { mapType = 3 } end }
+    local target = { mapID = 10, x = 0.5, y = 0.5, objectiveIndex = 2 }
+    local hints = routes.GetAccessHints(map, {Zone = 3}, {[10] = true}, 1, target)
+    equal(#hints, 3)
+    equal(hints[1].text, "Cave entrance")
+    near(hints[1].point.x, 0.45)
+    local finisher, known, name = routes.GetOutdoorTurnInMarker(map, {Zone = 3}, {[10] = true}, 1, target)
+    equal(known, true)
+    near(finisher.x, 0.3)
+    equal(name, "Finisher")
+    equal(extras[1][1][100][1][1], 45)
+end)
+
+test("Arrival has a departure margin and resets for a new objective or missing coordinates", function()
+    local quest = { id = 1 }
+    local measured = { yards = 11, marker = { mapID = 10, x = 0.5, y = 0.5, objectiveIndex = 1 } }
+    local state, arrived = addon.TrackerState.Arrival(nil, quest, measured)
+    equal(arrived, true)
+    measured.yards = 18
+    state, arrived = addon.TrackerState.Arrival(state, quest, measured)
+    equal(arrived, true)
+    measured.marker.objectiveIndex = 2
+    state, arrived = addon.TrackerState.Arrival(state, quest, measured)
+    equal(arrived, false)
+    measured.yards = 10
+    state, arrived = addon.TrackerState.Arrival(state, quest, measured)
+    equal(arrived, true)
+    measured.yards = 21
+    state, arrived = addon.TrackerState.Arrival(state, quest, measured)
+    equal(arrived, false)
+    state, arrived = addon.TrackerState.Arrival(state, quest, nil)
+    equal(state, nil)
+    equal(arrived, false)
+end)
+
+test("Progress counts unfinished goals and ready quests, excluding skipped and special objectives", function()
+    local quests = { { id = 1 }, { id = 2, readyToTurnIn = true }, { id = 3 },
+        { id = 4, special = true }, { id = 5 }, { id = 6, failed = true } }
+    local summary = addon.TrackerState.Progress(quests, { GetQuestObjectives = function(id)
+        if id == 1 then return { { text = "A" }, { text = "B", finished = true }, { text = "C" } } end
+    end }, { [5] = true })
+    equal(summary.open, 2)
+    equal(summary.turnIns, 1)
+    equal(summary.unknown, 1)
+end)
+
+test("A held quest releases on completion, removal or failure; a held turn-in waits for removal", function()
+    local hold = { id = 1, turnIn = false }
+    assert(not addon.TrackerState.HoldEnded(hold, { { id = 1 } }))
+    equal(addon.TrackerState.HoldEnded(hold, { { id = 1, readyToTurnIn = true } }), true)
+    equal(addon.TrackerState.HoldEnded(hold, { { id = 1, failed = true } }), true)
+    equal(addon.TrackerState.HoldEnded(hold, {}), true)
+    hold.turnIn = true
+    assert(not addon.TrackerState.HoldEnded(hold, { { id = 1, readyToTurnIn = true } }))
+end)
+
+test("Offer announcements are silent on initial scan and do not repeat on refresh or reentry", function()
+    local seen, fresh = addon.TrackerState.NewOffers(nil, { { id = 1, recommended = true } })
+    equal(next(fresh), nil)
+    seen, fresh = addon.TrackerState.NewOffers(seen, { { id = 2, recommended = true } })
+    equal(fresh[2], true)
+    seen, fresh = addon.TrackerState.NewOffers(seen, {})
+    seen, fresh = addon.TrackerState.NewOffers(seen, { { id = 2, recommended = true } })
+    equal(next(fresh), nil)
+end)
+
+test("Target groups use an 80-yard anchor radius without chaining distant targets together", function()
+    local map = { GetMapWorldSize = function() return 1000, 1000 end }
+    local function entry(id, x, mapID)
+        return { quest = { id = id }, target = { mapID = mapID or 10, x = x, y = 0.5 }, yards = id * 10 }
+    end
+    local groups = addon.BuildTargetGroups(map, { entry(1, 0.1), entry(2, 0.16), entry(3, 0.22), entry(4, 0.1, 20) }, "Test zone")
+    equal(#groups, 3)
+    equal(#groups[1].entries, 2)
+    equal(groups[1].place, "Test zone")
+    equal(groups[2].entries[1].quest.id, 3)
+    equal(groups[3].entries[1].quest.id, 4)
+end)
+
+test("Long-distance navigation holds small improvements but switches for clear gains or lost targets", function()
+    local quests = { { id = 1, level = 10 }, { id = 2, level = 10 } }
+    local measured = { [1] = { yards = 1000 }, [2] = { yards = 950 } }
+    local ranked = addon.QuestPrioritizer.RankByDistance(quests, measured, quests, 10)
+    equal(ranked[1].id, 1)
+    measured[2].yards = 850
+    ranked = addon.QuestPrioritizer.RankByDistance(quests, measured, ranked, 10)
+    equal(ranked[1].id, 2)
+    measured[2] = nil
+    ranked = addon.QuestPrioritizer.RankByDistance(quests, measured, ranked, 10)
+    equal(ranked[1].id, 1)
+    quests[1].level = 13
+    measured[2] = { yards = 1050 }
+    ranked = addon.QuestPrioritizer.RankByDistance(quests, measured, ranked, 10)
+    equal(ranked[1].id, 2)
+end)
+
+test("Unknown objective, XP and level data do not improve offer scores", function()
+    local offer = { level = 10, yards = 60, objectiveYards = 400, levelPenalty = 0, xp = 1000 }
+    local known = addon.Recommendation.ScoreOffer(offer)
+    offer.xp = nil
+    assert(addon.Recommendation.ScoreOffer(offer) > known)
+    known = addon.Recommendation.ScoreOffer(offer)
+    offer.objectiveYards = nil
+    assert(addon.Recommendation.ScoreOffer(offer) > known)
+    known = addon.Recommendation.ScoreOffer(offer)
+    offer.level = nil
+    offer.levelPenalty = addon.QuestPrioritizer.GetLevelPenalty(offer, 10)
+    assert(addon.Recommendation.ScoreOffer(offer) > known)
+    local reason = addon.Recommendation.Describe({ id = 1 }, nil, 10)
+    assert(reason:find("coordinates unknown", 1, true))
+    assert(reason:find("level unknown", 1, true))
+    assert(reason:find("route unknown", 1, true))
+end)
+
+test("Diagnostic report records the selected objective and distinguishes distance score from route reasons", function()
+    local report = addon.Recommendation.BuildReport({
+        version = "0.1.55", playerLevel = 34, mapID = 10, activeID = 36, manual = true,
+        quests = { { id = 36, level = 36 }, { id = 37 } },
+        measurements = { [36] = { yards = 200, marker = { mapID = 20, x = 0.4, y = 0.5, objectiveIndex = 2 } } },
+        reason = "Manual selection", route = "Follow-up route",
+    })
+    assert(report:find("version=0.1.55", 1, true))
+    assert(report:find("mode=manual quest", 1, true))
+    assert(report:find("activeQuest=36", 1, true))
+    assert(report:find("distanceScore=300.0 map=20 x=0.4 y=0.5 objective=2", 1, true))
+    assert(report:find("quest=37 level=unknown", 1, true))
+    assert(report:find("selectionReasons:\nManual selection", 1, true))
+    assert(report:find("routeDetails:\nFollow-up route", 1, true))
+    assert(not report:find("playerName", 1, true))
+    local empty = addon.Recommendation.BuildReport({})
+    assert(empty:find("activeQuest=none", 1, true))
+end)
+
 test("Outing order keeps the usual recommendation when savings are small or a closer quest is too high", function()
     local map = { GetMapWorldSize = function() return 1000, 1000 end }
     local ranked = { { id = 1, level = 10 }, { id = 2, level = 12 } }
@@ -361,6 +594,7 @@ local function mockUI()
         "RegisterForClicks", "EnableMouseWheel",
         "SetStartPoint", "SetThickness",
         "SetHighlightTexture",
+        "SetMultiLine", "SetAutoFocus", "SetFocus", "HighlightText", "SetVerticalScroll",
     }) do
         methods[method] = noOp
     end
@@ -432,6 +666,7 @@ local function mockUI()
     end
 
     function methods:SetText(value) self.text = value end
+    function methods:SetScrollChild(child) self.child = child end
     function methods:GetStringHeight()
         if not self.text or self.text == "" then return 0 end
         local _, lineBreaks = self.text:gsub("\n", "")
@@ -460,6 +695,39 @@ local function mockUI()
     end
     return frames, createFrame, createFont
 end
+
+test("Area groups expand into individual quests while single targets remain directly clickable", function()
+    local frames, createFrame, createFont = mockUI()
+    local env = setmetatable({ CreateFrame = createFrame, CreateFont = createFont,
+        GetLocale = function() return "enUS" end, GameTooltip = { IsOwned = function() return false end } }, { __index = _G })
+    local ui = loadAddon(env, false)
+    local selected
+    local settings = {}
+    local area = ui.CreateAreaOverview({}, settings, { onLayout = noOp, openRouteStop = function(entry) selected = entry.quest.id end })
+    local function entry(id) return { quest = { id = id, title = "Quest " .. id }, objectives = 1, yards = id * 10 } end
+    area:SetData({ objectives = 3, turnIns = 0, entries = {}, groups = {
+        { key = 1, place = "Camp", entries = { entry(1), entry(2) } },
+        { key = 3, place = "Road", entries = { entry(3) } },
+    } })
+    frames[2]:Click()
+    local group, single
+    for _, frame in ipairs(frames) do
+        if frame.group then group = frame end
+        if frame.entry and frame.entry.quest.id == 3 then single = frame end
+    end
+    assert(group and group.text:find("2 quest targets", 1, true))
+    single:Click()
+    equal(selected, 3)
+    group:Click()
+    equal(settings.targetGroupsExpanded[1], true)
+    local child
+    for _, frame in ipairs(frames) do
+        if frame.entry and frame.entry.quest.id == 2 then child = frame end
+    end
+    assert(child and child:IsShown())
+    child:Click()
+    equal(selected, 2)
+end)
 
 test("German UI uses the client locale and preserves quest text", function()
     local frames, createFrame, createFont = mockUI()
@@ -697,6 +965,10 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if initializer.callback then
                     if initializer.name == "Restore avoided objectives" then
                         settingsByKey.restoreObjectives = initializer
+                    elseif initializer.name == "Reset appearance and positions" then
+                        settingsByKey.resetAppearance = initializer
+                    elseif initializer.name == "Open session overview" then
+                        settingsByKey.openSession = initializer
                     else
                         settingsByKey.resetPositions = initializer
                     end
@@ -768,7 +1040,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("ADDON_LOADED", "UnrelatedAddon")
     equal(#frames, 1)
     env.CreateSettingsButtonInitializer = function(name, buttonText, callback, help, searchable)
-        assert(name == "Reset window positions" or name == "Restore avoided objectives")
+        assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions" or name == "Open session overview")
         equal(buttonText, name)
         equal(searchable, true)
         return { name = name, callback = callback }
@@ -1119,7 +1391,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     navigation.scripts.OnLeave(navigation)
     navigation.title.truncated = false
     rowOne.scripts.OnEnter(rowOne)
-    equal(tooltip.text, nil)
+    equal(tooltip.text, rowOne.label.text)
+    assert(tooltip.lines[1]:find("Known target", 1, true))
     rowOne.label.truncated = true
     rowOne.scripts.OnEnter(rowOne)
     equal(tooltip.text, rowOne.label.text)
@@ -1363,7 +1636,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     AddOffer(93, "Item start", 52, 1, "itemFromMonster")
     AddOffer(94, "Near quest", 55, 1, nil, 8)
     AddOffer(95, "Distant quest", 90, 1)
-    AddOffer(96, "Other nearby quest", 56, 1)
+    AddOffer(96, "Other nearby quest", 56, 1, nil, 10)
 
     fire("ADDON_LOADED", "Questie")
     env.Questie.API.isReady = true
@@ -1414,6 +1687,11 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(areaHeader.text, "+ Here: 2 objectives · 0 turn-ins")
     areaHeader:Click()
     equal(env.ForeverQuestNavigatorDB.areaOverviewExpanded, true)
+    local groupRow
+    for _, frame in ipairs(frames) do
+        if frame.parent == areaFrame and frame.group then groupRow = frame break end
+    end
+    if groupRow then groupRow:Click() end
     local areaRow
     for _, frame in ipairs(frames) do
         if frame.parent == areaFrame and frame.entry then areaRow = frame end
@@ -1512,9 +1790,9 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(offer:IsShown(), true)
     local firstOffer = frames[firstNewFrame + 16]
     local secondOffer = frames[firstNewFrame + 18]
-    equal(firstOffer.label.text, "Other nearby quest")
+    equal(firstOffer.label.text, "[10] Other nearby quest")
     equal(secondOffer.label.text, "[8] Near quest")
-    equal(firstOffer.distance.text, "~60 yd")
+    equal(firstOffer.distance.text, "Accept ~60 yd")
     equal(firstOffer.checkbox, nil)
     equal(firstOffer.recommendation:IsShown(), false)
     local offersToggle = offer.point[2]
@@ -1540,13 +1818,23 @@ test("TOC startup and quest events update the tracker with or without optional a
     AddOffer(98, "Too high nearby", 51, 1, nil, 13)
     settingsByKey.questieOfferRadius:SetValue(1000)
     flush()
-    equal(firstOffer.label.text, "Other nearby quest")
-    equal(firstOffer.details.text, "|cffffc447Recommended|r · ~2400 XP · Target: Westfall · Near active target")
+    equal(firstOffer.label.text, "[10] Other nearby quest")
+    equal(firstOffer.details.text, "|cffffc447Recommended|r · ~2400 XP · Objective: Westfall · ~10 yd after accepting · Near active target")
     equal(firstOffer.recommendation:IsShown(), true)
     firstOffer.scripts.OnEnter(firstOffer)
-    equal(tooltip.text, "Other nearby quest")
+    equal(tooltip.text, "[10] Other nearby quest")
     equal(firstOffer.measurement.recommendationReason, "nearTarget")
     near(firstOffer.measurement.journeyYards, 70)
+    env.QuestieTestFrame96.data.QuestData.level = nil
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    equal(firstOffer.measurement.id, 96)
+    equal(firstOffer.measurement.recommended, nil)
+    assert(firstOffer.details.text:find("~10 yd after accepting", 1, true))
+    env.QuestieTestFrame96.data.QuestData.level = 10
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    equal(firstOffer.measurement.recommended, true)
     local originalMarker = reloadedAddon.ShowQuestMapMarker
     local offerMarker
     reloadedAddon.ShowQuestMapMarker = function(target) offerMarker = target end
@@ -1559,7 +1847,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, beforeOfferTitle)
     reloadedAddon.ShowQuestMapMarker = originalMarker
     equal(secondOffer.recommendation:IsShown(), false)
-    equal(firstOffer.distance.text, "~60 yd")
+    equal(firstOffer.distance.text, "Accept ~60 yd")
     equal(frames[firstNewFrame + 20].label.text, "Distant quest")
     reloadedCollapse:Click()
     equal(firstOffer:IsShown(), false)
@@ -1647,7 +1935,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     PinQuest(71)
     flush()
     equal(title.text, "[9] Stop A")
-    equal(routeNote:IsShown(), false)
+    equal(routeNote:IsShown(), true)
+    equal(routeNote.text, "Manually selected · automatic choice paused")
     equal(routeToggle:IsShown(), true)
     auto:Click()
     flush()
@@ -2381,8 +2670,181 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(undo:IsShown(), false)
     assert(env.ForeverQuestNavigatorCharacterDB.skippedQuests[nextSkipped])
 
+    -- Exercise the real button/event flow, not just the hold state helper.
+    env.LibQuestieDB = nil
+    api.GetNextWaypoint = nil
+    api.IsOnQuest = function(id) return id == 1001 or id == 1002 end
+    quests = { { questID = 1001, title = "Held patrol", level = 11 }, { questID = 1002, title = "Other patrol", level = 11 } }
+    pinsByMap[10] = { { questID = 1001, x = 0.51, y = 0.5 }, { questID = 1002, x = 0.7, y = 0.5 } }
+    objectives[1001], objectives[1002] = { { text = "Patrol A" } }, { { text = "Patrol B" } }
+    complete[1001], complete[1002], playerX = nil, nil, 0.5
+    settingsByKey.showScreenArrow:SetValue(true)
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    equal(title.text, "[11] Held patrol")
+    equal(activeDistance.text, "Arrived")
+    equal(navigation.arrow:IsShown(), false)
+    equal(updatedTracker.progressLine.text, "2 objectives open · 0 ready to turn in")
+    updatedTracker.holdButton:Click()
+    flush()
+    equal(routeNote.text, "Following this quest until completed")
+    playerX = 0.69
+    distanceTicker.tick()
+    equal(title.text, "[11] Held patrol")
+    complete[1001] = true
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    equal(title.text, "[11] Other patrol")
+    equal(updatedTracker.progressLine.text, "1 objective open · 1 ready to turn in")
+    updatedTracker.holdButton.scripts.OnEnter(updatedTracker.holdButton)
+    equal(tooltip.text, "Follow until completed")
+    updatedTracker.holdButton:Click()
+    flush()
+    updatedTracker.holdButton:Click()
+    flush()
+    equal(routeNote.text, "Nearby target · Your level")
+
+    updatedTracker:SetNewOffers({ [777] = true })
+    local sample = { { id = 777, title = "New offer", level = 11, yards = 40, recommended = true } }
+    updatedTracker:RenderNearbyOffers(sample)
+    equal(firstOffer.discovery:IsShown(), true)
+    firstOffer.scripts.OnUpdate(firstOffer, 5)
+    equal(firstOffer.discovery:IsShown(), false)
+    updatedTracker:RenderNearbyOffers(sample)
+    equal(firstOffer.discovery:IsShown(), false)
+
+    local skips = env.ForeverQuestNavigatorCharacterDB.skippedQuests
+    local radius, language = env.ForeverQuestNavigatorDB.questieOfferRadius, env.ForeverQuestNavigatorDB.language
+    settingsByKey.opacityPercent:SetValue(35)
+    settingsByKey.fontPercent:SetValue(120)
+    settingsByKey.acceptedRows:SetValue(5)
+    settingsByKey.offerRows:SetValue(4)
+    settingsByKey.allowTrackerResize:SetValue(true)
+    env.ForeverQuestNavigatorDB.collapsed = true
+    env.ForeverQuestNavigatorDB.targetGroupsExpanded = { [1001] = true }
+    settingsByKey.resetAppearance.callback()
+    flush()
+    equal(env.ForeverQuestNavigatorDB.opacityPercent, 80)
+    equal(env.ForeverQuestNavigatorDB.fontPercent, 100)
+    equal(env.ForeverQuestNavigatorDB.acceptedRows, 2)
+    equal(env.ForeverQuestNavigatorDB.offerRows, 3)
+    equal(env.ForeverQuestNavigatorDB.allowTrackerResize, false)
+    equal(env.ForeverQuestNavigatorDB.collapsed, false)
+    equal(next(env.ForeverQuestNavigatorDB.targetGroupsExpanded), nil)
+    equal(updatedTracker:GetWidth(), 352)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, skips)
+    assert(skips[nextSkipped])
+    equal(env.ForeverQuestNavigatorDB.language, language)
+    equal(env.ForeverQuestNavigatorDB.questieOfferRadius, radius)
+
+    -- Known completion routes, access-point menus and focused copyable reports.
+    modules.ZoneDB.GetUiMapIdByAreaId = function(_, area) return area / 10 end
+    env.LibQuestieDB = {
+        Quest = {
+            finishedBy = function(id) if id == 1002 then return { {9001} } end end,
+            extraObjectives = function(id)
+                if id == 1002 then return { { { [100] = { {60, 50} } }, 3, "Cave entrance", 0 } } end
+            end,
+        },
+        Npc = { spawns = function() return { [100] = { {20, 50} } } end }, Object = {},
+    }
+    PinQuest(1002)
+    flush()
+    assert(routeDetails.text:find("Known goals and turn-in:", 1, true))
+    local function MenuAction(label)
+        for _, entry in ipairs(historyMenu.entries) do
+            if entry.label == label then entry.restore() return end
+        end
+        error("Missing menu entry: " .. label)
+    end
+    mainMapButton:Click("RightButton")
+    MenuAction("Save my position as this objective's access point")
+    flush()
+    near(env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][0].point.x, 0.69)
+    playerX = 0.4
+    mainMapButton:Click("RightButton")
+    MenuAction("Navigate via access point again")
+    flush()
+    assert(routeDetails.text:find("Via access:", 1, true))
+    equal(navigation.goal.text, "Access: Saved access point")
+    mainMapButton:Click()
+    near(marker.x, 0.69)
+    mainMapButton:Click("RightButton")
+    MenuAction("Report an unsuitable target position")
+    local function Window(title)
+        for _, frame in ipairs(frames) do
+            if frame.heading and frame.heading.text == title then return frame end
+        end
+        error("Missing window: " .. title)
+    end
+    local reportWindow = Window("FQN target position report")
+    assert(reportWindow.edit.text:find("reportedQuest=1002", 1, true))
+    assert(reportWindow.edit.text:find("navigationTarget: map=10 x=0.690000", 1, true))
+    assert(reportWindow.edit.text:find("objectiveTarget: map=10 x=0.700000", 1, true))
+    mainMapButton:Click("RightButton")
+    MenuAction("Show hint on map: Cave entrance")
+    near(marker.x, 0.6)
+    mainMapButton:Click("RightButton")
+    MenuAction("Use hint as access: Cave entrance")
+    flush()
+    mainMapButton:Click()
+    near(marker.x, 0.6)
+    playerX = 0.6
+    distanceTicker.tick()
+    mainMapButton:Click()
+    near(marker.x, 0.7)
+    mainMapButton:Click("RightButton")
+    MenuAction("Remove this objective's access point")
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][0], nil)
+    local activeTitle = title.text
+    rowOne:Click("RightButton")
+    MenuAction("Report an unsuitable target position")
+    assert(reportWindow.edit.text:find("reportedQuest=1001", 1, true))
+    equal(title.text, activeTitle)
+    if firstOffer:IsShown() and firstOffer.measurement then
+        local id = firstOffer.measurement.id
+        firstOffer:Click("RightButton")
+        MenuAction("Report an unsuitable target position")
+        assert(reportWindow.edit.text:find("reportedQuest=" .. id, 1, true))
+        assert(reportWindow.edit.text:find("kind=quest offer", 1, true))
+        equal(title.text, activeTitle)
+    end
+
+    local sessionNow, currentXP = 100, 100
+    env.GetTime = function() return sessionNow end
+    env.UnitXP = function() return currentXP end
+    env.UnitXPMax = function() return 1000 end
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("session reset")
+    currentXP, sessionNow = 250, 160
+    fire("PLAYER_XP_UPDATE", "player")
+    fire("QUEST_TURNED_IN", 1001, 150)
+    flush()
+    settingsByKey.openSession.callback()
+    local sessionWindow = Window("FQN session overview")
+    assert(sessionWindow.edit.text:find("Played time: 0 h 1 min", 1, true))
+    assert(sessionWindow.edit.text:find("Observed XP gained: 150", 1, true))
+    assert(sessionWindow.edit.text:find("Known XP from quest turn-ins: 150", 1, true))
+    assert(sessionWindow.edit.text:find("Quests turned in: 1", 1, true))
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, skips)
+
     updatedTracker:Hide()
     equal(questieTicker.cancelled, true)
+    currentXP, sessionNow = 300, 190
+    fire("PLAYER_XP_UPDATE", "player")
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("session")
+    assert(sessionWindow.edit.text:find("Observed XP gained: 200", 1, true))
+    fire("PLAYER_LOGOUT")
+    near(env.ForeverQuestNavigatorCharacterDB.session.seconds, 90)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("debug")
+    local diagnostic
+    for _, frame in ipairs(frames) do if frame.edit then diagnostic = frame end end
+    assert(diagnostic and diagnostic:IsShown())
+    assert(diagnostic.edit.text:find("FQN diagnostic report", 1, true))
+    diagnostic.edit.scripts.OnEscapePressed()
+    equal(diagnostic:IsShown(), false)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("debug")
+    equal(diagnostic:IsShown(), true)
 end)
 
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

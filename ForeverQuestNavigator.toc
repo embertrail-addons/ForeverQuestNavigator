@@ -3,7 +3,7 @@
 ## Author: Embertrail Addons
 ## Notes: Recommends accepted quests by distance, level, and known follow-ups.
 ## Notes-deDE: Empfiehlt angenommene Quests nach Entfernung, Stufe und bekannten Folgequests.
-## Version: 0.1.54
+## Version: 0.1.57
 ## OptionalDeps: Questie, QuestieDB
 ## X-License: All Rights Reserved
 ## X-Website: https://github.com/embertrail-addons/ForeverQuestNavigator
@@ -14,13 +14,18 @@ Core\Locale.lua
 Core\QuestLog.lua
 Core\QuestLocation.lua
 Core\AreaOverview.lua
+Core\TrackerState.lua
+Core\Session.lua
 Core\Dependencies.lua
 Core\QuestieIntegration.lua
 Core\QuestieRoutes.lua
 Navigation\QuestPrioritizer.lua
+Navigation\Recommendation.lua
 Navigation\QuestRoute.lua
+Navigation\TravelSupport.lua
 UI\NavigationDisplay.lua
 UI\QuestWidgets.lua
+UI\Diagnostics.lua
 UI\ActiveQuestCard.lua
 UI\QuestLists.lua
 UI\RoutePreview.lua

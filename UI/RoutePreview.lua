@@ -49,7 +49,7 @@ function addon.CreateRoutePreview(parent, actions)
             end
             local stop = stops[index]
             row.stop = stop
-            local action = ({ accept = L.RouteAccept, objective = L.RouteObjective, turnIn = L.RouteTurnIn })[stop.action]
+            local action = ({ accept = L.RouteAccept, objective = L.RouteObjective, turnIn = L.RouteTurnIn, access = L.SavedAccess })[stop.action]
             local text = (stop.current and "> " or "") .. (action or L.RouteObjective)
                 .. " · " .. addon.UI.FormatQuestTitle(stop.quest)
             if stop.yards then text = text .. (" · ~%.0f yd"):format(stop.yards) end
