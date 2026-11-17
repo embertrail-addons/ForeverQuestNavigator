@@ -57,7 +57,7 @@ local function CaptureSessionXP()
 end
 
 local function ShowSession()
-    if session then addon.ShowSessionOverview(session:Describe(SessionTime())) end
+    if session then addon.ShowSessionDashboard(function() return session end, SessionTime) end
 end
 
 local function ClearMapMarker()
@@ -1228,6 +1228,9 @@ local function OpenQuestMenu(owner, questID, isOffer)
             print(L.AccessUnavailable) return
         end
         if addon.TravelSupport.SaveAccess(savedAccessPoints, questID, target, point, name) then
+            for _, quest in ipairs(eligibleQuests or {}) do
+                if quest.id == questID then savedAccessPoints[questID][key].questTitle = quest.title break end
+            end
             passedAccessPoints[questID .. ":" .. key] = nil
             outing = nil
             print(L.AccessSaved)
@@ -1266,6 +1269,37 @@ local function OpenQuestMenu(owner, questID, isOffer)
             menu:CreateButton(L.UseAccessHint:format(text), function() Save(point, text) end)
         end
     end)
+end
+
+local function ShowAccessManager()
+    local function Title(id, stored)
+        for _, quest in ipairs(eligibleQuests or {}) do if quest.id == id and quest.title then return quest.title end end
+        local lookup = C_QuestLog and C_QuestLog.GetTitleForQuestID
+        if type(lookup) ~= "function" then lookup = LibQuestieDB and LibQuestieDB.Quest and LibQuestieDB.Quest.name end
+        if type(lookup) == "function" then
+            local ok, name = pcall(lookup, id)
+            if ok and type(name) == "string" and name ~= "" then return name end
+        end
+        return type(stored) == "string" and stored or L.QuestNumber:format(id)
+    end
+    local function Changed(entry)
+        passedAccessPoints[entry.questID .. ":" .. entry.index] = nil
+        outing = nil
+        ScheduleRefresh()
+    end
+    addon.ShowAccessManager({
+        list = function() return addon.TravelSupport.ListAccess(savedAccessPoints, C_Map, Title) end,
+        map = function(entry) OpenRouteStop({ target = entry.point }) end,
+        rename = function(entry, name)
+            local changed = addon.TravelSupport.RenameAccess(savedAccessPoints, entry.questID, entry.index, name)
+            if changed then Changed(entry) end
+            return changed
+        end,
+        remove = function(entry)
+            addon.TravelSupport.RemoveAccess(savedAccessPoints, entry.questID, entry.index)
+            Changed(entry)
+        end,
+    })
 end
 
 local function LoadSkippedQuests()
@@ -1331,6 +1365,8 @@ local function RegisterSettings()
     Settings.CreateDropdown(category, language, function() return languageOptions:GetData() end, L.LanguageHelp)
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.OpenSession, L.OpenSession,
         ShowSession, L.OpenSessionHelp, true))
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.AccessManager, L.AccessManager,
+        ShowAccessManager, L.AccessManagerHelp, true))
     local function RefreshQuestieSettings()
         UpdateQuestieTicker()
         ScheduleRefresh()
@@ -1381,9 +1417,21 @@ local function RegisterSettings()
     Settings.RegisterInitializer(category, restoreObjectives)
 
     Section(L.SettingsAppearance)
+    local detailMode = Settings.RegisterAddOnSetting(category, "FOREVERQUESTNAVIGATOR_DETAIL_MODE",
+        "detailMode", settings, Settings.VarType.String, L.DetailMode, "detailed")
+    local detailOptions = Settings.CreateControlTextContainer()
+    detailOptions:Add("detailed", L.DetailDetailed)
+    detailOptions:Add("compact", L.DetailCompact)
+    detailMode:SetValueChangedCallback(function()
+        tracker:UpdateListSettings()
+        addon.RefreshAppearancePreview()
+    end)
+    Settings.CreateDropdown(category, detailMode, function() return detailOptions:GetData() end, L.DetailModeHelp)
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.AppearancePreview, L.AppearancePreview,
+        function() addon.ShowAppearancePreview(settings) end, L.AppearancePreviewHelp, true))
     local questXP = Settings.RegisterAddOnSetting(category, "FOREVERQUESTNAVIGATOR_SHOW_QUEST_XP",
         "showQuestXP", settings, Settings.VarType.Boolean, L.ShowQuestXP, true)
-    questXP:SetValueChangedCallback(ScheduleRefresh)
+    questXP:SetValueChangedCallback(function() ScheduleRefresh() addon.RefreshAppearancePreview() end)
     Settings.CreateCheckbox(category, questXP, L.ShowQuestXPHelp)
 
     local opacity = Settings.RegisterAddOnSetting(category, "FOREVERQUESTNAVIGATOR_TRACKER_OPACITY",
@@ -1392,7 +1440,7 @@ local function RegisterSettings()
     opacityOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
         return ("%.0f%%"):format(value)
     end)
-    opacity:SetValueChangedCallback(function() tracker:UpdateOpacity() end)
+    opacity:SetValueChangedCallback(function() tracker:UpdateOpacity() addon.RefreshAppearancePreview() end)
     Settings.CreateSlider(category, opacity, opacityOptions, L.OpacityHelp)
     local resize = Settings.RegisterAddOnSetting(category, "FOREVERQUESTNAVIGATOR_ALLOW_TRACKER_RESIZE",
         "allowTrackerResize", settings, Settings.VarType.Boolean, L.AllowTrackerResize, false)
@@ -1403,7 +1451,7 @@ local function RegisterSettings()
     Settings.CreateCheckbox(category, lockTracker, L.LockTrackerPositionHelp)
     local font = Settings.RegisterAddOnSetting(category, "FOREVERQUESTNAVIGATOR_FONT_PERCENT",
         "fontPercent", settings, Settings.VarType.Number, L.FontSize, 100)
-    font:SetValueChangedCallback(function() tracker:UpdateFontSize() end)
+    font:SetValueChangedCallback(function() tracker:UpdateFontSize() addon.RefreshAppearancePreview() end)
     local fontOptions = Settings.CreateSliderOptions(80, 140, 10)
     fontOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
         return ("%.0f%%"):format(value)
@@ -1424,6 +1472,7 @@ local function RegisterSettings()
     end, L.ResetPositionsHelp, true)
     Settings.RegisterInitializer(category, reset)
     local appearance = CreateSettingsButtonInitializer(L.ResetAppearance, L.ResetAppearance, function()
+        detailMode:SetValue("detailed")
         opacity:SetValue(DEFAULT_OPACITY)
         font:SetValue(100)
         acceptedRows:SetValue(2)
@@ -1435,6 +1484,9 @@ local function RegisterSettings()
         ScheduleRefresh()
     end, L.ResetAppearanceHelp, true)
     Settings.RegisterInitializer(category, appearance)
+    Section(L.SettingsDiagnostics)
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.OpenDiagnostics, L.OpenDiagnostics,
+        ShowDiagnostics, L.OpenDiagnosticsHelp, true))
     Settings.RegisterAddOnCategory(category)
     return category
 end
@@ -1485,6 +1537,7 @@ local function AddonLoaded(name)
             settings.displayMode = settings.hidden == true and "off" or "full"
         end
         settings.collapsed = settings.collapsed == true
+        settings.detailMode = settings.detailMode == "compact" and "compact" or "detailed"
         settings.areaOverviewExpanded = settings.areaOverviewExpanded == true
         settings.allowTrackerResize = settings.allowTrackerResize == true
         settings.lockTrackerPosition = settings.lockTrackerPosition == true
@@ -1586,6 +1639,8 @@ local function AddonLoaded(name)
                 ShowDiagnostics()
             elseif command == "session" then
                 ShowSession()
+            elseif command == "access" then
+                ShowAccessManager()
             elseif command == "session reset" then
                 session = addon.Session.New(nil, SessionTime())
                 ForeverQuestNavigatorCharacterDB.session = session.data

@@ -34,6 +34,24 @@ end
 
 local addon = loadAddon(getfenv(), false)
 
+test("Access management distinguishes objectives and retains unrelated records", function()
+    local point = { mapID = 10, x = 0.3, y = 0.4 }
+    local saved = { [1] = { [0] = { point = point, name = "A" }, [2] = { point = point, name = "B" } },
+        [2] = { [1] = { point = point, name = "C" } }, bad = "ignore" }
+    local entries = addon.TravelSupport.ListAccess(saved, { GetMapInfo = function() return { name = "Zone" } end },
+        function(id) return "Quest " .. id end)
+    equal(#entries, 3)
+    equal(entries[2].index, 2)
+    assert(addon.TravelSupport.RenameAccess(saved, 1, 2, "  New name  "))
+    equal(saved[1][2].name, "New name")
+    equal(saved[1][0].name, "A")
+    addon.TravelSupport.RemoveAccess(saved, 1, 2)
+    equal(saved[1][2], nil)
+    equal(saved[2][1].name, "C")
+    addon.TravelSupport.RemoveAccess(saved, 1, 0)
+    equal(saved[1], nil)
+end)
+
 test("Known return travel can outweigh proximity without overriding difficulty tiers", function()
     local quests = { { id = 1, level = 10 }, { id = 2, level = 10 } }
     local measurements = { [1] = { yards = 100 }, [2] = { yards = 200 } }
@@ -595,6 +613,7 @@ local function mockUI()
         "SetStartPoint", "SetThickness",
         "SetHighlightTexture",
         "SetMultiLine", "SetAutoFocus", "SetFocus", "HighlightText", "SetVerticalScroll",
+        "SetMaxLetters", "ClearFocus",
     }) do
         methods[method] = noOp
     end
@@ -888,6 +907,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 equal(owner, category)
                 equal(variable, ({
                     language = "FOREVERQUESTNAVIGATOR_LANGUAGE",
+                    detailMode = "FOREVERQUESTNAVIGATOR_DETAIL_MODE",
                     showDirectionArrow = "FOREVERQUESTNAVIGATOR_SHOW_DIRECTION_ARROW",
                     showScreenArrow = "FOREVERQUESTNAVIGATOR_SHOW_SCREEN_ARROW",
                     showQuestXP = "FOREVERQUESTNAVIGATOR_SHOW_QUEST_XP",
@@ -903,10 +923,11 @@ test("TOC startup and quest events update the tracker with or without optional a
                     offerRows = "FOREVERQUESTNAVIGATOR_OFFER_ROWS",
                 })[key])
                 local expectedType = ({ opacityPercent = "number", questieOfferRadius = "number", language = "string",
-                    fontPercent = "number", acceptedRows = "number", offerRows = "number" })[key]
+                    fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string" })[key]
                 equal(variableType, expectedType or "boolean")
                 equal(name, ({
                     language = "Language",
+                    detailMode = "Tracker detail",
                     opacityPercent = "Tracker opacity",
                     allowTrackerResize = "Allow changing window width",
                     lockTrackerPosition = "Lock tracker position",
@@ -917,14 +938,15 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showDirectionArrow = "Show direction arrow",
                     showScreenArrow = "Show navigation at top of screen",
                     showQuestXP = "Show quest XP in the tracker",
-                    useQuestieKillLocations = "Questie kill locations",
-                    showQuestieOffers = "Questie nearby offers",
-                    questieOfferRadius = "Questie offer radius",
+                    useQuestieKillLocations = "Use known enemy locations",
+                    showQuestieOffers = "Show nearby quest offers",
+                    questieOfferRadius = "Quest offer search radius",
                 })[key])
                 local expectedDefault = true
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end
                 if key == "language" then expectedDefault = "auto" end
+                if key == "detailMode" then expectedDefault = "detailed" end
                 if key == "allowTrackerResize" then expectedDefault = false end
                 if key == "lockTrackerPosition" or key == "lockNavigationPosition" then expectedDefault = false end
                 if key == "fontPercent" then expectedDefault = 100 end
@@ -949,8 +971,14 @@ test("TOC startup and quest events update the tracker with or without optional a
             end,
             CreateDropdown = function(owner, setting, getOptions)
                 equal(owner, category)
-                equal(setting, settingsByKey.language)
                 local options = getOptions()
+                if setting == settingsByKey.detailMode then
+                    equal(#options, 2)
+                    equal(options[1].value, "detailed")
+                    equal(options[2].value, "compact")
+                    return
+                end
+                equal(setting, settingsByKey.language)
                 equal(#options, 3)
                 equal(options[1].value, "auto")
                 equal(options[2].value, "deDE")
@@ -969,6 +997,12 @@ test("TOC startup and quest events update the tracker with or without optional a
                         settingsByKey.resetAppearance = initializer
                     elseif initializer.name == "Open session overview" then
                         settingsByKey.openSession = initializer
+                    elseif initializer.name == "Saved access points" then
+                        settingsByKey.accessManager = initializer
+                    elseif initializer.name == "Appearance preview" then
+                        settingsByKey.preview = initializer
+                    elseif initializer.name == "Open diagnostic report" then
+                        settingsByKey.diagnostics = initializer
                     else
                         settingsByKey.resetPositions = initializer
                     end
@@ -1040,7 +1074,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("ADDON_LOADED", "UnrelatedAddon")
     equal(#frames, 1)
     env.CreateSettingsButtonInitializer = function(name, buttonText, callback, help, searchable)
-        assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions" or name == "Open session overview")
+        assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions"
+            or name == "Open session overview" or name == "Saved access points" or name == "Appearance preview" or name == "Open diagnostic report")
         equal(buttonText, name)
         equal(searchable, true)
         return { name = name, callback = callback }
@@ -1076,7 +1111,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     local title, objective = content.labels[1], content.labels[2]
     equal(reads, 1)
     equal(header.labels[2].text, "v0.1.54")
-    equal(table.concat(sections, ", "), "General, Recommendations, Navigation, Appearance")
+    equal(table.concat(sections, ", "), "General, Recommendations, Navigation, Appearance, Diagnostics")
     equal(tracker.backdropAlpha, 0.8)
     equal(env.ForeverQuestNavigatorDB.questieOfferRadius, 350)
     for _, key in ipairs({ "useQuestieKillLocations", "showQuestieOffers", "showDirectionArrow", "showQuestXP" }) do
@@ -2822,18 +2857,88 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     settingsByKey.openSession.callback()
     local sessionWindow = Window("FQN session overview")
-    assert(sessionWindow.edit.text:find("Played time: 0 h 1 min", 1, true))
-    assert(sessionWindow.edit.text:find("Observed XP gained: 150", 1, true))
-    assert(sessionWindow.edit.text:find("Known XP from quest turn-ins: 150", 1, true))
-    assert(sessionWindow.edit.text:find("Quests turned in: 1", 1, true))
+    assert(sessionWindow.copyText:find("Played time: 0 h 1 min", 1, true))
+    assert(sessionWindow.copyText:find("Observed XP gained: 150", 1, true))
+    assert(sessionWindow.copyText:find("Known XP from quest turn-ins: 150", 1, true))
+    assert(sessionWindow.copyText:find("Quests turned in: 1", 1, true))
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, skips)
 
+    env.GetQuestLogRewardXP = function(id) return id == 1002 and 750 or 250 end
+    settingsByKey.showQuestXP:SetValue(true)
+    fire("QUEST_LOG_UPDATE")
+    flush()
+    if not routeDetails:IsShown() then routeToggle:Click() end
+    local detailedHeight = updatedTracker:GetHeight()
+    local selectedTitle = title.text
+    settingsByKey.detailMode:SetValue("compact")
+    equal(routeDetails:IsShown(), false)
+    equal(rowOne.reward:IsShown(), false)
+    equal(rowOne.routeButton:IsShown(), false)
+    assert(updatedTracker:GetHeight() < detailedHeight)
+    equal(title.text, selectedTitle)
+    mainMapButton.scripts.OnEnter(mainMapButton)
+    assert(tooltip.lines[1]:find("Known goals and turn-in", 1, true))
+    assert(tooltip.lines[1]:find("750 XP", 1, true))
+    settingsByKey.detailMode:SetValue("detailed")
+    equal(routeDetails:IsShown(), true)
+    equal(rowOne.reward:IsShown(), true)
+    settingsByKey.preview.callback()
+    local appearance = Window("Appearance preview")
+    settingsByKey.opacityPercent:SetValue(0)
+    near(appearance.sampleBackdrop.colorAlpha, 0)
+    equal(appearance.sample.alpha, nil)
+    settingsByKey.fontPercent:SetValue(120)
+    near(appearance.sample.fontSize, 14.4)
+    settingsByKey.detailMode:SetValue("compact")
+    equal(appearance.xp:IsShown(), false)
+    settingsByKey.detailMode:SetValue("detailed")
+    equal(appearance.xp:IsShown(), true)
+    settingsByKey.resetAppearance.callback()
+    flush()
+
+    mainMapButton:Click("RightButton")
+    MenuAction("Save my position as this objective's access point")
+    flush()
+    for id = 99991, 99996 do
+        env.ForeverQuestNavigatorCharacterDB.accessPoints[id] = {
+            [1] = { name = "Old access", questTitle = "Completed quest", point = { mapID = 10, x = 0.3, y = 0.5 } },
+        }
+    end
+    settingsByKey.accessManager.callback()
+    local manager = Window("Saved access points")
+    equal(manager.rows[1].entry.questID, 1002)
+    manager.rows[1].edit:SetText("Back entrance")
+    manager.rows[1].save:Click()
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][0].name, "Back entrance")
+    manager.rows[1].map:Click()
+    near(marker.x, 0.6)
+    manager.rows[1].remove:Click()
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.accessPoints[1002], nil)
+    manager.next:Click()
+    equal(manager.page, 1)
+    equal(manager.rows[1].entry.questID, 99996)
+    assert(manager.rows[1].label.text:find("Completed quest", 1, true))
+    manager.rows[1].remove:Click()
+    flush()
+    equal(manager.page, 0)
+    equal(manager.previous.enabled, false)
+
+    sessionWindow.scripts.OnUpdate(sessionWindow, 1)
+    equal(sessionWindow.cards[2].text, "150")
+    sessionWindow.copy:Click()
+    local copy = Window("Copy session summary")
+    local snapshot = copy.edit.text
     updatedTracker:Hide()
     equal(questieTicker.cancelled, true)
     currentXP, sessionNow = 300, 190
     fire("PLAYER_XP_UPDATE", "player")
+    sessionWindow.scripts.OnUpdate(sessionWindow, 1)
+    equal(sessionWindow.cards[2].text, "200")
+    equal(copy.edit.text, snapshot)
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("session")
-    assert(sessionWindow.edit.text:find("Observed XP gained: 200", 1, true))
+    assert(sessionWindow.copyText:find("Observed XP gained: 200", 1, true))
     fire("PLAYER_LOGOUT")
     near(env.ForeverQuestNavigatorCharacterDB.session.seconds, 90)
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("debug")

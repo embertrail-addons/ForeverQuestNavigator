@@ -106,6 +106,10 @@ local function EnableTitleTooltip(row)
         local quest = self.checkbox and self.checkbox.quest
         local detail = quest and (addon.DescribeQuest and addon.DescribeQuest(quest, self.measurement)
             or addon.Recommendation.Describe(quest, self.measurement, UnitLevel and UnitLevel("player")))
+        if self.compact then
+            if self.routeDetails and self.routeDetails:GetText() then detail = (detail or "") .. "\n" .. self.routeDetails:GetText() end
+            if self.reward and self.reward:GetText() then detail = (detail or "") .. "\n" .. self.reward:GetText() end
+        end
         return self.label:GetText(), detail
     end)
 end

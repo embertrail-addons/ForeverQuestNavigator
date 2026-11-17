@@ -138,6 +138,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     local newOfferIDs = {}
     local lastQuestID, lastGoalIndex, lastReady
     local recommendationReason
+    local compactTooltip
     local function AnchorTracker()
         frame:ClearAllPoints()
         frame:SetPoint("TOP", UIParent, "CENTER", settings.x, settings.y)
@@ -306,7 +307,9 @@ function addon.CreateQuestTracker(settings, actions, version)
         else actions.openQuestMap(self.questID) end
     end)
     questMap:SetScript("OnEnter", function(self)
-        ShowTextTooltip(self, title:GetText(), (recommendationReason or "") .. "\n" .. L.OpenQuestMap)
+        local detail = (recommendationReason or "") .. "\n" .. L.OpenQuestMap
+        if settings.detailMode == "compact" and compactTooltip then detail = detail .. "\n" .. compactTooltip end
+        ShowTextTooltip(self, title:GetText(), detail)
     end)
     questMap:SetScript("OnLeave", HideTextTooltip)
     questMap:SetScript("OnHide", HideTextTooltip)
@@ -345,8 +348,15 @@ function addon.CreateQuestTracker(settings, actions, version)
     end
 
     local function UpdateAlternativeLayout(row)
-        row.routeDetails:SetShown(row.routeExpanded == true)
-        row.routeMap:SetShown(row.routeExpanded == true)
+        local compact = settings.detailMode == "compact"
+        row.compact = compact
+        if compact then
+            row.reward:Hide()
+            row.zone:Hide()
+            row.routeButton:Hide()
+        end
+        row.routeDetails:SetShown(row.routeExpanded == true and not compact)
+        row.routeMap:SetShown(row.routeExpanded == true and not compact)
         row.routeLabel:SetText(row.routeExpanded and L.HideRoute or L.RouteDetails)
         local lineHeight = addon.UI.GetRowLineHeight(row)
         local secondaryHeight = math.max(14, row.reward:GetStringHeight() + 2, row.zone:GetStringHeight() + 2,
@@ -367,7 +377,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         row.routeDetails:ClearAllPoints()
         row.routeDetails:SetPoint("TOPLEFT", 26, -height - 3)
         row.routeDetails:SetPoint("TOPRIGHT", -54, -height - 3)
-        if row.routeExpanded then height = height + math.max(16, row.routeDetails:GetStringHeight()) + 8 end
+        if row.routeExpanded and not compact then height = height + math.max(16, row.routeDetails:GetStringHeight()) + 8 end
         addon.UI.AlignNavigationRow(row, height, lineHeight, 26, 18)
     end
 
@@ -573,8 +583,9 @@ function addon.CreateQuestTracker(settings, actions, version)
     end
 
     local function ShowRouteDetails(show)
-        routeDetails:SetShown(show)
-        if routeStopPreview then routeStopPreview:SetExpanded(show) end
+        local visible = show and settings.detailMode ~= "compact"
+        routeDetails:SetShown(visible)
+        if routeStopPreview then routeStopPreview:SetExpanded(visible) end
         disclosure:SetText((show and "− " or "+ ") .. L.Route)
     end
 
@@ -740,11 +751,12 @@ function addon.CreateQuestTracker(settings, actions, version)
                 end
                 if offer.nearActiveTarget then notes[#notes + 1] = L.OfferNearActiveTarget end
                 row.details:SetText(table.concat(notes, " · "))
-                row.details:SetShown(#notes > 0)
+                local hasDetails = #notes > 0 and settings.detailMode ~= "compact"
+                row.details:SetShown(hasDetails)
                 local lineHeight = addon.UI.GetRowLineHeight(row)
                 row.details:SetPoint("TOPLEFT", 5, -lineHeight + addon.UI.Style.detailGap)
                 row.details:SetPoint("TOPRIGHT", -3, -lineHeight + addon.UI.Style.detailGap)
-                local height = #notes > 0 and math.max(34, lineHeight + 1 + row.details:GetStringHeight()) or lineHeight
+                local height = hasDetails and math.max(34, lineHeight + 1 + row.details:GetStringHeight()) or lineHeight
                 addon.UI.AlignNavigationRow(row, height, lineHeight, 5, 22)
             end
         end
@@ -831,6 +843,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             zones, routes, nearbyStops, rewards, targets, hasMap, approachStops, reason, previewStops, area }
         areaOverview:SetData(area)
         recommendationReason = reason
+        compactTooltip = (routePreview or "") .. "\n" .. (rewards and rewards[1] or "")
         if undoSkip.questID and not skippedQuests[undoSkip.questID] then undoSkip:Hide() end
         activeCheckbox.quest = quest
         if holdButton then
@@ -858,10 +871,10 @@ function addon.CreateQuestTracker(settings, actions, version)
         activeDistance:SetText(quest and FormatDistance() or "")
         local reward = rewards and rewards[1]
         activeReward:SetText(reward or "")
-        activeReward:SetShown(reward ~= nil)
+        activeReward:SetShown(reward ~= nil and settings.detailMode ~= "compact")
         local zone = zones and zones[1]
         activeZone:SetText(zone or "")
-        activeZone:SetShown(zone ~= nil)
+        activeZone:SetShown(zone ~= nil and settings.detailMode ~= "compact")
         skippedCount = 0
         for _ in pairs(skippedQuests) do skippedCount = skippedCount + 1 end
         history.skippedQuests = skippedQuests
@@ -873,8 +886,8 @@ function addon.CreateQuestTracker(settings, actions, version)
         otherCount = count
         alternativeOffset = math.min(alternativeOffset, math.max(0, count - (settings.acceptedRows or 2)))
         routeNote:SetText(routeText or "")
-        routeNote:SetShown(routeText ~= nil)
-        routeToggle:SetShown(routePreview ~= nil)
+        routeNote:SetShown(routeText ~= nil and (settings.detailMode ~= "compact" or hasManualSelection))
+        routeToggle:SetShown(routePreview ~= nil and settings.detailMode ~= "compact")
         local questID = quest and quest.id
         if routeQuestID ~= questID or not routePreview then routeExpanded = false end
         routeQuestID = questID
@@ -884,7 +897,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         RenderApproachStops(approachStops)
         ShowRouteDetails(routeExpanded == true)
         nearbyStopsButton.stops = nearbyStops
-        nearbyStopsButton:SetShown(nearbyStops ~= nil)
+        nearbyStopsButton:SetShown(nearbyStops ~= nil and settings.detailMode ~= "compact")
         if nearbyStops then
             local count = #nearbyStops
             nearbyStopsButton:SetText(count == 1 and L.NearbyStopOne or L.NearbyStopMany:format(count))

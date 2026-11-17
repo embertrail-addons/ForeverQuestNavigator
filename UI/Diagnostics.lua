@@ -59,7 +59,3 @@ end
 function addon.ShowPositionReport(text)
     addon.ShowTextWindow("position", text, addon.L.PositionReportTitle, addon.L.PositionReportHint)
 end
-
-function addon.ShowSessionOverview(text)
-    addon.ShowTextWindow("session", text, addon.L.SessionTitle, addon.L.SessionHint)
-end

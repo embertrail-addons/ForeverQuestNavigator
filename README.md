@@ -8,7 +8,21 @@ The movable tracker shows one active quest and a configurable list of alternativ
 
 ## Client and installation
 
-Version **0.1.57** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
+Version **0.1.58** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
+
+### Changes in 0.1.58
+
+- **Live session dashboard:** `/fqn session` displays six readable statistics and scrollable recent turn-ins. It updates once per second while visible. **Copy session summary** opens a separate selectable snapshot, so live updates cannot change text while copying it. `/fqn session reset` still starts a new session.
+- **Saved access manager:** open **Saved access points** in General settings or `/fqn access`. All saved points are available, including those for completed quests. Entries show their quest, objective when known, zone and coordinates. Use Map, edit the name and Save, or Delete. Longer lists use pages of five; editing or deleting affects only the selected entry.
+- **Compact/detailed tracker:** Appearance settings include a detail selector. Detailed is the default. Compact keeps quest titles, objectives, progress and navigation, while XP, zones and route text remain available in quest tooltips. Changing the view does not change recommendations, skips or manual selection.
+- **Appearance preview and clearer settings:** the preview updates with text size and background opacity, without fading text. General settings expose session and access management; technical reports have their own Diagnostics section. Appearance reset also restores Detailed mode.
+- **Validated packaging:** `scripts/package.py` builds a runtime-only ZIP from the TOC, follows XML file references, checks required files and prevents paths outside the addon. Text uses LF line endings and archive entries have stable timestamps. Version tags must match the TOC. The GitHub workflow tests Lua and packaging on main, pull requests, version tags and manual runs, then uploads the installable ZIP as a workflow artifact. It does not upload to CurseForge automatically.
+
+### Building a release
+
+Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.58-beta.zip`. Run `python -m unittest discover -s tests -p test_package.py` to test the packager.
+
+For a tag build, first update the TOC version and changelog, commit and push the reviewed changes, then create and push a matching tag, for example `v0.1.58-beta`. A mismatched tag fails validation. The workflow's **ForeverQuestNavigator-package** artifact contains the installable addon ZIP; extract the artifact download to get that inner ZIP. Upload the addon ZIP to CurseForge yourself after reviewing and testing it in game.
 
 ### Changes in 0.1.57
 
@@ -121,6 +135,9 @@ Run `lua tests/run.lua` from the addon directory with Lua 5.1. The suite compile
 18. At a known entrance, right-click the quest and save your position as its access point. Move away and choose **Navigate via access point again**. Confirm the arrow and map marker lead to the entrance, then switch to the objective at the entrance. Inspect and optionally adopt a Questie hint, and remove the saved point afterward.
 19. Open `/fqn session`, earn XP and turn in a quest. Reopen to refresh, then `/reload` and check the totals remain. Repeat with the tracker hidden. Use `/fqn session reset` only when ready to clear the session totals; quest skips and access points must remain.
 20. Open target feedback from an alternative quest and an offer. Verify the reported ID belongs to the clicked row, the original objective differs from the navigation point when using an access point, and the active quest stays unchanged. Edit, copy and close the report.
+21. Switch between Compact and Detailed with route details expanded. Check the active quest and goal remain the same, compact tooltips retain route/XP information, and Detailed restores the fields. Open the appearance preview and adjust opacity/text size; text must stay opaque.
+22. Open saved access points after finishing a quest. Rename, map and delete one point, checking other records remain. Test more than five entries and delete the last entry on the last page.
+23. Leave the live session dashboard open while gaining XP, then copy its summary. Earn more XP and verify the dashboard updates while the copied text stays unchanged.
 - Click a nearby offer to open its quest giver on the map. Its tooltip shows the acceptance location, target zone, known XP, and the route reasons for a highlighted recommendation.
 13. Compare a short trip to A with a trip to B whose first or second known follow-up returns to A. Repeat with A in a neighboring zone. With a substantial estimated saving, FQN should select B, show the saving and point to B. Manually selecting A should hide the route note. Turn in B and confirm FQN recalculates from the live quest log.
 14. Open **Route details** for a quest with known coordinates and click **Map**. Verify that a gold diamond appears at the target and that it follows zoom and resizing. Switch to a different zone map and verify the diamond is hidden there. Expand the details for a follow-up route and verify the named stops.

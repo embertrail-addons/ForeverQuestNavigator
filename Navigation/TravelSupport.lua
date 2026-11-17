@@ -123,3 +123,39 @@ function Travel.PlanningPenalty(quest, journey, enabled)
     if not journey then return 200 end
     return math.min(1000, journey.extraYards * 0.35)
 end
+
+function Travel.ListAccess(saved, mapAPI, titleForQuest)
+    local entries = {}
+    for id, objectives in pairs(saved) do
+        if type(id) == "number" and id > 0 and type(objectives) == "table" then
+            for index, entry in pairs(objectives) do
+                if type(index) == "number" and index >= 0 and type(entry) == "table" and Travel.ValidPoint(entry.point) then
+                    local map = mapAPI.GetMapInfo and mapAPI.GetMapInfo(entry.point.mapID)
+                    entries[#entries + 1] = { questID = id, index = index, name = entry.name, point = entry.point,
+                        title = titleForQuest(id, entry.questTitle) .. (index > 0 and addon.L.AccessObjective:format(index) or ""),
+                        zone = map and map.name or addon.L.UnknownZone }
+                end
+            end
+        end
+    end
+    table.sort(entries, function(a, b)
+        if a.questID ~= b.questID then return a.questID < b.questID end
+        return a.index < b.index
+    end)
+    return entries
+end
+
+function Travel.RenameAccess(saved, id, index, name)
+    local entry = type(saved[id]) == "table" and saved[id][index]
+    if type(entry) ~= "table" or type(name) ~= "string" then return false end
+    name = name:gsub("[%c]", ""):match("^%s*(.-)%s*$")
+    if #name > 240 then return false end
+    entry.name = name ~= "" and name or addon.L.SavedAccess
+    return true
+end
+
+function Travel.RemoveAccess(saved, id, index)
+    if type(saved[id]) ~= "table" then return end
+    saved[id][index] = nil
+    if not next(saved[id]) then saved[id] = nil end
+end

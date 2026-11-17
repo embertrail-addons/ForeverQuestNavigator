@@ -14,6 +14,15 @@ function Session.New(data, now)
         data[key] = Valid(data[key]) and data[key] or 0
     end
     data.recent = type(data.recent) == "table" and data.recent or {}
+    local recent = {}
+    for _, entry in ipairs(data.recent) do
+        if type(entry) == "table" and Valid(entry.id) and entry.id > 0 then
+            recent[#recent + 1] = { id = entry.id, title = type(entry.title) == "string" and entry.title or nil,
+                xp = Valid(entry.xp) and entry.xp or nil }
+            if #recent == 20 then break end
+        end
+    end
+    data.recent = recent
     data.lowerBound = data.lowerBound == true
     return setmetatable({ data = data, started = now or 0 }, Session)
 end
@@ -53,7 +62,7 @@ end
 
 function Session:Describe(now)
     local L, data = addon.L, self.data
-    local seconds = data.seconds + math.max(0, (now or self.started) - self.started)
+    local seconds = self:Elapsed(now)
     local xp = data.lowerBound and L.SessionXPLowerBound or L.SessionXP
     local lines = { L.SessionTime:format(math.floor(seconds / 3600), math.floor(seconds / 60) % 60),
         L.SessionQuests:format(data.completed), xp:format(data.xp), L.SessionQuestXP:format(data.questXP),
@@ -67,4 +76,8 @@ function Session:Describe(now)
         end
     end
     return table.concat(lines, "\n")
+end
+
+function Session:Elapsed(now)
+    return math.floor(self.data.seconds + math.max(0, (now or self.started) - self.started))
 end

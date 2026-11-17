@@ -1,0 +1,44 @@
+name: Validate and package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1
+      - name: Test addon
+        run: lua5.1 tests/run.lua
+      - name: Test packaging
+        run: python3 -m unittest discover -s tests -p 'test_package.py'
+      - name: Build installable ZIP
+        env:
+          BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [ -n "$BUILD_TAG" ]; then
+            python3 scripts/package.py --tag "$BUILD_TAG"
+          else
+            python3 scripts/package.py --channel beta
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ForeverQuestNavigator-package
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
