@@ -3,7 +3,7 @@
 ## Author: Embertrail Addons
 ## Notes: Recommends accepted quests by distance, level, and known follow-ups.
 ## Notes-deDE: Empfiehlt angenommene Quests nach Entfernung, Stufe und bekannten Folgequests.
-## Version: 0.1.59
+## Version: 0.1.65
 ## OptionalDeps: Questie, QuestieDB
 ## X-License: All Rights Reserved
 ## X-Website: https://github.com/embertrail-addons/ForeverQuestNavigator
@@ -12,6 +12,7 @@
 
 Core\Locale.lua
 Core\QuestLog.lua
+Core\QuestRewards.lua
 Core\QuestTools.lua
 Core\QuestLocation.lua
 Core\AreaOverview.lua
@@ -24,7 +25,23 @@ Navigation\QuestPrioritizer.lua
 Navigation\Recommendation.lua
 Navigation\QuestRoute.lua
 Navigation\TravelSupport.lua
+Core\RecommendationFeedback.lua
+Core\QuestCapacity.lua
+Core\AppearanceProfiles.lua
+Core\DisplayTransfer.lua
+Core\QuestItemHints.lua
+Core\UndoHistory.lua
+Core\QuestInsights.lua
+Navigation\CampAlternatives.lua
+Navigation\MovementGate.lua
+Navigation\TemporaryDetour.lua
+Navigation\PlanningInsights.lua
+Navigation\NavigationController.lua
+Navigation\TravelPreparation.lua
+Core\RegressionFixture.lua
+Core\ZoneOverview.lua
 UI\NavigationDisplay.lua
+UI\Theme.lua
 UI\QuestWidgets.lua
 UI\Diagnostics.lua
 UI\ManagementWindows.lua
@@ -36,4 +53,14 @@ UI\AreaOverview.lua
 UI\QuestTracker.lua
 UI\QuestMap.lua
 UI\QuestMap.xml
+UI\ZoneOverview.lua
+UI\PlanningOverview.lua
+UI\QuickSettings.lua
+UI\Personalization.lua
+UI\AccessRouteEditor.lua
+UI\InsightWindows.lua
+UI\TravelTools.lua
+Core\QuestActions.lua
+Core\SettingsController.lua
+Core\EventController.lua
 Core\Bootstrap.lua

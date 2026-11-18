@@ -21,10 +21,19 @@ function Pin:OnLoad()
     icon:SetAllPoints()
     icon:SetAtlas("Waypoint-MapPin-Untracked")
     icon:SetVertexColor(1, 0.82, 0.34)
+    self.icon = icon
+    self.number = self:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    self.number:SetPoint("CENTER", 0, 1)
 end
 
-function Pin:OnAcquired(target, removeMarker)
+function Pin:OnAcquired(target, removeMarker, stop, ordinal)
     self.removeMarker = removeMarker
+    self.stop, self.ordinal = stop, ordinal
+    self.number:SetText(ordinal and tostring(ordinal) or "")
+    self.number:SetShown(ordinal ~= nil)
+    local active = not ordinal or ordinal == 1
+    self:SetSize(active and 34 or 28, active and 34 or 28)
+    self.icon:SetVertexColor(active and 1 or .55, active and .82 or .8, active and .34 or 1)
     self:UseFrameLevelType("PIN_FRAME_LEVEL_WAYPOINT_LOCATION")
     self:SetPosition(target.x, target.y)
 end
@@ -35,7 +44,9 @@ end
 
 function Pin:OnMouseEnter()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.MapMarker)
+    local title = self.stop and self.stop.quest and addon.UI.FormatQuestTitle(self.stop.quest) or L.MapMarker
+    GameTooltip:SetText(self.ordinal and (self.ordinal .. ". " .. title) or title)
+    if self.ordinal == 1 then GameTooltip:AddLine(L.RouteCurrent) end
     GameTooltip:AddLine(L.RemoveMarker)
     GameTooltip:Show()
 end
@@ -54,6 +65,8 @@ end
 function Pin:OnReleased()
     if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     self.removeMarker = nil
+    self.stop, self.ordinal = nil, nil
+    self.number:Hide()
     MapCanvasPinMixin.OnReleased(self)
 end
 
@@ -73,11 +86,29 @@ function Provider:RefreshAllData()
     local map = self:GetMap()
     local mapID = map:GetMapID()
     if not (map:IsShown() and mapID and self.target) then return end
-    local point = addon.QuestLocation.ProjectMarker(C_Map, self.target, mapID)
-    if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker) end
+    if self.route and #self.route > 0 then
+        for ordinal, stop in ipairs(self.route) do
+            local point = stop.target and addon.QuestLocation.ProjectMarker(C_Map, stop.target, mapID)
+            if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker, stop, ordinal) end
+        end
+    else
+        local point = addon.QuestLocation.ProjectMarker(C_Map, self.target, mapID)
+        if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker) end
+    end
 end
 
-function addon.ShowQuestMapMarker(target, removeMarker)
+local function SameRoute(a, b)
+    if not a or not b then return a == b end
+    if #a ~= #b then return false end
+    for index, stop in ipairs(a) do
+        local other = b[index]
+        if stop.target.mapID ~= other.target.mapID or stop.target.x ~= other.target.x or stop.target.y ~= other.target.y
+            or (stop.quest and stop.quest.id) ~= (other.quest and other.quest.id) then return false end
+    end
+    return true
+end
+
+function addon.ShowQuestMapMarker(target, removeMarker, route)
     if not provider then
         local map = WorldMapFrame
         if not (target and map and map.AddDataProvider and MapCanvasDataProviderMixin and MapCanvasPinMixin) then
@@ -87,9 +118,11 @@ function addon.ShowQuestMapMarker(target, removeMarker)
         map:AddDataProvider(provider)
     end
     local previous = provider.target
-    if target == previous or (target and previous
-        and target.mapID == previous.mapID and target.x == previous.x and target.y == previous.y) then return end
+    if (target == previous or (target and previous
+        and target.mapID == previous.mapID and target.x == previous.x and target.y == previous.y))
+        and SameRoute(provider.route, route) and provider.removeMarker == removeMarker then return end
     provider.target = target
+    provider.route = target and route or nil
     provider.removeMarker = removeMarker
     provider:RefreshAllData()
 end

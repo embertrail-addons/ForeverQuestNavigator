@@ -26,7 +26,7 @@ function QuestLog.Read(api)
     end
 
     local quests = {}
-    local entryCount = api.GetNumQuestLogEntries()
+    local entryCount, totalQuests = api.GetNumQuestLogEntries()
     for index = 1, entryCount do
         local info = api.GetInfo(index)
         if info and not (info.isHeader or info.isHidden or info.isInternalOnly or info.isTask)
@@ -49,7 +49,7 @@ function QuestLog.Read(api)
             }
         end
     end
-    return quests
+    return quests, totalQuests
 end
 
 function QuestLog.GetNextObjective(api, questID)

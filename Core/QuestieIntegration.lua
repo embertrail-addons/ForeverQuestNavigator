@@ -17,6 +17,18 @@ function Integration.GetQuestTagID(id)
     if ok then return tagID end
 end
 
+function Integration.GetObjectiveItemID(id, index)
+    if not Integration.IsReady() then return end
+    local ok, itemID = pcall(function()
+        local active = QuestieLoader:ImportModule("ActiveQuests").Get(id)
+        local quest = active and active.quest
+        local data = quest and quest.ObjectiveData and quest.ObjectiveData[index]
+        local cached = quest and quest.Objectives and quest.Objectives[index]
+        if data and data.Type == "item" and cached and cached.Type == "item" and cached.Id == data.Id then return data.Id end
+    end)
+    if ok then return itemID end
+end
+
 local function LocalMarker(localMaps, mapID, x, y)
     if localMaps[mapID] and type(x) == "number" and type(y) == "number"
         and x >= 0 and x <= 100 and y >= 0 and y <= 100 and (x > 0 or y > 0) then

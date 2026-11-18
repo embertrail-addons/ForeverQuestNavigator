@@ -14,8 +14,7 @@ local function Panel(width, height, title)
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
-    frame:SetBackdropColor(0.07, 0.06, 0.045, 1)
-    frame:SetBackdropBorderColor(0.64, 0.46, 0.22, 1)
+    addon.UI.Theme.WatchFrame(frame)
     frame.heading = addon.UI.CreateLabel(frame, "GameFontNormal")
     frame.heading:SetPoint("TOPLEFT", 16, -14)
     frame.heading:SetPoint("TOPRIGHT", -45, -14)
@@ -160,8 +159,10 @@ function addon.ShowAccessManager(actions)
                     accessWindow:Refresh()
                 end
             end
-            row.save = Button(row, L.SaveName, 160, Rename)
-            row.save:SetPoint("BOTTOMRIGHT")
+            row.save = Button(row, L.SaveShort, 90, Rename)
+            row.save:SetPoint("BOTTOMRIGHT", -70, 0)
+            row.route = Button(row, L.EditAccessRoute, 62, function() if accessWindow.actions.route then accessWindow.actions.route(row.entry) end end)
+            row.route:SetPoint("BOTTOMRIGHT")
             row.edit:SetScript("OnEnterPressed", Rename)
             accessWindow.rows[index] = row
         end
@@ -193,6 +194,7 @@ function addon.ShowAccessManager(actions)
                 if entry then
                     row.label:SetText(entry.title)
                     row.position:SetText(entry.zone .. (" (%.1f, %.1f)"):format(entry.point.x * 100, entry.point.y * 100))
+                    if (entry.stepCount or 1) > 1 then row.position:SetText(row.position:GetText() .. " · " .. L.AccessStepCount:format(entry.stepCount, 8)) end
                     row.edit:SetText(entry.name or L.SavedAccess)
                 end
             end
@@ -230,6 +232,9 @@ end
 
 addon.UI.CreateUtilityPanel = Panel
 addon.UI.CreateUtilityButton = Button
+function addon.RefreshAccessManager()
+    if accessWindow and accessWindow:IsShown() then accessWindow:Refresh() end
+end
 
 function addon.ShowAppearancePreview(settings)
     if not preview then

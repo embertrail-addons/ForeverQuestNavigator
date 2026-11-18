@@ -25,8 +25,13 @@ jobs:
           sudo apt-get install -y lua5.1
       - name: Test addon
         run: lua5.1 tests/run.lua
+      - name: Replay regression fixtures
+        run: |
+          for fixture in tests/fixtures/*.json; do
+            python scripts/replay.py "$fixture"
+          done
       - name: Test packaging
-        run: python3 -m unittest discover -s tests -p 'test_package.py'
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Build installable ZIP
         env:
           BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

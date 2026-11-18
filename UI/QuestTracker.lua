@@ -140,7 +140,11 @@ function addon.CreateQuestTracker(settings, actions, version)
     local recommendationReason
     local compactTooltip
     local flightMode, flightStatus = false, nil
-    local function IsCompact() return settings.detailMode == "compact" or flightMode end
+    local combatMode = false
+    local function IsQuiet() return flightMode or combatMode end
+    local function IsNarrow() return settings.adaptiveLayout ~= false and frame:GetWidth() / ((settings.fontPercent or 100) / 100) < 340 end
+    local function IsCompact() return settings.detailMode == "compact" or IsQuiet() or IsNarrow() end
+    local function FormatDistance(value) return addon.UI.FormatDistance(value, IsNarrow()) end
     local function AnchorTracker()
         frame:ClearAllPoints()
         frame:SetPoint("TOP", UIParent, "CENTER", settings.x, settings.y)
@@ -162,8 +166,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     })
     function frame:UpdateOpacity()
         local opacity = settings.opacityPercent / 100
-        self:SetBackdropColor(0.07, 0.06, 0.045, opacity)
-        self:SetBackdropBorderColor(0.64, 0.46, 0.22, opacity)
+        addon.UI.Theme.Frame(self, opacity)
         navigation:UpdateOpacity()
     end
 
@@ -384,7 +387,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end
 
     local function LayoutSection(toggle, label, caption, collapsed, list, count, y)
-        local shown = not settings.collapsed and not flightMode and count > 0
+        local shown = not settings.collapsed and not IsQuiet() and count > 0
         local expanded = shown and not collapsed
         toggle:SetShown(shown)
         label:SetShown(shown)
@@ -436,20 +439,20 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         title:SetPoint("TOPRIGHT", targeted and -14 or -distanceWidth - 44, -35)
         local detailsBottom = 40 + title:GetStringHeight() + objective:GetStringHeight()
-        finishedToggle:SetShown(finishedCount > 0 and not flightMode)
+        finishedToggle:SetShown(finishedCount > 0 and not IsQuiet())
         if finishedCount > 0 then
             local label = finishedCount == 1 and L.FinishedObjective or L.FinishedObjectives
             finishedToggle:SetText((finishedExpanded and "−  " or "+  ") .. label:format(finishedCount))
         end
         for index, row in ipairs(goalRows) do
-            if index == firstFinishedRow and not flightMode then
+            if index == firstFinishedRow and not IsQuiet() then
                 finishedToggle:ClearAllPoints()
                 finishedToggle:SetPoint("TOPLEFT", 14, -detailsBottom)
                 finishedToggle:SetPoint("TOPRIGHT", -14, -detailsBottom)
                 finishedToggle:SetHeight(math.max(17, finishedToggle:GetFontString():GetStringHeight() + 5))
                 detailsBottom = detailsBottom + finishedToggle:GetHeight() + 1
             end
-            row:SetShown(row.goal ~= nil and (not row.goal.finished or finishedExpanded == true) and (not flightMode or row.active))
+            row:SetShown(row.goal ~= nil and (not row.goal.finished or finishedExpanded == true) and (not IsQuiet() or row.active))
             if row:IsShown() then
                 row.label:SetPoint("TOPRIGHT", row.active and -distanceWidth - 28 or -2, -1)
                 row:ClearAllPoints()
@@ -554,7 +557,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         activeBackdrop:ClearAllPoints()
         activeBackdrop:SetPoint("TOPLEFT", 8, -29)
         activeBackdrop:SetPoint("BOTTOMRIGHT", content, "TOPRIGHT", -8, -activeBottom)
-        local showLists = not settings.collapsed and not flightMode
+        local showLists = not settings.collapsed and not IsQuiet()
         history:SetShown(showLists and skippedCount > 0)
         auto:SetShown(showLists and manualSelection)
         local listTop = activeBottom
@@ -573,7 +576,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         y = LayoutSection(offersToggle, offersLabel, L.NearbyQuests,
             settings.offersCollapsed, offerRows, offerCount, y)
         if areaOverview then areaOverview:Layout() end
-        if areaOverview and flightMode then areaOverview:Hide() end
+        if areaOverview and IsQuiet() then areaOverview:Hide() end
         if areaOverview and areaOverview:IsShown() then
             areaOverview:ClearAllPoints()
             areaOverview:SetPoint("TOPLEFT", 14, -y - 9)
@@ -737,8 +740,9 @@ function addon.CreateQuestTracker(settings, actions, version)
                 row.discovery:SetShown(row.noticeQuestID == offer.id and (row.noticeSeconds or 0) > 0
                     and (not row.noticeDeadline or GetTime() < row.noticeDeadline))
                 row.label:SetText(FormatQuestTitle(offer))
-                row.distance:SetText(L.PickupDistanceCompact:format(offer.yards))
+                row.distance:SetText(IsNarrow() and L.PickupShort:format(FormatDistance(offer)) or L.PickupDistanceCompact:format(offer.yards))
                 local notes = {}
+                if offer.capacityFull then notes[#notes + 1] = L.QuestLogFull end
                 row.recommendation:SetShown(offer.recommended == true)
                 if offer.recommended then
                     notes[#notes + 1] = "|cffffc447" .. L.RecommendedOffer .. "|r"
@@ -752,7 +756,9 @@ function addon.CreateQuestTracker(settings, actions, version)
                         and (L.OfferObjectiveZone:format(offer.objectiveZone) .. " · " .. L.OfferTargetUnknown)
                         or L.OfferTargetUnknown
                 end
-                if offer.nearActiveTarget then notes[#notes + 1] = L.OfferNearActiveTarget end
+                local contextual = addon.PlanningInsights.OfferReason(offer)
+                if contextual then notes[#notes + 1] = contextual
+                elseif offer.nearActiveTarget then notes[#notes + 1] = L.OfferNearActiveTarget end
                 row.details:SetText(table.concat(notes, " · "))
                 local hasDetails = #notes > 0 and not IsCompact()
                 row.details:SetShown(hasDetails)
@@ -794,12 +800,12 @@ function addon.CreateQuestTracker(settings, actions, version)
             if goal.finished or goal.avoided then
                 firstFinishedRow = firstFinishedRow or position
                 finishedCount = finishedCount + 1
-                row.label:SetTextColor(0.67, 0.67, 0.67)
+                row.label:SetTextColor(addon.UI.Theme.Color("muted"))
             elseif active then
-                row.label:SetTextColor(1, 0.82, 0.34)
+                row.label:SetTextColor(addon.UI.Theme.Color("heading"))
                 navigation.goal:SetText(goal.text)
             else
-                row.label:SetTextColor(1, 1, 1)
+                row.label:SetTextColor(addon.UI.Theme.Color("text"))
             end
             row.label:SetText(goal.text)
             row.label:ClearAllPoints()
@@ -840,8 +846,16 @@ function addon.CreateQuestTracker(settings, actions, version)
         for index = count + 1, #approachRows do approachRows[index].questID = nil end
     end
 
+    function frame:RenderSnapshot(snapshot, skippedQuests)
+        local view = snapshot.view
+        self:Render(view.quest, view.objectives, skippedQuests, view.alternatives, view.manual,
+            view.routeNote, view.routeDetails, view.zones, view.alternativeRoutes, view.nearbyStops,
+            view.rewards, view.targets, view.hasMap, view.approachStops, view.reason, view.preview, view.area)
+    end
+
     function frame:Render(quest, objectiveText, skippedQuests, alternatives, hasManualSelection, routeText, routePreview,
         zones, routes, nearbyStops, rewards, targets, hasMap, approachStops, reason, previewStops, area)
+        heading:SetText(IsNarrow() and "FQN" or "Forever Quest Navigator")
         lastRender = { quest, objectiveText, skippedQuests, alternatives, hasManualSelection, routeText, routePreview,
             zones, routes, nearbyStops, rewards, targets, hasMap, approachStops, reason, previewStops, area }
         areaOverview:SetData(area)
@@ -956,13 +970,17 @@ function addon.CreateQuestTracker(settings, actions, version)
         UpdateHeight()
     end
 
+    function frame:SetDetour(point, measured)
+        self.detour, self.detourMeasurement = point, measured
+    end
     function frame:RenderDirection(right, forward, status, arrived)
         if flightMode then status, arrived = flightStatus or L.FlightGeneric, false end
         local quest = activeCheckbox.quest
         if quest and latestMeasurements then
             local measured = latestMeasurements[quest.id]
             if measured and measured.marker.accessPoint then
-                navigation.goal:SetText(L.AccessGoal:format(measured.marker.accessName or L.SavedAccess))
+                navigation.goal:SetText(L.AccessGoal:format(measured.marker.accessName or L.SavedAccess)
+                    .. (measured.marker.accessNote and (" · " .. measured.marker.accessNote) or ""))
             else
                 for _, row in ipairs(goalRows) do
                     if row.active and row.goal then navigation.goal:SetText(row.goal.text) break end
@@ -982,12 +1000,25 @@ function addon.CreateQuestTracker(settings, actions, version)
             arrow:SetDirection(right, forward)
         end
         local separate = settings.showDirectionArrow ~= false and (settings.displayMode == "arrow" or (frame:IsVisible() and settings.showScreenArrow))
-        local hasQuest = activeCheckbox.quest ~= nil
+        local hasQuest = activeCheckbox.quest ~= nil or self.detour ~= nil
+        if self.detour then
+            navigation.title:SetText(L.TemporaryDetour)
+            navigation.goal:SetText(self.detour.name)
+            navigation.distance:SetText(FormatDistance(self.detourMeasurement))
+        elseif quest then navigation.title:SetText(FormatQuestTitle(quest))
+        else navigation.title:SetText("") navigation.goal:SetText("") navigation.distance:SetText("") end
         local showNavigation = separate and hasQuest and (right ~= nil or status ~= nil)
         navigation.arrow:SetDirection(right, forward)
         navigation:SetStatus(status)
+        local measured = quest and latestMeasurements and latestMeasurements[quest.id]
+        local close = not IsQuiet() and measured and measured.yards <= 35
+        navigation.goal:SetMaxLines(close and 2 or 1)
+        navigation.distance:SetFontObject(addon.UI.GetFont(close and "GameFontNormal" or "GameFontHighlightSmall"))
+        navigation.distance:SetTextColor(addon.UI.Theme.Color(close and "heading" or "text"))
+        navigation:UpdateLayout()
         navigation:SetShown(showNavigation == true)
         local localStatus = (not separate or flightMode) and hasQuest and status or ""
+        if self.detour and not separate then localStatus = self.detour.name .. " · " .. FormatDistance(self.detourMeasurement) end
         if navigationStatus:GetText() ~= localStatus then
             navigationStatus:SetText(localStatus)
             navigationStatus:SetShown(localStatus ~= "")
@@ -1027,11 +1058,17 @@ function addon.CreateQuestTracker(settings, actions, version)
             local cursorX = GetCursorPosition()
             local width = ClampTrackerWidth(math.floor(startWidth + (cursorX - startCursorX) / scale + 0.5))
             if width == settings.trackerWidth then return end
+            local wasNarrow = IsNarrow()
             settings.trackerWidth = width
             settings.x, settings.y = x - centerX + (width - startWidth) / 2, top - centerY
             settings.trackerTopAnchored = true
             frame:SetWidth(width)
             AnchorTracker()
+            if wasNarrow ~= IsNarrow() then
+                if lastRender then frame:Render(unpack(lastRender, 1, 17)) end
+                frame:RenderNearbyOffers(lastOffers, lastOfferXP)
+                if latestMeasurements then frame:RenderDistances(latestMeasurements) end
+            end
             for _, row in ipairs(rows) do
                 if row.questID and row.routeExpanded then UpdateAlternativeLayout(row) end
             end
@@ -1159,6 +1196,13 @@ function addon.CreateQuestTracker(settings, actions, version)
         if lastRender then self:Render(unpack(lastRender, 1, 17)) end
         self:RenderNearbyOffers(lastOffers, lastOfferXP)
     end
+    function frame:SetCombatView(fighting)
+        navigation.quiet = fighting or flightMode
+        if combatMode == fighting then return end
+        combatMode = fighting
+        if lastRender then self:Render(unpack(lastRender, 1, 17)) end
+        self:RenderNearbyOffers(lastOffers, lastOfferXP)
+    end
     function frame:ResetAppearance()
         settings.trackerWidth = 352
         settings.collapsed, settings.alternativesCollapsed, settings.offersCollapsed = false, false, false
@@ -1207,6 +1251,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end)
     holdButton:Hide()
     frame.holdButton, frame.progressLine = holdButton, progressLine
+    frame.navigation = navigation
     frame:UpdateOpacity()
 
     return frame

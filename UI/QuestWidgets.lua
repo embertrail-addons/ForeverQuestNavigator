@@ -16,7 +16,8 @@ addon.UI.Style = {
     stripe = { 0.66, 0.47, 0.23 },
 }
 
-function addon.UI.FormatDistance(measurement)
+function addon.UI.FormatDistance(measurement, compact)
+    if compact and measurement and measurement.yards >= 1000 then return ("~%.1fk yd"):format(measurement.yards / 1000) end
     return measurement and ("~%.0f yd"):format(measurement.yards) or "—"
 end
 
@@ -44,7 +45,7 @@ end
 function addon.UI.AddRowHighlight(row)
     local texture = row:CreateTexture(nil, "HIGHLIGHT")
     texture:SetAllPoints()
-    texture:SetColorTexture(unpack(addon.UI.Style.highlight))
+    addon.UI.Theme.Bind(texture, "highlight", addon.UI.Style.highlight[4])
     return texture
 end
 
@@ -77,6 +78,7 @@ function addon.UI.CreateLabel(parent, font)
     local path, size, flags = entry.path, entry.size, entry.flags
     labels[#labels + 1] = { label = label, path = path, size = size, flags = flags }
     label:SetFont(path, size * fontPercent / 100, flags)
+    addon.UI.Theme.Bind(label, font:find("Normal") and "heading" or (font:find("Disable") and "muted" or "text"), nil, "text")
     return label
 end
 
@@ -120,11 +122,12 @@ local function MakeButton(parent)
     local label = addon.UI.CreateLabel(button, "GameFontHighlightSmall")
     label:SetPoint("CENTER")
     button:SetFontString(label)
+    button.textLabel = label
     button:SetNormalFontObject(addon.UI.GetFont("GameFontHighlightSmall"))
     button:SetDisabledFontObject(addon.UI.GetFont("GameFontDisableSmall"))
     local background = button:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
-    background:SetColorTexture(0.18, 0.15, 0.11, 1)
+    addon.UI.Theme.Bind(background, "button")
     addon.UI.AddRowHighlight(button)
     return button
 end
@@ -132,8 +135,7 @@ end
 local function AddRowBackground(row, index)
     local background = row:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
-    local color = addon.UI.Style.stripe
-    background:SetColorTexture(color[1], color[2], color[3], index % 2 == 1 and 0.11 or 0.045)
+    addon.UI.Theme.Bind(background, "stripe", index % 2 == 1 and 0.11 or 0.045)
 end
 
 local function CreateSkipCheckbox(parent, skipQuest)

@@ -16,7 +16,7 @@ function QuestPrioritizer.GetLevel(quest)
     end
 end
 
-function QuestPrioritizer.GetDifficulty(quest, playerLevel)
+function QuestPrioritizer.GetDifficulty(quest, playerLevel, trivialRange)
     local level = QuestPrioritizer.GetLevel(quest)
     if not level or type(playerLevel) ~= "number" or not (playerLevel > 0 and playerLevel < math.huge) then return end
     local gap = level - playerLevel
@@ -24,7 +24,7 @@ function QuestPrioritizer.GetDifficulty(quest, playerLevel)
     if gap > 0 then return "orange" end
     if gap >= -1 then return "yellow" end
 
-    local range = UnitQuestTrivialLevelRange and UnitQuestTrivialLevelRange("player")
+    local range = trivialRange or (UnitQuestTrivialLevelRange and UnitQuestTrivialLevelRange("player"))
     if type(range) ~= "number" or not (range >= 2 and range < math.huge) then
         range = playerLevel < 20 and 5 or (playerLevel < 40 and 6 or 7)
     end
@@ -38,8 +38,8 @@ local function GetPriorityTier(quest, difficulty)
     return 1
 end
 
-function QuestPrioritizer.IsLowPriority(quest, playerLevel)
-    return GetPriorityTier(quest, QuestPrioritizer.GetDifficulty(quest, playerLevel)) > 1
+function QuestPrioritizer.IsLowPriority(quest, playerLevel, trivialRange)
+    return GetPriorityTier(quest, QuestPrioritizer.GetDifficulty(quest, playerLevel, trivialRange)) > 1
 end
 
 local function LevelPenalty(quest, playerLevel, difficulty)
@@ -56,8 +56,8 @@ function QuestPrioritizer.GetLevelPenalty(quest, playerLevel)
     return LevelPenalty(quest, playerLevel, QuestPrioritizer.GetDifficulty(quest, playerLevel))
 end
 
-function QuestPrioritizer.GetProgressBonus(quest, playerLevel)
-    if quest.readyToTurnIn or not QuestPrioritizer.GetLevel(quest) or QuestPrioritizer.IsLowPriority(quest, playerLevel) then return 0 end
+function QuestPrioritizer.GetProgressBonus(quest, playerLevel, trivialRange)
+    if quest.readyToTurnIn or not QuestPrioritizer.GetLevel(quest) or QuestPrioritizer.IsLowPriority(quest, playerLevel, trivialRange) then return 0 end
     return quest.progress and quest.progress.nearly and math.min(40, quest.progress.bonus or 0) or 0
 end
 
@@ -82,17 +82,18 @@ function QuestPrioritizer.Rank(quests, skippedQuestIDs, localQuestIDs)
     return ranked
 end
 
-function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrder, playerLevel, journeys)
+function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrder, playerLevel, journeys, trivialRange, adjustments)
     local remaining, unknownQuests, levelOrder, scores, tiers = {}, {}, {}, {}, {}
     for index, quest in ipairs(levelRanked) do
-        local difficulty = QuestPrioritizer.GetDifficulty(quest, playerLevel)
+        local difficulty = QuestPrioritizer.GetDifficulty(quest, playerLevel, trivialRange)
         tiers[quest.id] = GetPriorityTier(quest, difficulty)
         if measurements[quest.id] then
             remaining[#remaining + 1] = quest
             levelOrder[quest.id] = index
             scores[quest.id] = measurements[quest.id].yards + LevelPenalty(quest, playerLevel, difficulty)
                 + addon.TravelSupport.PlanningPenalty(quest, journeys and journeys[quest.id], journeys ~= nil)
-                - QuestPrioritizer.GetProgressBonus(quest, playerLevel)
+                - QuestPrioritizer.GetProgressBonus(quest, playerLevel, trivialRange)
+                + (adjustments and adjustments[quest.id] or 0)
         else
             unknownQuests[#unknownQuests + 1] = quest
         end

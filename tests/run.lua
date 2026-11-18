@@ -904,7 +904,10 @@ test("TOC startup and quest events update the tracker with or without optional a
                 function historyMenu:SetScrollMode() end
                 function historyMenu:CreateDivider() end
                 function historyMenu:CreateButton(label, select, id)
-                    self.entries[#self.entries + 1] = { label = label, restore = function() select(id) end }
+                    local child = { label = label, entries = {}, restore = select and function() select(id) end,
+                        CreateButton = self.CreateButton, CreateTitle = self.CreateTitle, SetScrollMode = self.SetScrollMode }
+                    self.entries[#self.entries + 1] = child
+                    return child
                 end
                 populate(owner, historyMenu)
             end,
@@ -954,6 +957,13 @@ test("TOC startup and quest events update the tracker with or without optional a
                 equal(variable, ({
                     language = "FOREVERQUESTNAVIGATOR_LANGUAGE",
                     detailMode = "FOREVERQUESTNAVIGATOR_DETAIL_MODE",
+                    highContrast = "FOREVERQUESTNAVIGATOR_HIGH_CONTRAST",
+                    showTravelPreparation = "FOREVERQUESTNAVIGATOR_TRAVEL_PREPARATION",
+                    quietNavigation = "FOREVERQUESTNAVIGATOR_QUIET_NAVIGATION",
+                    showRouteMarkers = "FOREVERQUESTNAVIGATOR_ROUTE_MARKERS",
+                    showQuestRewards = "FOREVERQUESTNAVIGATOR_QUEST_REWARDS",
+                    adaptiveLayout = "FOREVERQUESTNAVIGATOR_ADAPTIVE_LAYOUT",
+                    showLevelHints = "FOREVERQUESTNAVIGATOR_LEVEL_HINTS",
                     showDirectionArrow = "FOREVERQUESTNAVIGATOR_SHOW_DIRECTION_ARROW",
                     showScreenArrow = "FOREVERQUESTNAVIGATOR_SHOW_SCREEN_ARROW",
                     showQuestXP = "FOREVERQUESTNAVIGATOR_SHOW_QUEST_XP",
@@ -974,6 +984,13 @@ test("TOC startup and quest events update the tracker with or without optional a
                 equal(name, ({
                     language = "Language",
                     detailMode = "Tracker detail",
+                    highContrast = "High contrast",
+                    showTravelPreparation = "Show travel preparation hints",
+                    quietNavigation = "Quiet navigation during combat",
+                    showRouteMarkers = "Number the next stops on the map",
+                    showQuestRewards = "Show gold and item rewards in tooltips",
+                    adaptiveLayout = "Adapt details to narrow windows",
+                    showLevelHints = "Show a hint when quests improve after levelling",
                     opacityPercent = "Tracker opacity",
                     allowTrackerResize = "Allow changing window width",
                     lockTrackerPosition = "Lock tracker position",
@@ -993,6 +1010,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "questieOfferRadius" then expectedDefault = 350 end
                 if key == "language" then expectedDefault = "auto" end
                 if key == "detailMode" then expectedDefault = "detailed" end
+                if key == "highContrast" then expectedDefault = false end
                 if key == "allowTrackerResize" then expectedDefault = false end
                 if key == "lockTrackerPosition" or key == "lockNavigationPosition" then expectedDefault = false end
                 if key == "fontPercent" then expectedDefault = 100 end
@@ -1053,6 +1071,20 @@ test("TOC startup and quest events update the tracker with or without optional a
                         settingsByKey.notepad = initializer
                     elseif initializer.name == "Quick introduction" then
                         settingsByKey.introduction = initializer
+                    elseif initializer.name == "Zone overview" then
+                        settingsByKey.zones = initializer
+                    elseif initializer.name == "Export regression case" then
+                        settingsByKey.fixture = initializer
+                    elseif initializer.name == "Quest planning" then
+                        settingsByKey.planning = initializer
+                    elseif initializer.name == "Temporary feedback" then
+                        settingsByKey.feedback = initializer
+                    elseif initializer.name == "Appearance profiles" then
+                        settingsByKey.profiles = initializer
+                    elseif initializer.name == "Changes and undo" then
+                        settingsByKey.history = initializer
+                    elseif initializer.name == "Quests after your level-up" then
+                        settingsByKey.levelChanges = initializer
                     else
                         settingsByKey.resetPositions = initializer
                     end
@@ -1126,7 +1158,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     env.CreateSettingsButtonInitializer = function(name, buttonText, callback, help, searchable)
         assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions"
             or name == "Open session overview" or name == "Saved access points" or name == "Appearance preview" or name == "Open diagnostic report"
-            or name == "Quest notepad" or name == "Quick introduction")
+            or name == "Quest notepad" or name == "Quick introduction" or name == "Zone overview" or name == "Export regression case" or name == "Quest planning"
+            or name == "Temporary feedback" or name == "Appearance profiles" or name == "Changes and undo" or name == "Quests after your level-up")
         equal(buttonText, name)
         equal(searchable, true)
         return { name = name, callback = callback }
@@ -1231,6 +1264,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     minimapButton:Click()
     equal(tracker:IsShown(), false)
     minimapButton:Click("RightButton")
+    local quickSettings
+    for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "FQN settings" then quickSettings = frame end end
+    assert(quickSettings and quickSettings:IsShown())
+    quickSettings.native:Click()
     equal(openedCategory, category:GetID())
     equal(tracker:IsShown(), false)
     minimapButton.scripts.OnMouseDown(minimapButton, "LeftButton")
@@ -1905,7 +1942,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     settingsByKey.questieOfferRadius:SetValue(1000)
     flush()
     equal(firstOffer.label.text, "[10] Other nearby quest")
-    equal(firstOffer.details.text, "|cffffc447Recommended|r · ~2400 XP · Objective: Westfall · ~10 yd after accepting · Near active target")
+    equal(firstOffer.details.text, "|cffffc447Recommended|r · ~2400 XP · Objective: Westfall · ~10 yd after accepting · Target fits one active quest")
     equal(firstOffer.recommendation:IsShown(), true)
     firstOffer.scripts.OnEnter(firstOffer)
     equal(tooltip.text, "[10] Other nearby quest")
@@ -2263,6 +2300,7 @@ test("TOC startup and quest events update the tracker with or without optional a
         SetPassThroughButtons = function(self, button) self.passThrough = button end,
         OnReleased = noOp,
     }
+    local pinPool = {}
     env.WorldMapFrame = {
         GetMapID = function() return openedMap end,
         IsShown = function() return mapShown end,
@@ -2270,19 +2308,25 @@ test("TOC startup and quest events update the tracker with or without optional a
         OnMapChanged = function(self) self.provider:RefreshAllData() end,
         RemoveAllPinsByTemplate = function(_, template)
             equal(template, "ForeverQuestNavigatorTargetPinTemplate")
-            if marker and marker:IsShown() then marker:Hide(); marker:OnReleased() end
+            for _, pin in ipairs(pinPool) do if pin:IsShown() then pin:Hide(); pin:OnReleased() end end
+            env.WorldMapFrame.activePinCount = 0
         end,
         AcquirePin = function(_, template, ...)
             equal(template, "ForeverQuestNavigatorTargetPinTemplate")
-            if not marker then
-                marker = createFrame()
-                env.ForeverQuestNavigator_InitializeTargetPin(marker)
-                marker:OnLoad()
+            local index = (env.WorldMapFrame.activePinCount or 0) + 1
+            env.WorldMapFrame.activePinCount = index
+            local pin = pinPool[index]
+            if not pin then
+                pin = createFrame()
+                env.ForeverQuestNavigator_InitializeTargetPin(pin)
+                pin:OnLoad()
+                pinPool[index] = pin
             end
-            marker:Show()
-            marker:OnAcquired(...)
-            marker:CheckMouseButtonPassthrough("RightButton")
-            return marker
+            if index == 1 then marker = pin end
+            pin:Show()
+            pin:OnAcquired(...)
+            pin:CheckMouseButtonPassthrough("RightButton")
+            return pin
         end,
     }
     updatedTracker.routeMap:Click()
@@ -2723,7 +2767,9 @@ test("TOC startup and quest events update the tracker with or without optional a
     settingsByKey.fontPercent:SetValue(140)
     near(title.fontSize, 16.8)
     near(navigation.title.fontSize, 16.8)
-    assert(rowOne:GetHeight() > 36)
+    assert(rowOne:GetHeight() <= 36)
+    equal(rowOne.reward:IsShown(), false)
+    equal(env.ForeverQuestNavigatorDB.detailMode, "detailed")
     settingsByKey.fontPercent:SetValue(100)
     near(title.fontSize, 12)
     local offerSamples = {}
@@ -2838,9 +2884,15 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     assert(routeDetails.text:find("Known goals and turn-in:", 1, true))
     local function MenuAction(label)
-        for _, entry in ipairs(historyMenu.entries) do
-            if entry.label == label then entry.restore() return end
+        local function Find(entries)
+            for _, entry in ipairs(entries) do
+                if entry.label == label and entry.restore then return entry.restore end
+                local action = Find(entry.entries or {})
+                if action then return action end
+            end
         end
+        local action = Find(historyMenu.entries)
+        if action then action() return end
         error("Missing menu entry: " .. label)
     end
     mainMapButton:Click("RightButton")
@@ -3123,6 +3175,397 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(diagnostic:IsShown(), false)
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("debug")
     equal(diagnostic:IsShown(), true)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("zones")
+    local zoneWindow
+    for _, frame in ipairs(frames) do
+        if frame.heading and frame.heading.text == "Zone overview" then zoneWindow = frame end
+    end
+    assert(zoneWindow and zoneWindow:IsShown())
+    zoneWindow.scripts.OnUpdate(zoneWindow, 1)
+    equal(zoneWindow.rows[1]:IsShown(), true)
+    local snapshot = reloadedAddon.GetNavigationSnapshot()
+    assert(snapshot and snapshot.view and snapshot.activeQuestID == snapshot.view.quest.id)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("fixture")
+    local fixtureDialog
+    for _, frame in ipairs(frames) do
+        if frame.edit and frame.edit.text and frame.edit.text:find('"schema":1', 1, true) then fixtureDialog = frame end
+    end
+    assert(fixtureDialog and fixtureDialog:IsShown())
+    settingsByKey.highContrast:SetValue(true)
+    flush()
+    equal(reloadedAddon.UI.Theme.contrast, true)
+    settingsByKey.highContrast:SetValue(false)
+    flush()
+    equal(reloadedAddon.UI.Theme.contrast, false)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("settings")
+    local quick
+    for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "FQN settings" then quick = frame end end
+    assert(quick and quick:IsShown())
+    equal(quick.rows[5]:IsShown(), true)
+    quick.search:SetText("Quiet navigation")
+    quick.search.scripts.OnTextChanged()
+    equal(quick.rows[1].entry.key, "quietNavigation")
+    equal(quick.rows[2]:IsShown(), false)
+    quick.rows[1]:Click()
+    equal(env.ForeverQuestNavigatorDB.quietNavigation, false)
+    flush()
+    quick.rows[1]:Click()
+    equal(env.ForeverQuestNavigatorDB.quietNavigation, true)
+    flush()
+    quick.search:SetText("Tracker opacity")
+    quick.search.scripts.OnTextChanged()
+    local originalOpacity = env.ForeverQuestNavigatorDB.opacityPercent
+    quick.rows[1].minus:Click()
+    equal(env.ForeverQuestNavigatorDB.opacityPercent, math.max(0, originalOpacity - 5))
+    settingsByKey.opacityPercent:SetValue(originalOpacity)
+    quick.search:SetText("")
+    quick.search.scripts.OnTextChanged()
+    quick.advanced:Click()
+    assert(quick.next.enabled)
+    quick.planning:Click()
+    local planning
+    for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "Quest planning" then planning = frame end end
+    assert(planning and planning:IsShown())
+    planning.turnIns:Click()
+    planning.scripts.OnUpdate(planning, 1)
+    assert(planning.summary.text:find("turn-ins", 1, true))
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("plan")
+    equal(planning:IsShown(), true)
+    local previousCombat = env.InCombatLockdown
+    updatedTracker:Show()
+    if #timers > 0 then flush() end
+    local selectedBeforeCombat = reloadedAddon.GetNavigationSnapshot().activeQuestID
+    env.InCombatLockdown = function() return true end
+    fire("PLAYER_REGEN_DISABLED")
+    flush()
+    equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, selectedBeforeCombat)
+    equal(navigation.quiet, true)
+    playerX = 0.5
+    distanceTicker.tick()
+    equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, selectedBeforeCombat)
+    local detailBeforeCombat = env.ForeverQuestNavigatorDB.detailMode
+    env.InCombatLockdown = function() return false end
+    fire("PLAYER_REGEN_ENABLED")
+    flush()
+    equal(navigation.quiet, false)
+    equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, 1001)
+    equal(env.ForeverQuestNavigatorDB.detailMode, detailBeforeCombat)
+    mainMapButton:Click("RightButton")
+    MenuAction("Target unreachable — lower priority for 10 min")
+    flush()
+    equal(reloadedAddon.GetNavigationSnapshot().feedback[1001].kind, "blocked")
+    equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, 1002)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[1001], nil)
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("feedback")
+    local feedbackManager = Window("Temporary feedback")
+    equal(feedbackManager.rows[1].entry.id, 1001)
+    assert(feedbackManager.rows[1].label.text:find("Target unreachable", 1, true))
+    feedbackManager.rows[1].clear:Click()
+    flush()
+    equal(reloadedAddon.GetNavigationSnapshot().feedback[1001], nil)
+    feedbackManager.scripts.OnUpdate(feedbackManager, 1)
+    equal(feedbackManager.rows[1]:IsShown(), false)
+    local beforeProfiles, beforeOpacity = env.ForeverQuestNavigatorCharacterDB.skippedQuests, env.ForeverQuestNavigatorDB.opacityPercent
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("profiles")
+    local profiles = Window("Appearance profiles")
+    profiles.buttons[1]:Click()
+    equal(env.ForeverQuestNavigatorDB.detailMode, detailBeforeCombat)
+    equal(env.ForeverQuestNavigatorDB.opacityPercent, beforeOpacity)
+    assert(profiles.preview.text:find("Changes before applying", 1, true))
+    profiles.apply:Click()
+    if #timers > 0 then flush() end
+    equal(env.ForeverQuestNavigatorDB.detailMode, "compact")
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, beforeProfiles)
+    profiles.buttons[2]:Click()
+    profiles.apply:Click()
+    if #timers > 0 then flush() end
+    equal(env.ForeverQuestNavigatorDB.detailMode, "detailed")
+    mainMapButton:Click()
+    assert(env.WorldMapFrame.activePinCount >= 2)
+    equal(marker.ordinal, 1) equal(marker.number.text, "1")
+    equal(pinPool[2].ordinal, 2) equal(pinPool[2].number.text, "2")
+    assert(marker.width > pinPool[2].width)
+    settingsByKey.showRouteMarkers:SetValue(false)
+    equal(env.WorldMapFrame.activePinCount, 1) equal(marker.ordinal, nil)
+    settingsByKey.showRouteMarkers:SetValue(true)
+    assert(env.WorldMapFrame.activePinCount >= 2)
+    pinPool[2]:OnClick("RightButton")
+    equal(env.WorldMapFrame.activePinCount, 0)
+    mainMapButton:Click("RightButton")
+    local feedbackGroup, diagnosticGroup
+    for _, entry in ipairs(historyMenu.entries) do
+        assert(entry.label ~= "Report an unsuitable target position")
+        if entry.label == "Recommendation feedback" then feedbackGroup = entry end
+        if entry.label == "Diagnostics" then diagnosticGroup = entry end
+    end
+    assert(feedbackGroup and #feedbackGroup.entries >= 4)
+    assert(diagnosticGroup and #diagnosticGroup.entries == 1)
+    local originalObjectives = reloadedAddon.QuestieIntegration.GetObjectiveMarkers
+    reloadedAddon.QuestieIntegration.GetObjectiveMarkers = function()
+        return {[1002] = {{mapID = 10, x = .68, y = .5, objectiveIndex = 1}, {mapID = 10, x = .95, y = .5, objectiveIndex = 1}}}
+    end
+    fire("QUEST_LOG_UPDATE") flush()
+    rowOne:Click("RightButton")
+    MenuAction("Try another known area for this objective")
+    flush()
+    local switched = reloadedAddon.GetNavigationSnapshot()
+    equal(switched.activeQuestID, 1002) equal(switched.objectiveLock.index, 1)
+    near(switched.measurements[1002].marker.x, .95)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[1002], nil)
+    mainMapButton:Click("RightButton")
+    MenuAction("Allow avoided objective areas again")
+    flush()
+    near(reloadedAddon.GetNavigationSnapshot().measurements[1002].marker.x, .68)
+    mainMapButton:Click("RightButton")
+    MenuAction(reloadedAddon.L.ClearActiveQuest)
+    flush()
+    equal(reloadedAddon.GetNavigationSnapshot().view.manual, false)
+    do (function()
+        local function Window(title)
+            for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == title then return frame end end
+            error("Missing window " .. title)
+        end
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("share")
+        local transfer = Window("Export / import appearance")
+        local opacity = env.ForeverQuestNavigatorDB.opacityPercent
+        transfer.input:SetText("FQN-DISPLAY-1\nopacityPercent=15")
+        transfer.inspect:Click()
+        equal(env.ForeverQuestNavigatorDB.opacityPercent, opacity)
+        equal(transfer.apply.enabled, true)
+        transfer.apply:Click()
+        equal(env.ForeverQuestNavigatorDB.opacityPercent, 15)
+        reloadedAddon.UndoLastChange()
+        equal(env.ForeverQuestNavigatorDB.opacityPercent, opacity)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("detour")
+        local detour = Window("Temporary stop")
+        local selected = reloadedAddon.GetNavigationSnapshot().activeQuestID
+        local px = playerX
+        detour.inputs[1]:SetText(tostring(currentMapID))
+        detour.inputs[2]:SetText(tostring((px + .1) * 100))
+        detour.inputs[3]:SetText("50")
+        detour.inputs[4]:SetText("Bridge stop")
+        detour.start:Click()
+        equal(detour.status.text, "Temporary stop active") flush()
+        equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, selected)
+        detour.start:Click() flush()
+        playerX = px + .1
+        distanceTicker.tick()
+        equal(detour.actions.active(), false) flush()
+        playerX = px
+        detour.map:Click()
+        detour.cancel:Click() flush()
+        equal(detour.status.text, "Quest navigation resumed.")
+        equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, selected)
+    end)() end
+    reloadedAddon.QuestieIntegration.GetObjectiveMarkers = originalObjectives
+    local originalEntries, originalCapacity = api.GetNumQuestLogEntries, api.GetMaxNumQuestsCanAccept
+    api.GetNumQuestLogEntries = function() return originalEntries(), 2 end
+    api.GetMaxNumQuestsCanAccept = function() return 2 end
+    fire("QUEST_LOG_UPDATE") flush()
+    equal(reloadedAddon.GetNavigationSnapshot().capacity.full, true)
+    assert(routeNote.text:find("Frees a quest-log slot", 1, true))
+    mainMapButton:Click("RightButton")
+    MenuAction("Inconvenient now — lower priority for 10 min")
+    flush()
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("feedback")
+    assert(feedbackManager.rows[1]:IsShown())
+    feedbackManager.all:Click()
+    flush()
+    feedbackManager.scripts.OnUpdate(feedbackManager, 1)
+    equal(feedbackManager.all.enabled, false)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, beforeProfiles)
+    api.GetNumQuestLogEntries, api.GetMaxNumQuestsCanAccept = originalEntries, originalCapacity
+    -- Lua 5.1 limits locals per function; keep the extra workflow in its own scope.
+    do (function()
+    planning:Hide()
+    env.ForeverQuestNavigator_HandleBinding("plan")
+    equal(planning:IsShown(), true)
+    feedbackManager:Hide()
+    env.ForeverQuestNavigator_HandleBinding("feedback")
+    equal(feedbackManager:IsShown(), true)
+    equal(env.BINDING_NAME_FOREVERQUESTNAVIGATOR_PLAN, "Open quest planning")
+    equal(env.BINDING_NAME_FOREVERQUESTNAVIGATOR_CAMP, "Navigate to another known area for the active objective")
+    reloadedAddon.QuestieIntegration.GetObjectiveMarkers = function()
+        return {[1002] = {{mapID = 10, x = .68, y = .5, objectiveIndex = 1}, {mapID = 10, x = .95, y = .5, objectiveIndex = 1}}}
+    end
+    PinQuest(1002) flush()
+    mainMapButton:Click("RightButton")
+    MenuAction("Save my position as this objective's access point")
+    flush()
+    playerX = .58
+    mainMapButton:Click("RightButton")
+    MenuAction("Append my position as the next access waypoint")
+    flush()
+    local accessData = env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][1]
+    equal(#accessData.points, 2)
+    mainMapButton:Click("RightButton")
+    MenuAction("Navigate via access point again")
+    flush()
+    equal(reloadedAddon.GetNavigationSnapshot().measurements[1002].marker.accessStep, 1)
+    settingsByKey.accessManager.callback()
+    manager.search:SetText("Other patrol") manager.search.scripts.OnTextChanged()
+    local routeRow
+    for _, row in ipairs(manager.rows) do if row.entry and row.entry.questID == 1002 and row.entry.index == 1 then routeRow = row end end
+    assert(routeRow) routeRow.route:Click()
+    local routeEditor = Window("Access route waypoints")
+    equal(routeEditor.rows[2]:IsShown(), true)
+    routeEditor.rows[2].up:Click()
+    near(routeEditor.rows[1].point.x, .58)
+    flush()
+    routeEditor.rows[2].remove:Click()
+    equal(#accessData.points, 1)
+    flush()
+    mainMapButton:Click("RightButton")
+    MenuAction("Remove this objective's access point")
+    flush()
+    env.ForeverQuestNavigator_HandleBinding("camp")
+    flush()
+    near(reloadedAddon.GetNavigationSnapshot().measurements[1002].marker.x, .95)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[1002], nil)
+
+    local oldCanShow = api.ShouldShowQuestRewards
+    api.ShouldShowQuestRewards = function(id) return id == 1002 end
+    local rewardCalls, rewardSelection = 0, selectedQuest
+    env.GetQuestLogRewardMoney = function(id) equal(id, 1002) rewardCalls = rewardCalls + 1 return 12345 end
+    env.GetNumQuestLogRewards = function(id) equal(id, 1002) return 1 end
+    env.GetNumQuestLogChoices = function(id) equal(id, 1002) return 2 end
+    env.GetQuestLogRewardInfo = function(index, id) equal(id, 1002) return "Quest potion", nil, 3, 1, true, 10 end
+    env.GetQuestLogChoiceInfo = function(index, id) equal(id, 1002) return index == 2 and "Quest staff" or nil, nil, 1, 2, true, 10 + index end
+    fire("QUEST_LOG_UPDATE") flush()
+    mainMapButton.scripts.OnEnter(mainMapButton)
+    assert(tooltip.lines[1]:find("1g 23s 45c", 1, true))
+    assert(tooltip.lines[1]:find("Guaranteed items:", 1, true))
+    assert(tooltip.lines[1]:find("Choose one reward:", 1, true))
+    equal(selectedQuest, rewardSelection)
+    equal(reloadedAddon.QuestRewards.HasPending(), true)
+    local callsBefore = rewardCalls
+    distanceTicker.tick()
+    equal(rewardCalls, callsBefore)
+    settingsByKey.showQuestRewards:SetValue(false) flush()
+    equal(rewardCalls, callsBefore)
+    settingsByKey.showQuestRewards:SetValue(true) flush()
+    env.GetItemInfo = function(id) if id == 11 then return "Quest sword" end end
+    fire("GET_ITEM_INFO_RECEIVED", 11, true) flush()
+    equal(reloadedAddon.QuestRewards.HasPending(), false)
+    mainMapButton.scripts.OnEnter(mainMapButton)
+    assert(tooltip.lines[1]:find("Quest sword x1", 1, true))
+    fire("GET_ITEM_INFO_RECEIVED", 15, true)
+    equal(#timers, 0)
+    equal(selectedQuest, rewardSelection)
+    api.ShouldShowQuestRewards = oldCanShow
+    do (function()
+        local savedDetail = env.ForeverQuestNavigatorDB.detailMode
+        profiles.buttons[1]:Click() profiles.apply:Click()
+        if #timers > 0 then flush() end
+        equal(env.ForeverQuestNavigatorDB.detailMode, "compact")
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("undo")
+        if #timers > 0 then flush() end
+        equal(env.ForeverQuestNavigatorDB.detailMode, savedDetail)
+        equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests, beforeProfiles)
+
+        mainMapButton:Click("RightButton") MenuAction("Save my position as this objective's access point") flush()
+        playerX = .66
+        mainMapButton:Click("RightButton") MenuAction("Append my position as the next access waypoint") flush()
+        routeEditor:Refresh()
+        equal(#env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][1].points, 2)
+        routeEditor.rows[2].remove:Click() flush()
+        equal(#env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][1].points, 1)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("undo") flush()
+        equal(#env.ForeverQuestNavigatorCharacterDB.accessPoints[1002][1].points, 2)
+        equal(routeEditor.rows[2]:IsShown(), true)
+
+        mainMapButton:Click("RightButton") MenuAction("Too difficult — lower priority for 10 min") flush()
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("feedback")
+        feedbackManager.rows[1].clear:Click() flush()
+        equal(reloadedAddon.GetNavigationSnapshot().feedback[1002], nil)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("undo") flush()
+        equal(reloadedAddon.GetNavigationSnapshot().feedback[1002].kind, "hard")
+        feedbackManager.rows[1].clear:Click() flush()
+        local clockBefore = env.GetTime
+        local now = clockBefore()
+        env.GetTime = function() return now + 700 end
+        equal(reloadedAddon.Undo:Undo(), false)
+        equal(reloadedAddon.GetNavigationSnapshot().feedback[1002], nil)
+        env.GetTime = clockBefore
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("history")
+        local history = Window("Changes and undo")
+        assert(history:IsShown()) history.discard:Click()
+
+        local oldLookup, oldCount, oldItemName, oldChains = reloadedAddon.QuestieIntegration.GetObjectiveItemID,
+            env.GetItemCount, env.GetItemInfo, reloadedAddon.QuestieRoutes.GetChains
+        reloadedAddon.QuestieIntegration.GetObjectiveItemID = function(id, index) if index == 1 then return 77 end end
+        env.GetItemCount = function(id, bank) equal(id, 77) equal(bank, false) return 5 end
+        env.GetItemInfo = function(id) if id == 77 then return "Shared supply" elseif id == 11 then return "Quest sword" end end
+        objectives[1001] = {{text = "Supply A", type = "item", numRequired = 10, numFulfilled = 5}}
+        objectives[1002] = {{text = "Supply B", type = "item", numRequired = 8, numFulfilled = 5}}
+        reloadedAddon.QuestieRoutes.GetChains = function()
+            return {[1002] = {finisher = {mapID = 10, x = .5, y = .5}, followUps = {"Next patrol"},
+                stops = {{mapID = 10, x = .51, y = .5, action = "objective", depth = 1, questID = 2100, title = "Next patrol"}}}}
+        end
+        fire("QUEST_LOG_UPDATE") flush()
+        local shared = reloadedAddon.GetNavigationSnapshot().sharedItems
+        equal(#shared, 1) equal(shared[1].required, 18) equal(shared[1].remaining, 13)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("plan") planning.items:Click()
+        assert(planning.rows[1]:GetText():find("Shared supply", 1, true))
+        assert(planning.rows[1]:GetText():find("13", 1, true))
+        planning.chains:Click()
+        assert(planning.rows[2].detail:find("Next patrol", 1, true))
+        assert(planning.rows[1].detail:find(reloadedAddon.L.UnknownFollowUps, 1, true))
+
+        local oldLevel = env.UnitLevel
+        quests[2].level = 14
+        env.UnitLevel = function() return 12 end
+        fire("PLAYER_LEVEL_UP", 12) flush()
+        local levelButton
+        for _, button in ipairs(frames) do if button.text == "One quest now fits your level better — click" then levelButton = button end end
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("levels")
+        assert(levelButton and levelButton:IsShown(), Window("Quests after your level-up").edit.text)
+        levelButton:Click()
+        local levelReport = Window("Quests after your level-up")
+        assert(levelReport.edit.text:find("Other patrol", 1, true))
+
+        local compute, computations = reloadedAddon.NavigationController.Compute, 0
+        reloadedAddon.NavigationController.Compute = function(input) computations = computations + 1 return compute(input) end
+        fire("QUEST_LOG_UPDATE") flush()
+        local beforeIdle = computations
+        distanceTicker.tick() distanceTicker.tick()
+        equal(computations, beforeIdle)
+        playerX = playerX + .0001 distanceTicker.tick()
+        equal(computations, beforeIdle)
+        playerX = playerX + .01 distanceTicker.tick()
+        assert(computations > beforeIdle)
+        local beforeProgress = computations
+        objectives[1002][1].numFulfilled = 6
+        fire("QUEST_LOG_CRITERIA_UPDATE", 1002) flush()
+        assert(computations > beforeProgress)
+        mainMapButton:Click("RightButton") MenuAction("Too difficult — lower priority for 10 min") flush()
+        local beforeExpiry = computations
+        local beforeClock, beforeNow = env.GetTime, env.GetTime()
+        env.GetTime = function() return beforeNow + 700 end
+        distanceTicker.tick()
+        assert(computations > beforeExpiry)
+        equal(reloadedAddon.GetNavigationSnapshot().feedback[1002], nil)
+        env.GetTime = beforeClock
+        reloadedAddon.NavigationController.Compute = compute
+        settingsByKey.fontPercent:SetValue(140)
+        equal(rowOne.reward:IsShown(), false)
+        settingsByKey.adaptiveLayout:SetValue(false) flush()
+        assert(rowOne:GetHeight() > 36)
+        equal(env.ForeverQuestNavigatorDB.detailMode, "detailed")
+        settingsByKey.fontPercent:SetValue(100)
+        settingsByKey.adaptiveLayout:SetValue(true) flush()
+        env.UnitLevel, env.GetItemCount, env.GetItemInfo = oldLevel, oldCount, oldItemName
+        reloadedAddon.QuestieIntegration.GetObjectiveItemID, reloadedAddon.QuestieRoutes.GetChains = oldLookup, oldChains
+    end)() end
+    reloadedAddon.QuestieIntegration.GetObjectiveMarkers = originalObjectives
+    end)() end
+    env.InCombatLockdown = previousCombat
 end)
 
+assert(loadfile("tests/new_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/planning_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/personalization_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/routes_rewards.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/usability_insights.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/release_features.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

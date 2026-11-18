@@ -29,7 +29,7 @@ function addon.CreateDirectionArrow(parent, size)
     local lines = {}
     for index = 1, 3 do
         local line = arrow:CreateLine(nil, "ARTWORK")
-        line:SetColorTexture(1, 0.82, 0.34, 1)
+        addon.UI.Theme.Bind(line, "heading", 1)
         line:SetThickness(2)
         lines[index] = line
     end
@@ -144,6 +144,7 @@ function addon.CreateNavigationDisplay(settings)
         self:SetHeight(height)
     end
     function navigation:Notify(message)
+        if self.quiet then return end
         self.notice:SetText(message)
         self.notice:Show()
         self.noticeSeconds = 4
@@ -166,7 +167,8 @@ function addon.CreateNavigationDisplay(settings)
     end
     navigation:Hide()
     function navigation:UpdateOpacity()
-        navigationBackground:SetColorTexture(0.07, 0.06, 0.045, settings.opacityPercent / 100)
+        local r, g, b = addon.UI.Theme.Color("background")
+        navigationBackground:SetColorTexture(r, g, b, settings.opacityPercent / 100)
     end
 
     function navigation:ResetPosition()

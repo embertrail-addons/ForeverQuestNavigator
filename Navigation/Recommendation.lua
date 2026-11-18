@@ -28,7 +28,9 @@ function Recommendation.ScoreOffer(offer)
     local objective = offer.objectiveYards or 1000
     local bonus = offer.nearActiveTarget and (160 - (offer.anchorGap or 0) * 0.2) or 0
     local xpBonus = offer.xp and math.min(75, offer.xp / 50) or 0
-    return offer.yards + objective + offer.levelPenalty - bonus - xpBonus
+    local shared = offer.objectiveMarker and math.min(100, (offer.overlapCount or 0) * 35) or 0
+    local approach = offer.objectiveMarker and offer.onApproach and 40 or 0
+    return offer.yards + objective + offer.levelPenalty - bonus - xpBonus - shared - approach
 end
 
 local function Number(value)
@@ -54,12 +56,14 @@ function Recommendation.BuildReport(state)
         local journey = state.journeys and state.journeys[quest.id]
         local travel = addon.TravelSupport.PlanningPenalty(quest, journey, state.journeys ~= nil)
         local progress = addon.QuestPrioritizer.GetProgressBonus(quest, state.playerLevel)
+        local adjustment = state.adjustments and state.adjustments[quest.id] or 0
         lines[#lines + 1] = ("quest=%s level=%s difficulty=%s turnIn=%s yards=%s levelPenalty=%s distanceScore=%s map=%s x=%s y=%s objective=%s xp=%s returnAllowance=%s journeyTotal=%s progressBonus=%s"):format(
             tostring(quest.id), Number(quest.level), difficulty or "unknown", tostring(quest.readyToTurnIn == true),
-            Number(measured and measured.yards), Number(penalty), Number(measured and measured.yards + penalty + travel - progress),
+            Number(measured and measured.yards), Number(penalty), Number(measured and measured.yards + penalty + travel - progress + adjustment),
             tostring(marker and marker.mapID or "unknown"), Number(marker and marker.x), Number(marker and marker.y),
             tostring(marker and marker.objectiveIndex or "unknown"), Number(addon.QuestLog.GetTurnInXP(quest)),
             Number(travel), Number(journey and journey.totalYards), Number(progress))
+        lines[#lines + 1] = "planningAdjustment=" .. Number(adjustment)
     end
     lines[#lines + 1] = "selectionReasons:"
     lines[#lines + 1] = state.reason or "none"

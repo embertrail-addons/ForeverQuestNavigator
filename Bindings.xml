@@ -8,4 +8,13 @@
     <Binding name="FOREVERQUESTNAVIGATOR_HOLD" category="ADDONS">
         ForeverQuestNavigator_HandleBinding("hold")
     </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_PLAN" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("plan")
+    </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_CAMP" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("camp")
+    </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_FEEDBACK" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("feedback")
+    </Binding>
 </Bindings>

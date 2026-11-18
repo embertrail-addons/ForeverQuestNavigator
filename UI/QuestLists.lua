@@ -61,6 +61,9 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         local offer = self.measurement
         if not offer then return end
         local lines = {}
+        if offer.capacityFull then lines[#lines + 1] = L.QuestLogFull end
+        local contextual = addon.PlanningInsights.OfferReason(offer)
+        if contextual then lines[#lines + 1] = contextual end
         if offer.recommended then
             lines[#lines + 1] = L.RecommendedOffer
             if offer.levelPenalty == 0 then lines[#lines + 1] = L.RecommendationLevelFit end
@@ -88,6 +91,7 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         if offer.group then lines[#lines + 1] = L.GroupQuest end
         if settings.showQuestXP and offer.xp then lines[#lines + 1] = L.QuestXPReward:format(offer.xp) end
         if settings.showQuestXP and not offer.xp then lines[#lines + 1] = L.UnknownXP end
+        if settings.showQuestRewards ~= false then lines[#lines + 1] = addon.QuestRewards.Describe(addon.QuestRewards.Client(offer.id)) end
         lines[#lines + 1] = L.OfferMapHint
         lines[#lines + 1] = L.QuestMenuHint
         return self.label:GetText(), table.concat(lines, "\n")
@@ -105,10 +109,10 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
     row.recommendation:SetPoint("TOPLEFT")
     row.recommendation:SetPoint("BOTTOMLEFT")
     row.recommendation:SetWidth(2)
-    row.recommendation:SetColorTexture(1, 0.75, 0.28, 1)
+    addon.UI.Theme.Bind(row.recommendation, "recommended", 1)
     row.discovery = row:CreateTexture(nil, "BACKGROUND")
     row.discovery:SetAllPoints()
-    row.discovery:SetColorTexture(1, 0.75, 0.28, 0.16)
+    addon.UI.Theme.Bind(row.discovery, "recommended", 0.16)
     row.discovery:Hide()
     row:SetScript("OnUpdate", function(self, elapsed)
         if not self.noticeSeconds then return end

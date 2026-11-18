@@ -7,7 +7,7 @@ local FullTextIfTruncated = addon.UI.FullTextIfTruncated
 function addon.CreateActiveQuestCard(parent)
     local activeBackdrop = parent:CreateTexture(nil, "BACKGROUND")
     activeBackdrop:SetPoint("TOPLEFT", 8, -29)
-    activeBackdrop:SetColorTexture(0.26, 0.19, 0.10, 0.55)
+    addon.UI.Theme.Bind(activeBackdrop, "active", 0.55)
     local title = addon.UI.CreateLabel(parent, "GameFontNormal")
     title:SetPoint("TOPLEFT", 40, -35)
     title:SetPoint("TOPRIGHT", -104, -35)

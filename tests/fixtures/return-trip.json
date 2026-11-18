@@ -1,0 +1,1 @@
+{"schema":1,"playerLevel":30,"hasJourneys":true,"previous":[],"quests":[{"id":1,"level":30,"measurement":{"yards":100},"journey":{"totalYards":2100,"extraYards":2000}},{"id":2,"level":30,"measurement":{"yards":200}},{"id":3,"level":30}],"expected":[2,1,3]}
