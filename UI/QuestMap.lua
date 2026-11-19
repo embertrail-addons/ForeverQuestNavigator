@@ -7,7 +7,8 @@ local pending, pendingWatch
 local status = {backend = "not initialized", count = 0}
 function addon.GetMapMarkerStatus()
     return {backend = status.backend, count = canvasMarkers and canvasMarkers.count or status.count,
-        hasTarget = canvasMarkers and canvasMarkers.target ~= nil or provider and provider.target ~= nil or pending ~= nil}
+        hasTarget = canvasMarkers and canvasMarkers.target ~= nil or provider and provider.target ~= nil or pending ~= nil,
+        detail = canvasMarkers and canvasMarkers.Describe and canvasMarkers:Describe() or "renderer=provider"}
 end
 local function WaitForMap(target, removeMarker, route)
     pending = {target = target, removeMarker = removeMarker, route = route}

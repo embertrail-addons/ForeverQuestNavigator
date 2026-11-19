@@ -5,10 +5,13 @@ return function(test, addon, equal, near)
         function canvas:GetHeight() return self.height end
         function canvas:GetEffectiveScale() return self.scale end
         function canvas:GetFrameLevel() return 20 end
+        function canvas:GetFrameStrata() return "BACKGROUND" end
         local map = {id = 10, shown = true}
         function map:GetCanvas() return canvas end
         function map:GetMapID() return self.id end
         function map:IsShown() return self.shown end
+        function map:GetFrameStrata() return "HIGH" end
+        function map:GetFrameLevel() return 100 end
         local created = {}
         local function Region()
             return setmetatable({shown = true, scripts = {}}, {__index = function(self, key)
@@ -19,6 +22,10 @@ return function(test, addon, equal, near)
                     SetScript = function(s, name, value) s.scripts[name] = value end,
                     SetPoint = function(s, point, relative, other, x, y) s.x, s.y = x, y end,
                     SetScale = function(s, value) s.scale = value end,
+                    SetFrameStrata = function(s, value) s.strata = value end,
+                    SetFrameLevel = function(s, value) s.level = value end,
+                    SetAlpha = function(s, value) s.alpha = value end,
+                    SetIgnoreParentAlpha = function(s, value) s.ignoreParentAlpha = value end,
                     CreateTexture = function() return Region() end,
                     CreateFontString = function() return Region() end,
                 }
@@ -35,6 +42,8 @@ return function(test, addon, equal, near)
         local target = {mapID = 10, x = .4, y = .6}
         render:Set(target)
         equal(render.count, 1) near(render.pins[1].x, 400) near(render.pins[1].y, -300)
+        equal(render.pins[1].strata, "HIGH") assert(render.pins[1].level > map:GetFrameLevel())
+        equal(render.pins[1].alpha, 1) equal(render.pins[1].ignoreParentAlpha, true)
         map.id = 20 render.watcher.scripts.OnUpdate(render.watcher, .2)
         equal(render.count, 0)
         map.id = 10 render.watcher.scripts.OnUpdate(render.watcher, .2)
@@ -59,6 +68,13 @@ return function(test, addon, equal, near)
         equal(removed, 1) equal(render.count, 0) equal(render.target, nil)
         equal(render.watcher.shown, false)
         render.watcher.scripts.OnShow() equal(render.count, 0)
+    end)
+    test("Canvas marker strata follows fullscreen maps instead of staying below them", function()
+        local render, map = CanvasFixture()
+        map.GetFrameStrata = function() return "FULLSCREEN" end
+        render:Set({mapID = 10, x = .4, y = .6})
+        equal(render.pins[1].strata, "FULLSCREEN")
+        assert(render.pins[1].level > map:GetFrameLevel())
     end)
     test("Explicit map targets remain visible when preview stops are in another zone", function()
         local render = CanvasFixture()
@@ -130,5 +146,19 @@ return function(test, addon, equal, near)
         assert(perf:Report():find("p95(last 128)=2.000 ms", 1, true))
         perf.enabled = false equal(perf:Begin(), nil)
         debugprofilestop = original
+    end)
+    test("Tooltip headings never pass wrapping as the numeric alpha argument", function()
+        local previous = GameTooltip
+        local observed
+        GameTooltip = {
+            SetOwner = function() end,
+            SetText = function(_, text, r, g, b, alpha)
+                assert(alpha == nil or type(alpha) == "number", "Tooltip alpha must be numeric") observed = text
+            end,
+            AddLine = function() end, Show = function() end,
+        }
+        addon.UI.ShowTextTooltip({}, "Heading", "Detail")
+        equal(observed, "Heading")
+        GameTooltip = previous
     end)
 end

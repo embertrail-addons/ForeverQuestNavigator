@@ -300,6 +300,7 @@ local function BuildDiagnostics()
     })
     local marker = addon.GetMapMarkerStatus()
     report = report .. ("\nmapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget))
+    report = report .. "\n" .. marker.detail
     return report
 end
 
@@ -1920,6 +1921,7 @@ local function AddonLoaded(name)
             elseif command == "markers" then
                 local marker = addon.GetMapMarkerStatus()
                 print(("FQN | mapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget)))
+                print("FQN | " .. marker.detail)
             elseif command == "perf on" then
                 print("FQN | " .. (addon.Performance:Start() and L.PerformanceEnabled or L.PerformanceUnavailable))
             elseif command == "perf off" then addon.Performance.enabled = false print("FQN | " .. L.PerformanceDisabled)

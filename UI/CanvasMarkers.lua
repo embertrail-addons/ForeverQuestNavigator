@@ -17,8 +17,13 @@ function Canvas.New(map, api, create)
         if callback then callback() end
     end
     local function NewPin()
-        local pin = create("Button", nil, canvas)
+        local pin = create("Button", nil, canvas, "BackdropTemplate")
         pin:SetSize(34, 34) pin:RegisterForClicks("RightButtonUp")
+        pin:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 2})
+        pin:SetBackdropColor(.08, .06, .02, 1)
+        pin:SetBackdropBorderColor(1, .82, .34, 1)
+        pin:SetAlpha(1)
+        if pin.SetIgnoreParentAlpha then pin:SetIgnoreParentAlpha(true) end
         if pin.SetPassThroughButtons then pin:SetPassThroughButtons("LeftButton") end
         pin.icon = pin:CreateTexture(nil, "ARTWORK") pin.icon:SetAllPoints()
         pin.icon:SetAtlas("Waypoint-MapPin-Untracked")
@@ -66,6 +71,15 @@ function Canvas.New(map, api, create)
         local uiScale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
         local scale = uiScale / canvasScale
         if not (width > 0 and height > 0 and scale > 0 and scale < math.huge) then return end
+        local strataOrder = {BACKGROUND = 0, LOW = 1, MEDIUM = 2, HIGH = 3, DIALOG = 4, FULLSCREEN = 5, FULLSCREEN_DIALOG = 6, TOOLTIP = 7}
+        local strata, level = "HIGH", 0
+        for _, surface in ipairs({map, canvas, map.ScrollContainer}) do
+            if surface then
+                local value = surface.GetFrameStrata and surface:GetFrameStrata()
+                if value and (strataOrder[value] or 0) > strataOrder[strata] then strata = value end
+                level = math.max(level, surface.GetFrameLevel and surface:GetFrameLevel() or 0)
+            end
+        end
         for index, group in ipairs(groups) do
             local pin = self.pins[index]
             if not pin then pin = NewPin() self.pins[index] = pin end
@@ -79,7 +93,8 @@ function Canvas.New(map, api, create)
             pin.icon:SetVertexColor(active and 1 or .55, active and .82 or .8, active and .34 or 1)
             pin.number:SetText(table.concat(labels, "/")) pin.number:SetShown(#labels > 0)
             pin:SetScale(scale)
-            pin:SetFrameLevel((canvas:GetFrameLevel() or 0) + 50 + (active and 1 or 0))
+            pin:SetFrameStrata(strata)
+            pin:SetFrameLevel(level + 100 + (active and 1 or 0))
             pin:ClearAllPoints()
             pin:SetPoint("CENTER", canvas, "TOPLEFT", width * group.point.x / scale, -height * group.point.y / scale)
             pin:Show() self.count = self.count + 1
@@ -90,6 +105,19 @@ function Canvas.New(map, api, create)
         self.target, self.remove, self.route = target, remove, target and route or nil
         self.revision = self.revision + 1
         self:Refresh() self.watcher:SetShown(target ~= nil)
+    end
+    function self:Describe()
+        local visible = 0
+        for _, pin in ipairs(self.pins) do if pin.IsVisible and pin:IsVisible() then visible = visible + 1 end end
+        local first = self.pins[1]
+        local x, y
+        if first and first.GetCenter then x, y = first:GetCenter() end
+        return ("renderer=canvas-v2 map=%s targetMap=%s visible=%d canvas=%.1fx%.1f center=%s,%s alpha=%s strata=%s level=%s scale=%s"):format(
+            tostring(map:GetMapID()), tostring(self.target and self.target.mapID), visible, canvas:GetWidth(), canvas:GetHeight(),
+            tostring(x), tostring(y), tostring(first and first.GetEffectiveAlpha and first:GetEffectiveAlpha()),
+            tostring(first and first.GetFrameStrata and first:GetFrameStrata()),
+            tostring(first and first.GetFrameLevel and first:GetFrameLevel()),
+            tostring(first and first.GetScale and first:GetScale()))
     end
     self.watcher:SetScript("OnUpdate", function(_, elapsed)
         self.elapsed = (self.elapsed or 0) + elapsed

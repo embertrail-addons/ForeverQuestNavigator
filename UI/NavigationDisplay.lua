@@ -7,7 +7,7 @@ end
 local function ShowTextTooltip(owner, heading, detail)
     if not (heading or detail) then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    GameTooltip:SetText(heading or detail, 1, 1, 1, true)
+    GameTooltip:SetText(heading or detail)
     if heading and detail then GameTooltip:AddLine(detail, 1, 1, 1, true) end
     GameTooltip:Show()
 end

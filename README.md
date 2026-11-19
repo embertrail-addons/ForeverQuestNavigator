@@ -24,6 +24,8 @@ GitHub bug reports have a structured form for version, quest ID, reproduction an
 
 The public Release tag is held until [`release/acceptance-0.1.66.md`](release/acceptance-0.1.66.md) has passed in the game client. The release checker rejects a stable tag while client checkboxes remain pending; beta/rc validation remains available. Automated mocks and the installed candidate are not a completed client test. This candidate has no public release tag yet.
 
+RC2 explicitly sets marker strata and frame level from the map surfaces, keeps marker alpha independent of faded canvas parents, and provides an opaque border. `/fqn markers` now prints a second line beginning `renderer=canvas-v2`, with map IDs, actual visible count, canvas dimensions, first-pin center, effective alpha, strata, level and scale. If markers remain absent, copy both diagnostic lines with the map open. A client-log-confirmed tooltip alpha-argument error is also corrected. Client confirmation of marker visibility remains required.
+
 ### Screenshot demo
 
 Use `/fqn demo` after Questie and QuestieDB have finished loading. A separate tracker uses the same production UI with copied, session-only display settings. FQN reads actual quest names, levels, objective entities, starters, finishers, spawn positions and known base XP from the installed Questie database. No database records are shipped with FQN. Character level, location, acceptance state, completion state and XP remaining are simulated, and the demo remains labelled **DEMO**. Base XP excludes personal bonuses and is shown as an estimate; missing XP stays unknown.
