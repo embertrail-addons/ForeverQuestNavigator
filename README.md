@@ -20,7 +20,7 @@ This beta includes the development changes described under 0.1.60–0.1.64 below
 - **Follow-up slot reserve:** known upcoming accept steps and one or fewer free slots add a modest preference for a nearby ready turn-in. Planning explains the reserve. Sequential chains reserve one slot, since each turn-in frees a slot. Missing capacity or unsupported chains produce no reserve claim.
 - **Quest item hints:** route details mention an owned quest-action item only when the client explicitly associates it with the quest. The hint asks you to check its use in the quest log. It does not infer which of several objectives needs it, treat every collection item as usable, or activate items. Unsupported clients show no hint.
 
-Automated validation covers Lua 5.1 modules and mocked UI workflows, package safety and offline ranking fixtures. In-game validation remains necessary: test detour arrival/cancel, access notes, display import and a native quest-action item. Restart WoW after adding modules. Release text and upload notes are in [`release/`](release/); CurseForge uploads remain manual.
+Automated validation covers Lua 5.1 modules and mocked UI workflows, package safety and offline ranking fixtures. In-game validation remains necessary: test detour arrival/cancel, access notes, display import and a native quest-action item. Restart WoW after adding modules. Release text and upload notes are in [`release/`](release/). Matching version-tag pushes now upload tested builds to CurseForge; ordinary commits do not publish files.
 
 The development notes below document each local build. Their original “local development” wording does not mean those changes are excluded from 0.1.65.
 
@@ -101,7 +101,15 @@ Local validation: `lua5.1 tests/run.lua`, `python -m unittest discover -s tests 
 
 Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.65-beta.zip`. Run `python -m unittest discover -s tests -p 'test_*.py'` to test packaging and regression import.
 
-For a tag build, first update the TOC version and changelog, commit and push the reviewed changes, then create and push a matching tag, for example `v0.1.59-beta`. A mismatched tag fails validation. The workflow's **ForeverQuestNavigator-package** artifact contains the installable addon ZIP; extract the artifact download to get that inner ZIP. Upload the addon ZIP to CurseForge yourself after reviewing and testing it in game.
+For a tag build, first update the TOC version and create `release/curseforge-changelog-VERSION.md`, then commit and push the reviewed, in-game-tested changes. Create and push a matching tag: `v0.1.66-alpha` uploads an Alpha, `v0.1.66-beta` a Beta, and `v0.1.66` a Release. Numbered prereleases such as `v0.1.66-beta.2` are supported; `rc` tags upload as Beta. Examples assume the TOC has been changed to 0.1.66. A mismatched tag fails validation.
+
+GitHub Actions runs the Lua tests, offline fixtures and Python tests, builds the ZIP, then uploads it to **CurseForge project 1812992** only for a `push` of a `v` tag in the canonical repository. PRs, manual workflow runs and normal branch pushes do not upload. A normal `main` push runs a read-only CurseForge configuration check after tests; it validates the secret and resolves the exact WoW game version **1.60.1**. Missing or ambiguous version metadata stops publication rather than selecting another client. The ZIP is checked against a reproducible rebuild before upload.
+
+Store the CurseForge API token only as repository Actions secret **`CURSEFORGE_API_TOKEN`**. The script uses the token in a request header and never prints it. Keep CurseForge's separate **Automatic Packaging** integration disabled and do not configure a packaging webhook; otherwise the two routes could create duplicate uploads. Source links can still point to GitHub. The upload uses the version-specific Markdown changelog and tag-derived release type. Project description changes remain a separate edit on CurseForge. Moderation still applies after upload.
+
+The workflow's **ForeverQuestNavigator-package** artifact remains available as a manual-upload fallback: extract the artifact download to obtain the addon ZIP. Do not re-upload an already published version. Upload POST requests are not retried automatically; if a run fails after sending a file, check CurseForge for the file before rerunning that tag workflow. Do not recreate existing tags just to retry a release.
+
+Run `python scripts/curseforge_upload.py --check-only` after a beta package build to check configuration without uploading (requires the API token in the environment). Running the script without `--check-only` requires an explicit matching `--tag`. See [CurseForge's Upload API](https://support.curseforge.com/support/solutions/articles/9000197321-curseforge-upload-api).
 
 ### Changes in 0.1.57
 
