@@ -17,17 +17,16 @@ function Canvas.New(map, api, create)
         if callback then callback() end
     end
     local function NewPin()
-        local pin = create("Button", nil, canvas, "BackdropTemplate")
-        pin:SetSize(34, 34) pin:RegisterForClicks("RightButtonUp")
-        pin:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 2})
-        pin:SetBackdropColor(.08, .06, .02, 1)
-        pin:SetBackdropBorderColor(1, .82, .34, 1)
+        local pin = create("Button", nil, canvas)
+        pin:SetSize(24, 24) pin:RegisterForClicks("RightButtonUp")
         pin:SetAlpha(1)
         if pin.SetIgnoreParentAlpha then pin:SetIgnoreParentAlpha(true) end
         if pin.SetPassThroughButtons then pin:SetPassThroughButtons("LeftButton") end
         pin.icon = pin:CreateTexture(nil, "ARTWORK") pin.icon:SetAllPoints()
         pin.icon:SetAtlas("Waypoint-MapPin-Untracked")
         pin.number = pin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") pin.number:SetPoint("CENTER")
+        pin.number:SetTextColor(1, 1, 1, 1)
+        pin.number:SetShadowColor(0, 0, 0, 1) pin.number:SetShadowOffset(1, -1)
         pin:SetScript("OnClick", function(_, button) if button == "RightButton" then Remove() end end)
         pin:SetScript("OnEnter", function(owner)
             if not GameTooltip then return end
@@ -89,7 +88,8 @@ function Canvas.New(map, api, create)
                 if stop.ordinal then labels[#labels + 1] = tostring(stop.ordinal) end
                 if not stop.ordinal or stop.ordinal == 1 then active = true end
             end
-            pin:SetSize(active and 36 or 30, active and 36 or 30)
+            local size = (active and 24 or 20) + (#group.stops > 1 and 6 or 0)
+            pin:SetSize(size, size)
             pin.icon:SetVertexColor(active and 1 or .55, active and .82 or .8, active and .34 or 1)
             pin.number:SetText(table.concat(labels, "/")) pin.number:SetShown(#labels > 0)
             pin:SetScale(scale)
@@ -112,7 +112,7 @@ function Canvas.New(map, api, create)
         local first = self.pins[1]
         local x, y
         if first and first.GetCenter then x, y = first:GetCenter() end
-        return ("renderer=canvas-v2 map=%s targetMap=%s visible=%d canvas=%.1fx%.1f center=%s,%s alpha=%s strata=%s level=%s scale=%s"):format(
+        return ("renderer=canvas-v3 map=%s targetMap=%s visible=%d canvas=%.1fx%.1f center=%s,%s alpha=%s strata=%s level=%s scale=%s"):format(
             tostring(map:GetMapID()), tostring(self.target and self.target.mapID), visible, canvas:GetWidth(), canvas:GetHeight(),
             tostring(x), tostring(y), tostring(first and first.GetEffectiveAlpha and first:GetEffectiveAlpha()),
             tostring(first and first.GetFrameStrata and first:GetFrameStrata()),

@@ -2,6 +2,10 @@
 
 Implementation and automated checks can be completed without logging into WoW. Public release is held until the following client checks have actually passed. Do not mark a client result passed based on mocked tests.
 
+## Observed client result
+
+The user confirmed on 2026-11-19 that RC2 made the markers visible and supplied a normal quest-map screenshot. RC3 reduces their size and removes the opaque boxes while retaining the display-layer correction. This confirms marker visibility for the tested map; it does not by itself complete the coordinate, removal, zoom/reopen and other acceptance checks below.
+
 ## Required client checks (pending)
 
 - [ ] Restart the client, log in and wait for Questie. No Lua error appears.
