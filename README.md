@@ -8,9 +8,41 @@ The movable tracker shows one active quest and a configurable list of alternativ
 
 ## Client and installation
 
-Version **0.1.65** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
+Version **0.1.66** targets **World of Warcraft: Forever 1.60.1**, interface **16001**. In automatic mode FQN uses German on German clients and English on other clients. Quest names, objectives, and place names are displayed as supplied by WoW or Questie. [Blizzard's Forever launch announcement](https://news.blizzard.com/en-us/article/24315643/return-to-azeroth-in-world-of-warcraft-forever) · [Questie's Forever manifest](https://github.com/Questie/Questie/blob/master/Questie_Forever.toc)
 
-### Current beta: 0.1.65
+### 0.1.66: release candidate — client acceptance pending
+
+This candidate includes the screenshot demo below and a shared marker renderer for normal quests, offers, route stops and demo targets. FQN creates its own canvas children instead of relying on native pin-pool refreshes. Pins follow the map's coordinates through pan/zoom and map changes, stay separate from other addons' pin pools, and can be removed with right-click. Stops at identical coordinates show grouped route numbers without moving their actual position. Requests made before the map is ready are retained for a bounded retry. `/fqn markers` and the diagnostic report show the renderer, target state and current pin count. A native-provider fallback remains for map surfaces without a canvas.
+
+Recommendations now have brief reasons, and automatic quest changes explain why a different target was chosen. Known travel savings are shown only when the planner calculated them; manual selection stays authoritative. Target details distinguish known quest givers, saved access points, known objects, possible objective areas and positions whose accuracy is unknown. Arrival at an objective area asks you to check nearby goals; arrival for a completed quest asks you to turn it in. These hints do not prove terrain accessibility or perform gameplay actions.
+
+Existing installations can show **What's new** once per version after entering the world outside combat/taxi travel. Disable **Show update notes** in settings or the notes window; `/fqn whatsnew` opens it manually. New installations retain the existing introduction without a second update popup.
+
+Optional developer timing: `/fqn perf on` starts/reset local measurements, `/fqn perf` opens the report and `/fqn perf off` stops. FQN records planning, direction and successful map refresh durations and skipped stationary updates. Each timing section retains at most 128 samples plus aggregate counts, mean and maximum; the report includes a recent-sample p95. It uses `debugprofilestop` when available, never enables global CPU profiling, stores no character information and ends on reload. It does not measure all addon/game CPU activity.
+
+GitHub bug reports have a structured form for version, quest ID, reproduction and relevant diagnostics. Release validation now checks matching TOC/tag/changelog versions, English/German translation parity and duplicate keys, required native binding/XML assets and runtime-only package contents. Run `python scripts/check_release.py --tag v0.1.66` locally. The same check runs before every CI build/upload.
+
+The public Release tag is held until [`release/acceptance-0.1.66.md`](release/acceptance-0.1.66.md) has passed in the game client. The release checker rejects a stable tag while client checkboxes remain pending; beta/rc validation remains available. Automated mocks and the installed candidate are not a completed client test. This candidate has no public release tag yet.
+
+### Screenshot demo
+
+Use `/fqn demo` after Questie and QuestieDB have finished loading. A separate tracker uses the same production UI with copied, session-only display settings. FQN reads actual quest names, levels, objective entities, starters, finishers, spawn positions and known base XP from the installed Questie database. No database records are shipped with FQN. Character level, location, acceptance state, completion state and XP remaining are simulated, and the demo remains labelled **DEMO**. Base XP excludes personal bonuses and is shown as an estimate; missing XP stays unknown.
+
+The Brachland/Barrens preset simulates level 14; Elwynn simulates level 9. Each uses a curated set of quest IDs rather than inventing quests. Supported objectives are NPCs, objects and items with known drop-source positions. Unsupported or missing data is omitted; at least three usable quests are needed. This is a composed sample of accepted/available quests, not a prediction of what a real character currently qualifies for. Questie localization supplies the real text. Demo content does not translate quest names independently of the installed database.
+
+- `/fqn demo`: enter the demo or reopen its controls.
+- `/fqn demo next`: cycle objectives, turn-ins with a possible level-up, and Compact display.
+- `/fqn demo barrens` / `/fqn demo elwynn`: choose an area when starting. The controls can also switch areas.
+- `/fqn demo map`: show real destination coordinates with removable FQN pins and a demo label.
+- `/fqn demo plan`: open a separate planning panel for the demo, including computed turn-in order and shared targets when present. Unsupported chain/item views remain empty.
+- `/fqn demo shot`: hide the controls for a screenshot. The demo badge remains visible. Capture with WoW's screenshot key; the addon does not take or upload screenshots itself.
+- `/fqn demo off`: close demo frames/markers and restore normal navigation. Reload also ends the demo.
+
+The native quest APIs and actual character position are never replaced. Demo buttons cannot pin/skip/abandon real quests, change real objective locks or modify saved routes, notes, history or settings. Normal quest/session events continue in the background while the real tracker is hidden. Demo navigation values and facing are fixed; no demo ticker follows your real movement. Display dragging/resizing affects only the demo copy. The main controls remain outside the screenshot composition; tracker, arrow and planning panels can be arranged before hiding the controls. Screenshots should be captioned as demo scenes with simulated character state.
+
+Validation includes read-only smoke checks against installed Questie data and mocked UI tests for scene changes, map/planning, hiding/reopening controls, exit, missing data and unchanged SavedVariables. Restart WoW after installing the new module files; validate layout in the actual game client before publishing screenshots.
+
+### Changes in 0.1.65
 
 This beta includes the development changes described under 0.1.60–0.1.64 below, plus:
 
@@ -99,7 +131,7 @@ Local validation: `lua5.1 tests/run.lua`, `python -m unittest discover -s tests 
 
 ### Building a release
 
-Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.65-beta.zip`. Run `python -m unittest discover -s tests -p 'test_*.py'` to test packaging and regression import.
+Run `python scripts/package.py --channel beta` from the repository root to create `dist/ForeverQuestNavigator-0.1.66-beta.zip`. Run `python -m unittest discover -s tests -p 'test_*.py'` to test packaging and regression import.
 
 For a tag build, first update the TOC version and create `release/curseforge-changelog-VERSION.md`, then commit and push the reviewed, in-game-tested changes. Create and push a matching tag: `v0.1.66-alpha` uploads an Alpha, `v0.1.66-beta` a Beta, and `v0.1.66` a Release. Numbered prereleases such as `v0.1.66-beta.2` are supported; `rc` tags upload as Beta. Examples assume the TOC has been changed to 0.1.66. A mismatched tag fails validation.
 

@@ -129,6 +129,7 @@ local function ClearMapMarker()
 end
 
 local function UpdateMapMarker()
+    if addon.DemoMode.IsActive() then return end
     if not markedQuestID then return end
     if not (C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(markedQuestID)) then
         ClearMapMarker()
@@ -297,6 +298,8 @@ local function BuildDiagnostics()
         measurements = questMeasurements, reason = shownReason, route = shownRouteDetails, journeys = questJourneys,
         adjustments = navigationSnapshot and navigationSnapshot.adjustments,
     })
+    local marker = addon.GetMapMarkerStatus()
+    report = report .. ("\nmapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget))
     return report
 end
 
@@ -641,6 +644,11 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         routeDetails = routeDetails and (routeDetails .. "\n" .. preparation) or preparation
     end
     local reason = table.concat(reasonLines, "\n")
+    local explanation = addon.NavigationHints.Why(navigationSnapshot, quest, manualQuestID or objectiveLock)
+    local quality = addon.NavigationHints.TargetText(questMeasurements and questMeasurements[quest.id] and questMeasurements[quest.id].marker)
+    reason = reason .. "\n" .. explanation .. "\n" .. quality
+    routeDetails = (routeDetails and routeDetails .. "\n" or "") .. quality
+    if not routeNote and rewards[1] ~= L.QuestXPLevelUpShort then routeNote = explanation end
     local itemHint = addon.QuestItemHints.Read(C_QuestLog, quest.id, GetQuestLogSpecialItemInfo, GetItemCount)
     if itemHint then
         local hint = L.QuestItemHint:format(itemHint.name)
@@ -658,6 +666,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         navigationSnapshot.activeMeasurement = questMeasurements and questMeasurements[quest.id]
         navigationSnapshot.preparation = preparation
         navigationSnapshot.view = { quest = quest, objectives = text, alternatives = alternatives,
+            changeNotice = addon.NavigationHints.Change(shownQuests and shownQuests[1], quest, navigationSnapshot, manualQuestID or objectiveLock),
             manual = manualQuestID ~= nil, routeNote = routeNote, routeDetails = routeDetails,
             reason = reason, zones = zones, alternativeRoutes = alternativeRoutes, preview = preview,
             nearbyStops = nearbyStops, rewards = rewards, targets = targets, hasMap = hasMap,
@@ -795,6 +804,8 @@ local function UpdateFlightState()
 end
 
 local function UpdateDirection()
+    if addon.DemoMode.IsActive() then return end
+    local performanceStart = addon.Performance:Begin()
     UpdateFlightState()
     if temporaryDetour then
         detourMeasurement = addon.TemporaryDetour.Measure(C_Map, temporaryDetour)
@@ -825,7 +836,7 @@ local function UpdateDirection()
     elseif not measurement then
         status = active and next(avoidedObjectives[active.id] or {}) and L.NavigationAvoided or L.NavigationUnknown
     elseif arrived then
-        status = active.readyToTurnIn and L.TurnInAction or L.NavigationArrived
+        status = addon.NavigationHints.NextAction(active, measurement and measurement.marker)
     elseif not right then
         status = L.NavigationFacingUnavailable
     end
@@ -846,6 +857,7 @@ local function UpdateDirection()
                 tracker:IsVisible() and tracker or tracker.navigation)
         end
     end
+    addon.Performance:Finish("direction", performanceStart)
 end
 
 local function TrackingVisible()
@@ -885,9 +897,13 @@ local function UpdateDistances(force)
     end
     local current = navigationSnapshot and navigationSnapshot.activeMeasurement
     if force == false and not addon.MovementGate.ShouldUpdate(movementState, origin, phase,
-        current and current.yards <= 50, deadline, SessionTime()) then return end
+        current and current.yards <= 50, deadline, SessionTime()) then
+        if addon.Performance.enabled then addon.Performance.skipped = addon.Performance.skipped + 1 end
+        return
+    end
     if measurableQuestIDs and not refreshPending then
         movementState = {point = origin, phase = phase, deadline = deadline}
+        local performanceStart = addon.Performance:Begin()
         local snapshot = addon.NavigationController.Compute({
             mapAPI = C_Map, mapType = Enum and Enum.UIMapType, questAPI = C_QuestLog,
             playerLevel = UnitLevel and UnitLevel("player"), questieReady = integration.IsReady(),
@@ -910,6 +926,7 @@ local function UpdateDistances(force)
             turnInLocations = turnInLocations,
             questTargetMaps = questTargetMaps,
         })
+        addon.Performance:Finish("planning", performanceStart)
         navigationSnapshot = snapshot
         questMeasurements, objectiveDistances = snapshot.measurements, snapshot.objectiveDistances
         previousObjectives, objectiveLock = snapshot.previousObjectives, snapshot.objectiveLock
@@ -1772,12 +1789,14 @@ end
 local function AddonLoaded(name)
     if name == addonName and not tracker then
         settings = ForeverQuestNavigatorDB
+        insights.hadSettings = type(settings) == "table" and next(settings) ~= nil
         if type(settings) ~= "table" then
             settings = {}
             ForeverQuestNavigatorDB = settings
         end
         if settings.language ~= "deDE" and settings.language ~= "enUS" then settings.language = "auto" end
         addon.SetLanguage(settings.language)
+        settings.showUpdateNotes = settings.showUpdateNotes ~= false
         settings.x = type(settings.x) == "number" and math.abs(settings.x) < math.huge and settings.x or 0
         settings.y = type(settings.y) == "number" and math.abs(settings.y) < math.huge and settings.y or 140
         if settings.displayMode ~= "full" and settings.displayMode ~= "arrow" and settings.displayMode ~= "off" then
@@ -1842,6 +1861,7 @@ local function AddonLoaded(name)
 
         settingsCategory = RegisterSettings()
         local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
+        insights.updateVersion = addon.ReleaseNotes.Initialize(settings, version, insights.hadSettings)
         tracker = addon.CreateQuestTracker(settings, {
             skip = SkipQuest,
             resetSkips = ResetSkips,
@@ -1891,7 +1911,21 @@ local function AddonLoaded(name)
         SLASH_FOREVERQUESTNAVIGATOR1 = "/fqn"
         SlashCmdList.FOREVERQUESTNAVIGATOR = function(message)
             local command = message:match("^%s*(.-)%s*$"):lower()
-            if command == "status" then
+            if command == "demo" or command:match("^demo%s") then
+                addon.DemoMode.Command(command:match("^demo%s*(.-)%s*$"), settings, tracker, function()
+                    UpdateMapMarker() ScheduleRefresh()
+                end)
+            elseif command == "whatsnew" then
+                addon.ShowReleaseNotes(settings, C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version"))
+            elseif command == "markers" then
+                local marker = addon.GetMapMarkerStatus()
+                print(("FQN | mapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget)))
+            elseif command == "perf on" then
+                print("FQN | " .. (addon.Performance:Start() and L.PerformanceEnabled or L.PerformanceUnavailable))
+            elseif command == "perf off" then addon.Performance.enabled = false print("FQN | " .. L.PerformanceDisabled)
+            elseif command == "perf" then
+                addon.ShowTextWindow("performance", addon.Performance:Report(), L.PerformanceTitle, L.PerformanceHelp)
+            elseif command == "status" then
                 print("FQN | Questie: " .. addon.ReadQuestieStatus(C_AddOns))
             elseif command == "debug" then
                 ShowDiagnostics()
@@ -1978,6 +2012,12 @@ addon.EventController.Bind(events, {
     introduction = function()
         if settings and not settings.introSeen
             and not (InCombatLockdown and InCombatLockdown()) then addon.ShowIntroduction(settings) end
+        if settings and settings.introSeen and insights.updateVersion and not (InCombatLockdown and InCombatLockdown())
+            and not (UnitOnTaxi and UnitOnTaxi("player")) and not addon.DemoMode.IsActive() then
+            if settings.showUpdateNotes then addon.ShowReleaseNotes(settings, insights.updateVersion)
+            else settings.lastSeenVersion = insights.updateVersion end
+            insights.updateVersion = nil
+        end
     end,
     taxi = function(event)
         if event == "TAXIMAP_OPENED" then taxiMapOpen = true end

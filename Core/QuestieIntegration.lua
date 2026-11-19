@@ -68,6 +68,7 @@ local function CollectObjectiveMarkers(quests, questAPI, localMaps, useKillLocat
                                     local marker = LocalMarker(localMaps, mapID, point[1], point[2])
                                     if marker and phasing.IsSpawnVisible(point[3]) then
                                         marker.objectiveIndex = index
+                                        marker.targetKind = kind == "object" and "object" or "area"
                                         markers[#markers + 1] = marker
                                     end
                                 end

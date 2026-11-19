@@ -21,7 +21,7 @@ end
 
 -- Greedy order plus bounded pair swaps; every compared order visits exactly
 -- the same known finishers. Unknown/unreachable points never imply zero travel.
-function Insights.TurnIns(mapAPI, quests, measurements, xpNeeded, feedback)
+function Insights.TurnIns(mapAPI, quests, measurements, xpNeeded, feedback, getXP)
     local candidates, unknown = {}, 0
     for _, quest in ipairs(quests or {}) do
         if quest.readyToTurnIn and not (feedback and feedback[quest.id]) then
@@ -71,7 +71,7 @@ function Insights.TurnIns(mapAPI, quests, measurements, xpNeeded, feedback)
     for index, stop in ipairs(ordered) do
         stop.action = "turnIn"
         stop.leg = index == 1 and stop.yards or distance(ordered[index - 1].target, stop.target)
-        stop.xp = addon.QuestLog.GetTurnInXP(stop.quest)
+        stop.xp = (getXP or addon.QuestLog.GetTurnInXP)(stop.quest)
         if stop.xp then xp = xp + stop.xp else unknownXP = unknownXP + 1 end
         if not levelUpAt and xpNeeded and xp >= xpNeeded then levelUpAt = index end
     end

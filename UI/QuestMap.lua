@@ -2,6 +2,34 @@ local _, addon = ...
 local L = addon.L
 local PIN_TEMPLATE = "ForeverQuestNavigatorTargetPinTemplate"
 local provider
+local canvasMarkers
+local pending, pendingWatch
+local status = {backend = "not initialized", count = 0}
+function addon.GetMapMarkerStatus()
+    return {backend = status.backend, count = canvasMarkers and canvasMarkers.count or status.count,
+        hasTarget = canvasMarkers and canvasMarkers.target ~= nil or provider and provider.target ~= nil or pending ~= nil}
+end
+local function WaitForMap(target, removeMarker, route)
+    pending = {target = target, removeMarker = removeMarker, route = route}
+    if not pendingWatch then
+        pendingWatch = CreateFrame("Frame")
+        pendingWatch:SetScript("OnUpdate", function(self, elapsed)
+            self.remaining = self.remaining - elapsed
+            self.elapsed = self.elapsed + elapsed
+            if self.elapsed < .1 then return end
+            self.elapsed = 0
+            local map = WorldMapFrame
+            local ready = map and ((map.GetCanvas and map:GetCanvas())
+                or (map.AddDataProvider and MapCanvasDataProviderMixin and MapCanvasPinMixin))
+            if ready and pending then
+                local request = pending pending = nil self:Hide()
+                addon.ShowQuestMapMarker(request.target, request.removeMarker, request.route)
+            elseif not pending or self.remaining <= 0 then self:Hide() end
+        end)
+    end
+    pendingWatch.remaining, pendingWatch.elapsed = 5, 0
+    pendingWatch:Show()
+end
 local Pin = {}
 
 function addon.OpenQuestDetails(questID, mapID)
@@ -85,15 +113,16 @@ function Provider:RefreshAllData()
     self:RemoveAllData()
     local map = self:GetMap()
     local mapID = map:GetMapID()
+    status.count = 0
     if not (map:IsShown() and mapID and self.target) then return end
     if self.route and #self.route > 0 then
         for ordinal, stop in ipairs(self.route) do
             local point = stop.target and addon.QuestLocation.ProjectMarker(C_Map, stop.target, mapID)
-            if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker, stop, ordinal) end
+            if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker, stop, ordinal) status.count = status.count + 1 end
         end
     else
         local point = addon.QuestLocation.ProjectMarker(C_Map, self.target, mapID)
-        if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker) end
+        if point then map:AcquirePin(PIN_TEMPLATE, point, self.removeMarker) status.count = status.count + 1 end
     end
 end
 
@@ -109,13 +138,25 @@ local function SameRoute(a, b)
 end
 
 function addon.ShowQuestMapMarker(target, removeMarker, route)
+    pending = nil
+    if pendingWatch then pendingWatch:Hide() end
+    if not canvasMarkers and target then canvasMarkers = addon.CanvasMarkers.New(WorldMapFrame, C_Map, CreateFrame) end
+    if canvasMarkers then
+        if provider then provider.target, provider.route = nil, nil provider:RemoveAllData() end
+        status.backend = "canvas overlay"
+        canvasMarkers:Set(target, removeMarker, route)
+        return
+    end
     if not provider then
         local map = WorldMapFrame
         if not (target and map and map.AddDataProvider and MapCanvasDataProviderMixin and MapCanvasPinMixin) then
+            status.backend = "map not ready"
+            if target then WaitForMap(target, removeMarker, route) end
             return
         end
         provider = CreateFromMixins(MapCanvasDataProviderMixin, Provider)
         map:AddDataProvider(provider)
+        status.backend = "map data provider"
     end
     local previous = provider.target
     if (target == previous or (target and previous

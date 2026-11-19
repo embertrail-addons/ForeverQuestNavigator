@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FQN documentation
+    url: https://github.com/embertrail-addons/ForeverQuestNavigator#readme
+    about: Installation, commands, known limits and release instructions

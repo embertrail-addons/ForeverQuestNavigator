@@ -848,6 +848,7 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     function frame:RenderSnapshot(snapshot, skippedQuests)
         local view = snapshot.view
+        self.changeNotice = view.changeNotice
         self:Render(view.quest, view.objectives, skippedQuests, view.alternatives, view.manual,
             view.routeNote, view.routeDetails, view.zones, view.alternativeRoutes, view.nearbyStops,
             view.rewards, view.targets, view.hasMap, view.approachStops, view.reason, view.preview, view.area)
@@ -873,7 +874,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             if quest.id == lastQuestID and quest.readyToTurnIn and not lastReady then
                 navigation:Notify(L.QuestNowReady)
             elseif quest.id ~= lastQuestID then
-                navigation:Notify(L.ActiveQuestChanged)
+                navigation:Notify(self.changeNotice or L.ActiveQuestChanged)
             elseif goalIndex and goalIndex ~= lastGoalIndex then
                 navigation:Notify(L.NavigationGoalChanged)
             end

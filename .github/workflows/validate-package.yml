@@ -36,6 +36,15 @@ jobs:
           done
       - name: Test packaging
         run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate release metadata and translations
+        env:
+          BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [ -n "$BUILD_TAG" ]; then
+            python3 scripts/check_release.py --tag "$BUILD_TAG"
+          else
+            python3 scripts/check_release.py
+          fi
       - name: Build installable ZIP
         env:
           BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

@@ -107,7 +107,7 @@ end
 local function EnableTitleTooltip(row)
     addon.UI.BindTooltip(row, function(self)
         local quest = self.checkbox and self.checkbox.quest
-        local detail = quest and (addon.DescribeQuest and addon.DescribeQuest(quest, self.measurement)
+        local detail = quest and (quest.demoDetails or addon.DescribeQuest and addon.DescribeQuest(quest, self.measurement)
             or addon.Recommendation.Describe(quest, self.measurement, UnitLevel and UnitLevel("player")))
         if self.compact then
             if self.routeDetails and self.routeDetails:GetText() then detail = (detail or "") .. "\n" .. self.routeDetails:GetText() end

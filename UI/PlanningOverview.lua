@@ -1,9 +1,12 @@
 local _, addon = ...
 local L = addon.L
-local window
-function addon.ShowPlanningOverview(getModel, openStop)
+local windows = {}
+function addon.ShowPlanningOverview(getModel, openStop, slot)
+    slot = slot or "live"
+    local window = windows[slot]
     if not window then
         window = addon.UI.CreateUtilityPanel(600, 600, L.PlanningOverview)
+        windows[slot] = window
         window.comparison = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.comparison:SetPoint("TOPLEFT", 18, -48)
         window.comparison:SetPoint("TOPRIGHT", -18, -48)
@@ -112,4 +115,5 @@ function addon.ShowPlanningOverview(getModel, openStop)
         window:Refresh()
     end
     window:Show()
+    return window
 end

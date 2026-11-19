@@ -75,6 +75,9 @@ function addon.SettingsController.Register(context)
         ShowNotepad, L.NotepadIndependent, true))
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.Introduction, L.Introduction,
         function() addon.ShowIntroduction(settings) end, L.IntroductionHelp, true))
+    local updates = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_UPDATE_NOTES", "showUpdateNotes", settings,
+        Settings.VarType.Boolean, L.ShowUpdateNotes, true)
+    Checkbox(category, updates, L.ShowUpdateNotesHelp)
     local function RefreshQuestieSettings()
         UpdateQuestieTicker()
         ScheduleRefresh()

@@ -964,6 +964,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showQuestRewards = "FOREVERQUESTNAVIGATOR_QUEST_REWARDS",
                     adaptiveLayout = "FOREVERQUESTNAVIGATOR_ADAPTIVE_LAYOUT",
                     showLevelHints = "FOREVERQUESTNAVIGATOR_LEVEL_HINTS",
+                    showUpdateNotes = "FOREVERQUESTNAVIGATOR_UPDATE_NOTES",
                     showDirectionArrow = "FOREVERQUESTNAVIGATOR_SHOW_DIRECTION_ARROW",
                     showScreenArrow = "FOREVERQUESTNAVIGATOR_SHOW_SCREEN_ARROW",
                     showQuestXP = "FOREVERQUESTNAVIGATOR_SHOW_QUEST_XP",
@@ -991,6 +992,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showQuestRewards = "Show gold and item rewards in tooltips",
                     adaptiveLayout = "Adapt details to narrow windows",
                     showLevelHints = "Show a hint when quests improve after levelling",
+                    showUpdateNotes = "Show update notes",
                     opacityPercent = "Tracker opacity",
                     allowTrackerResize = "Allow changing window width",
                     lockTrackerPosition = "Lock tracker position",
@@ -1704,7 +1706,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     playerX = 0.25
     fire("QUEST_POI_UPDATE")
     flush()
-    equal(navigation.status.text, "Target area reached")
+    equal(navigation.status.text, "Destination reached; check the quest log for the next action")
     equal(navigation.arrow:IsShown(), false)
     settingsByKey.showScreenArrow:SetValue(false)
     playerX = 0.48
@@ -2068,7 +2070,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_TURNED_IN", 999)
     flush()
     equal(title.text, "[9] Stop A")
-    equal(routeNote:IsShown(), false)
+    equal(routeNote:IsShown(), true)
+    equal(routeNote.text, "Ready to turn in")
 
     local combat = false
     env.InCombatLockdown = function() return combat end
@@ -2161,7 +2164,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_DATA_LOAD_RESULT", 74)
     flush()
     equal(title.text, "[10] A in the next zone")
-    equal(routeNote:IsShown(), false)
+    equal(routeNote:IsShown(), true)
+    equal(routeNote.text, "Ready to turn in")
 
     env.LibQuestieDB = nil
     quests = {
@@ -3557,6 +3561,52 @@ test("TOC startup and quest events update the tracker with or without optional a
         env.UnitLevel, env.GetItemCount, env.GetItemInfo = oldLevel, oldCount, oldItemName
         reloadedAddon.QuestieIntegration.GetObjectiveItemID, reloadedAddon.QuestieRoutes.GetChains = oldLookup, oldChains
     end)() end
+    do (function()
+        local function Window(name)
+            for index = #frames, 1, -1 do
+                local frame = frames[index]
+                if frame.heading and frame.heading.text == name then return frame end
+            end
+            error("Missing demo window " .. name)
+        end
+        local beforeSettings = reloadedAddon.UndoHistory.Copy(env.ForeverQuestNavigatorDB)
+        local beforeCharacter = reloadedAddon.UndoHistory.Copy(env.ForeverQuestNavigatorCharacterDB)
+        local data = {mapID = 10, level = 14, width = 1000, height = 500, zone = {name = "Demo DB zone"}, records = {}}
+        for id = 1, 7 do
+            data.records[id] = {id = id, title = "DB Demo Quest " .. id, level = 14, xp = 900,
+                starter = {mapID = 10, x = .4, y = .4}, finisher = {mapID = 10, x = .4, y = .4},
+                goals = {{index = 1, text = "DB objective " .. id}},
+                markers = {{mapID = 10, x = .4 + id * .01, y = .4, objectiveIndex = 1, objective = true}}}
+        end
+        local loader = reloadedAddon.DemoData.Load
+        reloadedAddon.DemoData.Load = function() return data end
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("demo")
+        equal(reloadedAddon.DemoMode.IsActive(), true) equal(updatedTracker:IsShown(), false)
+        local controls = Window("Screenshot demo")
+        equal(controls:IsShown(), true)
+        controls.plan:Click()
+        local planningDemo = Window("Quest planning")
+        assert(planningDemo.demoBadge and planningDemo:IsShown())
+        controls.scene:Click()
+        equal(planningDemo.getModel().scene, "turnins")
+        controls.map:Click()
+        equal(openedMap, 10)
+        controls.shot:Click()
+        equal(controls:IsShown(), false)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("demo")
+        equal(controls:IsShown(), true)
+        fire("QUEST_LOG_UPDATE") flush()
+        equal(updatedTracker:IsShown(), false)
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("demo off") flush()
+        equal(reloadedAddon.DemoMode.IsActive(), false) equal(updatedTracker:IsShown(), true)
+        equal(planningDemo:IsShown(), false)
+        assert(reloadedAddon.UndoHistory.Same(beforeSettings, env.ForeverQuestNavigatorDB))
+        assert(reloadedAddon.UndoHistory.Same(beforeCharacter, env.ForeverQuestNavigatorCharacterDB))
+        reloadedAddon.DemoData.Load = function() return nil, "Missing demo data" end
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("demo")
+        equal(reloadedAddon.DemoMode.IsActive(), false) equal(updatedTracker:IsShown(), true)
+        reloadedAddon.DemoData.Load = loader
+    end)() end
     reloadedAddon.QuestieIntegration.GetObjectiveMarkers = originalObjectives
     end)() end
     env.InCombatLockdown = previousCombat
@@ -3568,4 +3618,6 @@ assert(loadfile("tests/personalization_features.lua"))()(test, addon, equal, nea
 assert(loadfile("tests/routes_rewards.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/usability_insights.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/release_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/demo_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/stability_features.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))
