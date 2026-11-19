@@ -318,6 +318,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end)
     questMap:SetScript("OnLeave", HideTextTooltip)
     questMap:SetScript("OnHide", HideTextTooltip)
+    addon.UI.LinkQuestHover(questMap, function(self) return self.questID end)
     questMap:Hide()
     local activeZone = addon.UI.CreateLabel(content, "GameFontNormalSmall")
     activeZone:SetPoint("TOPLEFT", title, "BOTTOMLEFT", -26, -5)
@@ -852,6 +853,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         self:Render(view.quest, view.objectives, skippedQuests, view.alternatives, view.manual,
             view.routeNote, view.routeDetails, view.zones, view.alternativeRoutes, view.nearbyStops,
             view.rewards, view.targets, view.hasMap, view.approachStops, view.reason, view.preview, view.area)
+        addon.QuestHover.Refresh()
     end
 
     function frame:Render(quest, objectiveText, skippedQuests, alternatives, hasManualSelection, routeText, routePreview,

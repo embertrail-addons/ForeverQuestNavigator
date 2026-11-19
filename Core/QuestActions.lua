@@ -12,6 +12,10 @@ function addon.QuestActions.Apply(state, action, value)
     end
     local quest = state.quest
     if action == "select" then Select(value)
+    elseif action == "prioritize" then
+        if type(value) ~= "table" or not value.id then return effect end
+        Select(value.id)
+        state.held = {id = value.id, turnIn = value.turnIn == true, policy = value.turnIn and "turnIn" or "complete"}
     elseif action == "hold" then
         if state.held then Select(nil)
         elseif quest then Select(quest.id) state.held = { id = quest.id, turnIn = quest.readyToTurnIn == true } end

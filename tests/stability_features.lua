@@ -22,6 +22,7 @@ return function(test, addon, equal, near)
                     SetScript = function(s, name, value) s.scripts[name] = value end,
                     SetPoint = function(s, point, relative, other, x, y) s.x, s.y = x, y end,
                     SetScale = function(s, value) s.scale = value end,
+                    SetSize = function(s, width, height) s.width, s.height = width, height end,
                     SetFrameStrata = function(s, value) s.strata = value end,
                     SetFrameLevel = function(s, value) s.level = value end,
                     SetAlpha = function(s, value) s.alpha = value end,
@@ -63,9 +64,17 @@ return function(test, addon, equal, near)
             {{target = point, quest = {id = 1}}, {target = point, quest = {id = 2}}})
         equal(render.count, 1) equal(render.pins[1].number.text, "1/2")
         near(render.pins[1].x, 400) equal(#render.pins[1].stops, 2)
+        render.pins[1].scripts.OnEnter(render.pins[1])
+        equal(addon.QuestHover.ids[1], true) equal(addon.QuestHover.ids[2], true)
+        render:Refresh() equal(addon.QuestHover.ids[1], true)
+        render.pins[1].scripts.OnLeave(render.pins[1]) equal(next(addon.QuestHover.ids), nil)
+        addon.QuestHover.Set({}, {[2] = true})
+        equal(render.pins[1].width, 35)
+        render.pins[1].scripts.OnEnter(render.pins[1])
         render.pins[1].scripts.OnClick(render.pins[1], "LeftButton") equal(removed, 0)
         render.pins[1].scripts.OnClick(render.pins[1], "RightButton")
         equal(removed, 1) equal(render.count, 0) equal(render.target, nil)
+        equal(next(addon.QuestHover.ids), nil)
         equal(render.watcher.shown, false)
         render.watcher.scripts.OnShow() equal(render.count, 0)
     end)

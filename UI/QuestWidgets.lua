@@ -49,6 +49,25 @@ function addon.UI.AddRowHighlight(row)
     return texture
 end
 
+function addon.UI.LinkQuestHover(frame, getID, region)
+    local texture = frame:CreateTexture(nil, "ARTWORK")
+    texture:SetAllPoints(region or frame)
+    texture:SetColorTexture(.2, .8, 1, .2)
+    texture:Hide()
+    local function Update(ids)
+        local id = getID(frame)
+        texture:SetShown(frame:IsShown() and id ~= nil and ids[id] == true)
+    end
+    addon.QuestHover.Subscribe(Update)
+    frame:HookScript("OnEnter", function(self)
+        local id = getID(self)
+        if id then addon.QuestHover.Set(self, {[id] = true}) end
+    end)
+    frame:HookScript("OnLeave", function(self) addon.QuestHover.Clear(self) end)
+    frame:HookScript("OnHide", function(self) addon.QuestHover.Clear(self) texture:Hide() end)
+    frame:HookScript("OnShow", function() Update(addon.QuestHover.ids) end)
+end
+
 function addon.UI.BindTooltip(frame, content)
     frame:SetScript("OnEnter", function(self)
         local heading, detail = content(self)

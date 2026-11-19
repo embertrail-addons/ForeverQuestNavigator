@@ -962,6 +962,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     quietNavigation = "FOREVERQUESTNAVIGATOR_QUIET_NAVIGATION",
                     showRouteMarkers = "FOREVERQUESTNAVIGATOR_ROUTE_MARKERS",
                     showQuestRewards = "FOREVERQUESTNAVIGATOR_QUEST_REWARDS",
+                    showRewardComparison = "FOREVERQUESTNAVIGATOR_REWARD_COMPARISON",
+                    showTravelTime = "FOREVERQUESTNAVIGATOR_TRAVEL_TIME",
                     adaptiveLayout = "FOREVERQUESTNAVIGATOR_ADAPTIVE_LAYOUT",
                     showLevelHints = "FOREVERQUESTNAVIGATOR_LEVEL_HINTS",
                     showUpdateNotes = "FOREVERQUESTNAVIGATOR_UPDATE_NOTES",
@@ -990,6 +992,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     quietNavigation = "Quiet navigation during combat",
                     showRouteMarkers = "Number the next stops on the map",
                     showQuestRewards = "Show gold and item rewards in tooltips",
+                    showRewardComparison = "Compare reward base stats",
+                    showTravelTime = "Show approximate travel time",
                     adaptiveLayout = "Adapt details to narrow windows",
                     showLevelHints = "Show a hint when quests improve after levelling",
                     showUpdateNotes = "Show update notes",
@@ -3393,6 +3397,19 @@ test("TOC startup and quest events update the tracker with or without optional a
         return {[1002] = {{mapID = 10, x = .68, y = .5, objectiveIndex = 1}, {mapID = 10, x = .95, y = .5, objectiveIndex = 1}}}
     end
     PinQuest(1002) flush()
+    do (function()
+        mainMapButton:Click("RightButton")
+        MenuAction("Prioritize until objectives complete") flush()
+        assert(tooltip ~= nil)
+        mainMapButton.scripts.OnEnter(mainMapButton)
+        assert(tooltip.lines[1]:find("Prioritize until objectives complete", 1, true))
+        mainMapButton:Click("RightButton")
+        MenuAction("Prioritize until turned in") flush()
+        mainMapButton.scripts.OnEnter(mainMapButton)
+        assert(tooltip.lines[1]:find("Prioritize until turned in", 1, true))
+        mainMapButton:Click("RightButton") MenuAction("Resume FQN auto select") flush()
+        PinQuest(1002) flush()
+    end)() end
     mainMapButton:Click("RightButton")
     MenuAction("Save my position as this objective's access point")
     flush()
@@ -3620,4 +3637,5 @@ assert(loadfile("tests/usability_insights.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/release_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/demo_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/stability_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/final_release_features.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

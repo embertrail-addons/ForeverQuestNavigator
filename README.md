@@ -2,6 +2,16 @@
 
 Copyright (c) 2026 Embertrail Addons. All rights reserved. See [LICENSE](LICENSE).
 
+### Stable release 0.1.66
+
+Map pins and tracker quests highlight one another on hover, including grouped route stops. An accepted quest's right-click menu offers **Prioritize until objectives complete** and **Prioritize until turned in**. Both are session-only overrides; completion/removal, failure or explicitly clearing the active quest returns control to automatic selection.
+
+Route details optionally show a five-second-rounded travel-time estimate from straight-line distance at normal running speed or the current mount's running speed. Terrain, combat, transport and access paths are excluded. This is an orientation aid rather than a calculated walking route. Mount changes refresh the estimate. Disable it in navigation settings.
+
+Zone suggestions are advisory: at least three suitable accepted outdoor quests must be within 1,000 yards of the zone's nearest known target, with that target no more than 3,500 yards away. A known current-zone target must be at least 300 yards farther away. Manual priority, quiet combat/taxi views and active work within 500 yards suppress the suggestion. Unknown or red/gray unfinished quests do not count; ready turn-ins may count. Suggestions never alter selection.
+
+Optional reward comparisons in quest tooltips show cached strength, agility, stamina, intellect, spirit and armor differences against the equipped slot. Rings and trinkets compare each slot separately. Uncached equipped items remain unknown; they are not empty slots. Melee weapons are excluded because replacement can involve both hands. Damage, effects and set bonuses are outside the comparison, and no combined upgrade score is assigned. Disable comparisons independently in appearance settings, or hide all reward information.
+
 Forever Quest Navigator recommends accepted quests using distance, level fit, and known follow-ups. It reads Blizzard quest log and map data and can compare targets across zone borders on the same continent. The separate level order breaks ties by quest ID and ranks quests without a usable level after quests with a known level. Failed and session-disabled quests are ineligible.
 
 The movable tracker shows one active quest and a configurable list of alternatives. The active quest shows its level and all quest objectives with the game's progress text when available. A completed quest in the log is labeled **Ready to turn in** and remains eligible until it is handed in. Each row shows an approximate distance when the map supplies usable coordinates. The active quest also has a direction arrow when the game exposes the character's facing. The tracker refreshes at login and on quest events. Events that arrive within the same 100 ms window share a refresh.
@@ -22,9 +32,9 @@ Optional developer timing: `/fqn perf on` starts/reset local measurements, `/fqn
 
 GitHub bug reports have a structured form for version, quest ID, reproduction and relevant diagnostics. Release validation now checks matching TOC/tag/changelog versions, English/German translation parity and duplicate keys, required native binding/XML assets and runtime-only package contents. Run `python scripts/check_release.py --tag v0.1.66` locally. The same check runs before every CI build/upload.
 
-The public Release tag is held until [`release/acceptance-0.1.66.md`](release/acceptance-0.1.66.md) has passed in the game client. The release checker rejects a stable tag while client checkboxes remain pending; beta/rc validation remains available. Automated mocks and the installed candidate are not a completed client test. This candidate has no public release tag yet.
+Release evidence and remaining optional client checks are documented in [`release/acceptance-0.1.66.md`](release/acceptance-0.1.66.md). The user confirmed the corrected compact markers and their requested interactions in game and authorized the stable release. New feature behavior is covered by automated tests; these tests are not a claim that every feature was manually tested in game.
 
-RC2 explicitly sets marker strata and frame level from the map surfaces and keeps marker alpha independent of faded canvas parents. The user confirmed that markers are visible in game. RC3 retains this correction, removes the temporary boxes and uses compact 24/20-unit icons with white, shadowed numbers (co-located groups receive slightly more text space). `/fqn markers` prints a second line beginning `renderer=canvas-v3`, with map IDs, actual visible count, canvas dimensions, first-pin center, effective alpha, strata, level and scale. If markers disappear, copy both diagnostic lines with the map open. A client-log-confirmed tooltip alpha-argument error is also corrected. The remaining client acceptance checks are still pending.
+RC2 explicitly sets marker strata and frame level from the map surfaces and keeps marker alpha independent of faded canvas parents. The user confirmed that markers are visible in game. RC3 retains this correction, removes the temporary boxes and uses compact 24/20-unit icons with white, shadowed numbers (co-located groups receive slightly more text space). The user subsequently confirmed that the requested marker checks work. `/fqn markers` prints a second line beginning `renderer=canvas-v3`, with map IDs, actual visible count, canvas dimensions, first-pin center, effective alpha, strata, level and scale. If markers disappear, copy both diagnostic lines with the map open. A client-log-confirmed tooltip alpha-argument error is also corrected.
 
 ### Screenshot demo
 

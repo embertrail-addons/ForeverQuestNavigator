@@ -46,8 +46,9 @@ function Rewards.Client(id)
     return Rewards.cache[id]
 end
 
-function Rewards.Clear() Rewards.cache = {} end
+function Rewards.Clear() Rewards.cache = {} Rewards.comparisonPending = nil end
 function Rewards.HasPending()
+    if Rewards.comparisonPending then return true end
     for _, reward in pairs(Rewards.cache) do if reward.pending then return true end end
     return false
 end

@@ -109,6 +109,10 @@ function addon.SettingsController.Register(context)
     Slider(category, radius, radiusOptions, L.OfferRadiusHelp)
 
     Section(L.SettingsNavigation)
+    local travelTime = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRAVEL_TIME", "showTravelTime", settings,
+        Settings.VarType.Boolean, L.ShowTravelTime, true)
+    travelTime:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, travelTime, L.ShowTravelTimeHelp)
     local routeMarkers = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ROUTE_MARKERS",
         "showRouteMarkers", settings, Settings.VarType.Boolean, L.RouteMarkers, true)
     routeMarkers:SetValueChangedCallback(context.UpdateMapMarker)
@@ -152,6 +156,10 @@ function addon.SettingsController.Register(context)
         "showQuestRewards", settings, Settings.VarType.Boolean, L.ShowQuestRewards, true)
     rewards:SetValueChangedCallback(ScheduleRefresh)
     Checkbox(category, rewards, L.ShowQuestRewardsHelp)
+    local comparison = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_REWARD_COMPARISON", "showRewardComparison", settings,
+        Settings.VarType.Boolean, L.ShowRewardComparison, true)
+    comparison:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, comparison, L.ShowRewardComparisonHelp)
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.AppearanceProfiles, L.AppearanceProfiles,
         context.ShowProfiles, L.ProfilesHelp, true))
     local contrast = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_HIGH_CONTRAST",

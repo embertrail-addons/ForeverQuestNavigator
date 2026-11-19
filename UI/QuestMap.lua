@@ -56,6 +56,7 @@ function Pin:OnLoad()
 end
 
 function Pin:OnAcquired(target, removeMarker, stop, ordinal)
+    if stop and stop.single then ordinal = nil end
     self.removeMarker = removeMarker
     self.stop, self.ordinal = stop, ordinal
     self.number:SetText(ordinal and tostring(ordinal) or "")
@@ -63,6 +64,18 @@ function Pin:OnAcquired(target, removeMarker, stop, ordinal)
     local active = not ordinal or ordinal == 1
     self:SetSize(active and 34 or 28, active and 34 or 28)
     self.icon:SetVertexColor(active and 1 or .55, active and .82 or .8, active and .34 or 1)
+    if not self.hoverSubscribed then
+        self.hoverSubscribed = true
+        addon.QuestHover.Subscribe(function(ids)
+            if not self.stop then return end
+            local highlight = self.stop.quest and ids[self.stop.quest.id]
+            local current = not self.ordinal or self.ordinal == 1
+            local size = (current and 34 or 28) + (highlight and 5 or 0)
+            self:SetSize(size, size)
+            if highlight then self.icon:SetVertexColor(.3, 1, 1)
+            else self.icon:SetVertexColor(current and 1 or .55, current and .82 or .8, current and .34 or 1) end
+        end)
+    end
     self:UseFrameLevelType("PIN_FRAME_LEVEL_WAYPOINT_LOCATION")
     self:SetPosition(target.x, target.y)
 end
@@ -72,6 +85,8 @@ function Pin:CheckMouseButtonPassthrough()
 end
 
 function Pin:OnMouseEnter()
+    local quest = self.stop and self.stop.quest
+    if quest then addon.QuestHover.Set(self, {[quest.id] = true}) end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local title = self.stop and self.stop.quest and addon.UI.FormatQuestTitle(self.stop.quest) or L.MapMarker
     GameTooltip:SetText(self.ordinal and (self.ordinal .. ". " .. title) or title)
@@ -81,6 +96,7 @@ function Pin:OnMouseEnter()
 end
 
 function Pin:OnMouseLeave()
+    addon.QuestHover.Clear(self)
     GameTooltip:Hide()
 end
 
@@ -92,6 +108,7 @@ function Pin:OnClick(button)
 end
 
 function Pin:OnReleased()
+    addon.QuestHover.Clear(self)
     if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     self.removeMarker = nil
     self.stop, self.ordinal = nil, nil

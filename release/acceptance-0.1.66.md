@@ -1,26 +1,27 @@
 # 0.1.66 release acceptance
 
-Implementation and automated checks can be completed without logging into WoW. Public release is held until the following client checks have actually passed. Do not mark a client result passed based on mocked tests.
+This file records the user's marker acceptance and explicit stable-release authorization. Automated tests do not substitute for unreported client tests.
 
 ## Observed client result
 
-The user confirmed on 2026-11-19 that RC2 made the markers visible and supplied a normal quest-map screenshot. RC3 reduces their size and removes the opaque boxes while retaining the display-layer correction. This confirms marker visibility for the tested map; it does not by itself complete the coordinate, removal, zoom/reopen and other acceptance checks below.
+The user confirmed on 2026-11-19 that RC2 made the markers visible and supplied a normal quest-map screenshot. After reviewing the compact RC3 appearance, the user wrote "sieht super aus!" and then "funktioniert alles" following the requested marker interaction checks. The user subsequently authorized the five final features and a Release.
 
-## Required client checks (pending)
+## Required marker acceptance - user confirmed
 
-- [ ] Restart the client, log in and wait for Questie. No Lua error appears.
-- [ ] Normal mode: left-click an accepted quest with known objective coordinates. Its map opens and an FQN marker is visibly at the guided target.
-- [ ] Repeat with a ready turn-in and a nearby offer; confirm the target matches that specific row.
-- [ ] Close/reopen the map, switch to a neighboring zone and back, pan and zoom. The marker follows the same actual coordinates.
-- [ ] Right-click an FQN marker. It disappears and stays removed during subsequent distance updates and map reopen.
-- [ ] Repeat with Questie disabled where native quest coordinates are available, and with the user's usual map addon enabled.
-- [ ] `/fqn demo`, `/fqn demo map`, `/fqn demo plan`: labels and pins appear. Co-located stops display grouped numbers without fabricated offset coordinates.
-- [ ] Resize/change the demo scene while its map is open. Markers are refreshed rather than removed. Exit the demo; normal selection, skips, notes and settings are retained.
-- [ ] During normal play, compare a quest recommendation and its reason. A manual selection remains authoritative. Automatic change notices are suppressed in quiet combat/taxi mode.
-- [ ] Approach a known quest giver and an objective search area. The arrival text differentiates turning in from searching nearby; no gameplay action is automated.
-- [ ] Update notes appear once for an existing installation, can be disabled and reopened with `/fqn whatsnew`.
-- [ ] `/fqn perf on`, move/stand still, `/fqn perf`, `/fqn perf off`: timings populate locally, and normal navigation is unchanged.
-- [ ] `/fqn markers` and `/fqn debug` report the current renderer and target/pin count.
+- [x] Markers are visibly rendered in the game client; screenshot evidence supplied.
+- [x] Compact appearance and requested marker interactions, including zoom/reopen and right-click removal, confirmed by the user.
+- [x] Stable release explicitly authorized by the user after these results.
+
+## Optional follow-up client checks
+
+The following are not additional release approval requirements and have not been reported as manually completed for the new features:
+
+- Hover grouped pins and tracker quests after changing map destinations.
+- Try both temporary-priority policies and verify automatic selection resumes at the chosen boundary.
+- Check travel time on foot and mounted, and toggle its setting.
+- Review a suitable neighboring-zone cluster and known reward stats, then swap equipped gear.
+- Exercise Questie-disabled operation, other map addons and unusual client states.
+- Review demo state restoration, arrival hints, update notices and local performance timing during ordinary play.
 
 ## Automated release checks
 
@@ -31,4 +32,4 @@ The user confirmed on 2026-11-19 that RC2 made the markers visible and supplied 
 
 ## First stable upload
 
-Once the client checks above pass, commit the final reviewed state and push matching tag `v0.1.66`. GitHub Actions validates, builds `ForeverQuestNavigator-0.1.66.zip` and uploads it to CurseForge project 1812992 as **Release** using the existing repository secret. Ordinary `main` pushes remain read-only for CurseForge. Do not create the tag before acceptance or reuse a published version tag. CurseForge moderation still applies. Project description and gallery changes are separate from the file upload.
+Commit the final reviewed state and push matching tag `v0.1.66`. GitHub Actions validates, builds `ForeverQuestNavigator-0.1.66.zip` and uploads it to CurseForge project 1812992 as **Release** using the existing repository secret. Ordinary `main` pushes remain read-only for CurseForge. Do not reuse a published version tag. CurseForge moderation still applies. Project description and gallery changes are separate from the file upload.

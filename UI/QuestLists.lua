@@ -32,6 +32,7 @@ function addon.CreateAcceptedQuestRow(parent, actions, index)
     row.zone:SetJustifyH("RIGHT")
     row.zone:SetMaxLines(1)
     row.zone:Hide()
+    addon.UI.LinkQuestHover(row, function(self) return self.questID end)
     row:Hide()
     return row
 end
@@ -92,10 +93,15 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         if settings.showQuestXP and offer.xp then lines[#lines + 1] = L.QuestXPReward:format(offer.xp) end
         if settings.showQuestXP and not offer.xp then lines[#lines + 1] = L.UnknownXP end
         if settings.showQuestRewards ~= false then lines[#lines + 1] = addon.QuestRewards.Describe(addon.QuestRewards.Client(offer.id)) end
+        if settings.showQuestRewards ~= false and settings.showRewardComparison ~= false then
+            local comparison = addon.RewardComparison.Describe(addon.QuestRewards.Client(offer.id))
+            if comparison then lines[#lines + 1] = comparison end
+        end
         lines[#lines + 1] = L.OfferMapHint
         lines[#lines + 1] = L.QuestMenuHint
         return self.label:GetText(), table.concat(lines, "\n")
     end)
+    addon.UI.LinkQuestHover(row, function(self) return self.measurement and self.measurement.id end)
     row.distance = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.distance:SetPoint("RIGHT")
     row.arrow = CreateDirectionArrow(row, 15)

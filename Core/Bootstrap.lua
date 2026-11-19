@@ -60,6 +60,12 @@ local ShowLevelChanges
 
 local function CurrentMapRoute(id)
     if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return shownRoutePreview end
+    local destination = GetQuestDestination and GetQuestDestination(id)
+    if destination and destination.target then
+        for _, quest in ipairs(eligibleQuests or {}) do
+            if quest.id == id then return {{target = destination.target, quest = quest, single = true}} end
+        end
+    end
 end
 
 local function SessionTime()
@@ -271,6 +277,10 @@ function addon.DescribeQuest(quest, measurement)
     local progress = addon.QuestTools.ProgressHint(quest)
     if progress then text = text .. "\n" .. progress end
     if settings.showQuestRewards ~= false then text = text .. "\n" .. addon.QuestRewards.Describe(addon.QuestRewards.Client(quest.id)) end
+    if settings.showQuestRewards ~= false and settings.showRewardComparison ~= false then
+        local comparison = addon.RewardComparison.Describe(addon.QuestRewards.Client(quest.id))
+        if comparison then text = text .. "\n" .. comparison end
+    end
     for _, item in ipairs(insights.sharedItems) do
         for _, contribution in ipairs(item.quests) do
             if contribution.quest.id == quest.id then
@@ -624,7 +634,8 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local hasMap = destination ~= nil
     local text = quest.readyToTurnIn and L.ReadyToTurnIn or (not targets and L.SeeQuestLog or "")
     local reasonLines = { L.WhyThisQuest }
-    if heldQuest then reasonLines[#reasonLines + 1] = L.HeldQuestReason end
+    if heldQuest then reasonLines[#reasonLines + 1] = heldQuest.policy == "turnIn" and L.PriorityUntilTurnIn
+        or heldQuest.policy == "complete" and L.PriorityUntilComplete or L.HeldQuestReason end
     if manualQuestID then
         reasonLines[#reasonLines + 1] = L.ManualQuestReason
     elseif objectiveLock then
@@ -649,6 +660,16 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local quality = addon.NavigationHints.TargetText(questMeasurements and questMeasurements[quest.id] and questMeasurements[quest.id].marker)
     reason = reason .. "\n" .. explanation .. "\n" .. quality
     routeDetails = (routeDetails and routeDetails .. "\n" or "") .. quality
+    local measured = questMeasurements and questMeasurements[quest.id]
+    local travelTime = not isFlying and addon.TravelTime.Describe(measured and measured.yards, settings)
+    if travelTime then routeDetails = routeDetails .. "\n" .. travelTime reason = reason .. "\n" .. travelTime end
+    local overview = addon.BuildZoneOverview(C_Map, Enum and Enum.UIMapType, eligibleQuests, navigationSnapshot)
+    local suggestion = addon.ZoneSuggestion.Find(overview, playerZoneID, manualQuestID or heldQuest
+        or (settings.quietNavigation and (isFlying or (InCombatLockdown and InCombatLockdown()))), measured and measured.yards)
+    if suggestion then
+        local advisory = L.ZoneSuggestion:format(suggestion.name, suggestion.clusterSuitable, suggestion.clusterYards or suggestion.yards)
+        routeDetails = routeDetails .. "\n" .. advisory reason = reason .. "\n" .. advisory
+    end
     if not routeNote and rewards[1] ~= L.QuestXPLevelUpShort then routeNote = explanation end
     local itemHint = addon.QuestItemHints.Read(C_QuestLog, quest.id, GetQuestLogSpecialItemInfo, GetItemCount)
     if itemHint then
@@ -1393,7 +1414,7 @@ local function OpenOfferMap(id)
     if InCombatLockdown and InCombatLockdown() then print(L.CombatMap) return end
     markedQuestID = nil
     C_Map.OpenWorldMap(offer.marker.mapID)
-    addon.ShowQuestMapMarker(offer.marker, ClearMapMarker)
+    addon.ShowQuestMapMarker(offer.marker, ClearMapMarker, {{target = offer.marker, quest = offer, single = true}})
 end
 
 local function OpenRouteStop(stop)
@@ -1490,6 +1511,10 @@ local function OpenQuestMenu(owner, questID, isOffer)
         if not isOffer and CanPinQuest(questID) then
             menu:CreateButton(manualQuestID == questID and L.ClearActiveQuest or L.SetActiveQuest,
                 function() if manualQuestID == questID then SelectQuest(nil) else SelectQuest(questID) end end)
+            if chosen and not chosen.readyToTurnIn then
+                menu:CreateButton(L.PriorityUntilComplete, function() ApplyQuestAction("prioritize", {id = questID}) end)
+            end
+            menu:CreateButton(L.PriorityUntilTurnIn, function() ApplyQuestAction("prioritize", {id = questID, turnIn = true}) end)
         end
         menu:CreateButton(questNotes[questID] and L.UnmarkQuest or L.MarkQuest, function()
             local point = isOffer and chosen and chosen.marker or target
@@ -1810,6 +1835,8 @@ local function AddonLoaded(name)
         settings.quietNavigation = settings.quietNavigation ~= false
         settings.showRouteMarkers = settings.showRouteMarkers ~= false
         settings.showQuestRewards = settings.showQuestRewards ~= false
+        settings.showRewardComparison = settings.showRewardComparison ~= false
+        settings.showTravelTime = settings.showTravelTime ~= false
         settings.adaptiveLayout = settings.adaptiveLayout ~= false
         settings.showLevelHints = settings.showLevelHints ~= false
         insights.lastLevel = UnitLevel and UnitLevel("player")

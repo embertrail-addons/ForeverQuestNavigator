@@ -29,6 +29,9 @@ function Canvas.New(map, api, create)
         pin.number:SetShadowColor(0, 0, 0, 1) pin.number:SetShadowOffset(1, -1)
         pin:SetScript("OnClick", function(_, button) if button == "RightButton" then Remove() end end)
         pin:SetScript("OnEnter", function(owner)
+            local ids = {}
+            for _, stop in ipairs(owner.stops or {}) do if stop.quest then ids[stop.quest.id] = true end end
+            addon.QuestHover.Set(owner, ids)
             if not GameTooltip then return end
             GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
             GameTooltip:SetText(addon.L.MapMarker)
@@ -38,14 +41,23 @@ function Canvas.New(map, api, create)
             end
             GameTooltip:AddLine(addon.L.RemoveMarker) GameTooltip:Show()
         end)
-        pin:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        pin:SetScript("OnLeave", function(owner)
+            if not self.refreshing then addon.QuestHover.Clear(owner) end
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+        pin:SetScript("OnHide", function(owner) if not self.refreshing then addon.QuestHover.Clear(owner) end end)
         return pin
     end
     function self:Refresh()
         local started = addon.Performance:Begin()
+        self.refreshing = true
         for _, pin in ipairs(self.pins) do pin:Hide() end
+        self.refreshing = false
         self.count = 0
-        if not self.target or not self.map:IsShown() then return end
+        if not self.target or not self.map:IsShown() then
+            for _, pin in ipairs(self.pins) do addon.QuestHover.Clear(pin) end
+            return
+        end
         local mapID, groups = self.map:GetMapID(), {}
         local function Add(point, quest, ordinal)
             local projected = addon.QuestLocation.ProjectMarker(self.api, point, mapID)
@@ -60,7 +72,7 @@ function Canvas.New(map, api, create)
         local hasTarget
         for index, stop in ipairs(self.route or {}) do
             if stop.target then
-                Add(stop.target, stop.quest, index)
+                Add(stop.target, stop.quest, not stop.single and index or nil)
                 if stop.target.mapID == self.target.mapID and stop.target.x == self.target.x and stop.target.y == self.target.y then hasTarget = true end
             end
         end
@@ -91,6 +103,7 @@ function Canvas.New(map, api, create)
             local size = (active and 24 or 20) + (#group.stops > 1 and 6 or 0)
             pin:SetSize(size, size)
             pin.icon:SetVertexColor(active and 1 or .55, active and .82 or .8, active and .34 or 1)
+            pin.active, pin.baseSize = active, size
             pin.number:SetText(table.concat(labels, "/")) pin.number:SetShown(#labels > 0)
             pin:SetScale(scale)
             pin:SetFrameStrata(strata)
@@ -100,7 +113,29 @@ function Canvas.New(map, api, create)
             pin:Show() self.count = self.count + 1
         end
         addon.Performance:Finish("map", started)
+        for index, pin in ipairs(self.pins) do
+            if addon.QuestHover.owner == pin then
+                if index > self.count then addon.QuestHover.Clear(pin)
+                else
+                    local ids = {}
+                    for _, stop in ipairs(pin.stops or {}) do if stop.quest then ids[stop.quest.id] = true end end
+                    addon.QuestHover.Set(pin, ids)
+                end
+            end
+        end
+        self:Highlight(addon.QuestHover.ids)
     end
+    function self:Highlight(ids)
+        for _, pin in ipairs(self.pins) do
+            local highlighted = false
+            for _, stop in ipairs(pin.stops or {}) do if stop.quest and ids[stop.quest.id] then highlighted = true end end
+            local size = (pin.baseSize or 20) + (highlighted and 5 or 0)
+            pin:SetSize(size, size)
+            if highlighted then pin.icon:SetVertexColor(.3, 1, 1)
+            else pin.icon:SetVertexColor(pin.active and 1 or .55, pin.active and .82 or .8, pin.active and .34 or 1) end
+        end
+    end
+    addon.QuestHover.Subscribe(function(ids) self:Highlight(ids) end)
     function self:Set(target, remove, route)
         self.target, self.remove, self.route = target, remove, target and route or nil
         self.revision = self.revision + 1

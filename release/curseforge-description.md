@@ -15,6 +15,11 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 
 ## Plan your outing
 
+- Hover map pins and tracker quests to highlight their matching entries. Co-located route stops keep grouped numbers.
+- Choose a temporary quest priority until objectives are complete or the quest is turned in; automatic selection then resumes.
+- Enable approximate travel times in route details. These are straight-line estimates at walking/current mounted speed, excluding terrain, combat and transport.
+- See advisory suggestions when another zone has a compact group of at least three suitable quests with a clear distance advantage.
+- Compare known reward base stats and armor against equipped items in tooltips. Accessory slots are compared separately; melee weapons, effects, damage and set bonuses are excluded. There is no automatic upgrade score.
 - Discover nearby quests to accept through Questie, with level, estimated XP and explanations of useful overlap or route fit when known.
 - Browse quest targets by zone and review shared item requirements across active quests.
 - Temporarily lower a quest's priority or try another known area for the same objective.

@@ -43,6 +43,7 @@ Navigation\NavigationController.lua
 Navigation\TravelPreparation.lua
 Core\RegressionFixture.lua
 Core\ZoneOverview.lua
+Core\ReleaseFeatures.lua
 Core\DemoData.lua
 UI\NavigationDisplay.lua
 UI\Theme.lua
