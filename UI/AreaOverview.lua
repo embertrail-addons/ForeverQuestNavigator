@@ -31,7 +31,9 @@ function addon.CreateAreaOverview(parent, settings, actions)
     end
 
     function frame:Layout()
-        if not data or settings.collapsed then self:Hide() return end
+        if not data or settings.collapsed or ((data.objectives or 0) == 0 and (data.turnIns or 0) == 0) then
+            self:Hide() return
+        end
         self:Show()
         local expanded = settings.areaOverviewExpanded == true
         local objectives = (data.objectives == 1 and L.AreaObjectiveOne or L.AreaObjectiveMany):format(data.objectives)

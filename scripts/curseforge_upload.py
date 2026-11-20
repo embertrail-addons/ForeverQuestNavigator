@@ -24,7 +24,7 @@ def release_info(root, tag=None, check_only=False):
         raise ValueError("TOC must contain one semantic version")
     version = versions[0]
     if check_only and not tag:
-        tag = f"v{version}-beta"
+        tag = f"v{version}"
     match = re.fullmatch(r"v" + re.escape(version) + r"(?:-(alpha|beta|rc)(?:\.\d+)?)?", tag or "")
     if not match:
         raise ValueError("A matching explicit version tag is required")
@@ -87,6 +87,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         archive, metadata = release_info(args.root, args.tag, args.check_only)
+        if not args.check_only and metadata["releaseType"] != "release":
+            raise ValueError("Publication policy: only regular releases are allowed; prerelease uploads are disabled")
         token = os.environ.get("CURSEFORGE_API_TOKEN", "").strip()
         if not token:
             raise ValueError("Repository secret CURSEFORGE_API_TOKEN is missing")

@@ -68,6 +68,6 @@ function addon.ShowAccessRouteEditor(actions)
         end
     end
     window.actions, window.page = actions, 1
-    window:Refresh() window:Show()
+    window:Refresh() addon.UI.ShowUtilityPanel(window)
 end
 function addon.RefreshAccessRouteEditor() if window and window:IsShown() then window:Refresh() end end

@@ -45,6 +45,7 @@ function addon.ShowTextWindow(key, text, title, hintText)
     dialog.heading:SetText(title)
     dialog.hint:SetText(hintText)
     dialog:Show()
+    if dialog.Raise then dialog:Raise() end
     dialog.edit:SetText(text)
     dialog.edit:SetFocus()
     dialog.edit:HighlightText()

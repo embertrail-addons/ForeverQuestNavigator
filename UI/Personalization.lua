@@ -58,7 +58,7 @@ function addon.ShowFeedbackManager(actions)
         end)
     end
     feedbackWindow.actions, feedbackWindow.page = actions, 1
-    feedbackWindow:Refresh() feedbackWindow:Show()
+    feedbackWindow:Refresh() addon.UI.ShowUtilityPanel(feedbackWindow)
 end
 
 local function Value(value)
@@ -112,7 +112,7 @@ function addon.ShowAppearanceProfiles(settings, catalog)
         end
     end
     profilesWindow.settings, profilesWindow.catalog, profilesWindow.selected = settings, catalog, "standard"
-    profilesWindow:Refresh() profilesWindow:Show()
+    profilesWindow:Refresh() addon.UI.ShowUtilityPanel(profilesWindow)
 end
 function addon.RefreshProfilePreview()
     if profilesWindow and profilesWindow:IsShown() then profilesWindow:Refresh() end

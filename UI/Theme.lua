@@ -25,6 +25,7 @@ function Theme.Bind(region, role, alpha, kind)
     Paint(entry)
 end
 function Theme.Frame(frame, opacity)
+    if frame.embedded then frame:SetBackdropColor(0, 0, 0, 0) frame:SetBackdropBorderColor(0, 0, 0, 0) return end
     local r, g, b = Theme.Color("background")
     frame:SetBackdropColor(r, g, b, opacity or 1)
     r, g, b = Theme.Color("border")
@@ -34,6 +35,7 @@ function Theme.Apply(contrast)
     Theme.contrast = contrast == true
     for _, entry in ipairs(Theme.entries) do Paint(entry) end
     for _, entry in ipairs(Theme.frames or {}) do Theme.Frame(entry.frame, entry.opacity and entry.opacity()) end
+    if addon.UI.ToolHub and addon.UI.ToolHub.PaintNavigation then addon.UI.ToolHub.PaintNavigation() end
 end
 function Theme.WatchFrame(frame, opacity)
     Theme.frames = Theme.frames or {}

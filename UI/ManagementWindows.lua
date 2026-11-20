@@ -1,9 +1,13 @@
 local _, addon = ...
 local L = addon.L
 local dashboard, accessWindow, preview
+local panelSerial = 0
 
 local function Panel(width, height, title)
-    local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    panelSerial = panelSerial + 1
+    local name = "ForeverQuestNavigatorPanel" .. panelSerial
+    local frame = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+    if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, name) end
     frame:SetSize(width, height)
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
@@ -25,6 +29,9 @@ local function Panel(width, height, title)
     close:SetPoint("TOPRIGHT", -8, -8)
     close:SetText("X")
     close:SetScript("OnClick", function() frame:Hide() end)
+    frame.closeButton = close
+    frame:Hide()
+    if addon.UI.ToolHub then addon.UI.ToolHub.Attach(frame, title) end
     return frame
 end
 
@@ -109,7 +116,7 @@ function addon.ShowSessionDashboard(getSession, now)
     end
     dashboard.getSession, dashboard.now = getSession, now
     dashboard:Refresh()
-    dashboard:Show()
+    addon.UI.ShowUtilityPanel(dashboard)
 end
 
 function addon.ShowAccessManager(actions)
@@ -227,7 +234,7 @@ function addon.ShowAccessManager(actions)
     end
     accessWindow.actions = actions
     accessWindow:Refresh()
-    accessWindow:Show()
+    addon.UI.ShowUtilityPanel(accessWindow)
 end
 
 addon.UI.CreateUtilityPanel = Panel
@@ -236,32 +243,89 @@ function addon.RefreshAccessManager()
     if accessWindow and accessWindow:IsShown() then accessWindow:Refresh() end
 end
 
-function addon.ShowAppearancePreview(settings)
+function addon.ShowAppearancePreview(settings, catalog)
     if not preview then
-        preview = Panel(430, 200, L.AppearancePreview)
+        preview = Panel(520, 390, L.AppearancePreview)
         local backdrop = preview:CreateTexture(nil, "BACKGROUND")
-        backdrop:SetPoint("TOPLEFT", 16, -49)
-        backdrop:SetPoint("BOTTOMRIGHT", -16, 16)
+        backdrop:SetPoint("TOPLEFT", 16, -170)
+        backdrop:SetPoint("BOTTOMRIGHT", -16, 66)
         preview.sampleBackdrop = backdrop
         preview.sample = addon.UI.CreateLabel(preview, "GameFontNormal")
-        preview.sample:SetPoint("TOPLEFT", 28, -63)
+        preview.sample:SetPoint("TOPLEFT", backdrop, "TOPLEFT", 12, -14)
+        preview.sample:SetPoint("TOPRIGHT", backdrop, "TOPRIGHT", -12, -14)
+        preview.sample:SetMaxLines(1)
         preview.sample:SetText(L.PreviewQuest)
+        preview.goal = addon.UI.CreateLabel(preview, "GameFontNormalSmall")
+        preview.goal:SetPoint("TOPLEFT", preview.sample, "BOTTOMLEFT", 0, -6)
+        preview.goal:SetPoint("TOPRIGHT", preview.sample, "BOTTOMRIGHT", 0, -6)
+        preview.goal:SetText(L.NavigatorCurrentGoal)
         preview.detail = addon.UI.CreateLabel(preview, "GameFontHighlightSmall")
-        preview.detail:SetPoint("TOPLEFT", preview.sample, "BOTTOMLEFT", 0, -12)
+        preview.detail:SetPoint("TOPLEFT", preview.goal, "BOTTOMLEFT", 0, -6)
+        preview.detail:SetPoint("TOPRIGHT", preview.goal, "BOTTOMRIGHT", 0, -6)
+        preview.detail:SetMaxLines(1)
         preview.detail:SetText(L.PreviewProgress)
+        preview.bar = preview:CreateTexture(nil, "ARTWORK")
+        preview.bar:SetPoint("TOPLEFT", preview.detail, "BOTTOMLEFT", 0, -3)
         preview.xp = addon.UI.CreateLabel(preview, "GameFontHighlightSmall")
         preview.xp:SetPoint("TOPLEFT", preview.detail, "BOTTOMLEFT", 0, -10)
+        preview.xp:SetPoint("TOPRIGHT", preview.detail, "BOTTOMRIGHT", 0, -10)
+        preview.xp:SetMaxLines(2)
         preview.xp:SetText(L.PreviewXP)
+        preview.controls = {}
+        for index, definition in ipairs({{"fontPercent", L.FontSize, 10, 80, 140},
+            {"trackerWidth", L.NavigatorWidth, 10, 330, 640}, {"opacityPercent", L.Opacity, 5, 0, 100}}) do
+            local spec = definition
+            local label = addon.UI.CreateLabel(preview, "GameFontHighlightSmall")
+            label:SetPoint("TOPLEFT", 22, -48 - (index - 1) * 29)
+            local function Change(direction)
+                for _, entry in ipairs(preview.catalog or {}) do
+                    if entry.key == spec[1] then
+                        entry.control:SetValue(math.max(spec[4], math.min(spec[5], preview.settings[spec[1]] + spec[3] * direction)))
+                        addon.RefreshAppearancePreview() return
+                    end
+                end
+            end
+            local minus = Button(preview, "-", 32, function() Change(-1) end)
+            minus:SetPoint("TOPRIGHT", -64, -43 - (index - 1) * 29)
+            local plus = Button(preview, "+", 32, function() Change(1) end)
+            plus:SetPoint("TOPRIGHT", -22, -43 - (index - 1) * 29)
+            preview.controls[#preview.controls + 1] = {spec = spec, label = label, minus = minus, plus = plus}
+        end
+        preview.help = addon.UI.CreateLabel(preview, "GameFontDisableSmall")
+        preview.help:SetPoint("TOPLEFT", 22, -132) preview.help:SetPoint("TOPRIGHT", -22, -132)
+        preview.help:SetMaxLines(2) preview.help:SetText(L.PreviewLiveHelp)
+        preview.restore = Button(preview, L.PreviewRestore, 230, function()
+            addon.AppearanceProfiles.Restore(preview.snapshot or {}, preview.settings, preview.catalog)
+            addon.RefreshAppearancePreview()
+        end)
+        preview.restore:SetPoint("BOTTOMLEFT", 16, 20)
+        preview.keep = Button(preview, L.PreviewKeep, 230, function() preview:Hide() end)
+        preview.keep:SetPoint("BOTTOMRIGHT", -16, 20)
     end
+    if not preview:IsShown() then preview.snapshot = addon.AppearanceProfiles.Snapshot(settings) end
     preview.settings = settings
-    preview:Show()
+    preview.catalog = catalog or addon.SettingsController.catalog
+    addon.UI.ShowUtilityPanel(preview)
     addon.RefreshAppearancePreview()
 end
 
 function addon.RefreshAppearancePreview()
     if not (preview and preview:IsShown()) then return end
     local settings = preview.settings
+    preview:SetWidth(math.max(520, (settings.trackerWidth or 352) + 32))
+    preview.sampleBackdrop:ClearAllPoints()
+    preview.sampleBackdrop:SetPoint("TOPLEFT", 16, -170)
+    preview.sampleBackdrop:SetSize(settings.trackerWidth or 352, 150)
+    for _, row in ipairs(preview.controls) do
+        row.label:SetText(row.spec[2] .. ": " .. tostring(settings[row.spec[1]]) .. (row.spec[1] ~= "trackerWidth" and "%" or ""))
+        local enabled = preview.catalog ~= nil
+        row.minus:SetEnabled(enabled and settings[row.spec[1]] > row.spec[4])
+        row.plus:SetEnabled(enabled and settings[row.spec[1]] < row.spec[5])
+    end
     preview.sampleBackdrop:SetColorTexture(0.35, 0.24, 0.1, settings.opacityPercent / 100)
+    local r, g, b = addon.UI.Theme.Color("heading")
+    preview.bar:SetSize(((settings.trackerWidth or 352) - 24) * .4, 2)
+    preview.bar:SetColorTexture(r, g, b, .45)
     preview.sample:SetFontObject(addon.UI.GetFont("GameFontNormal"))
     preview.detail:SetFontObject(addon.UI.GetFont("GameFontHighlightSmall"))
     preview.xp:SetFontObject(addon.UI.GetFont("GameFontHighlightSmall"))

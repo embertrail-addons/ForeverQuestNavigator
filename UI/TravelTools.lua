@@ -49,7 +49,7 @@ function addon.ShowDisplayTransfer(settings, catalog)
     transferWindow.settings, transferWindow.catalog = settings, catalog
     transferWindow.changes = nil transferWindow.apply:SetEnabled(false)
     transferWindow.input:SetText(addon.DisplayTransfer.Export(settings))
-    transferWindow.preview:SetText("") transferWindow:Show()
+    transferWindow.preview:SetText("") addon.UI.ShowUtilityPanel(transferWindow)
 end
 
 function addon.ShowDetourTools(actions)
@@ -94,5 +94,5 @@ function addon.ShowDetourTools(actions)
         detourWindow.inputs[3]:SetText(("%.2f"):format(point.y * 100))
         detourWindow.inputs[4]:SetText(point.name or "")
     end
-    detourWindow.status:SetText(actions.active() and L.DetourActive or "") detourWindow:Show()
+    detourWindow.status:SetText(actions.active() and L.DetourActive or "") addon.UI.ShowUtilityPanel(detourWindow)
 end

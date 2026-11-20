@@ -665,6 +665,11 @@ local function mockUI()
     end
 
     function methods:RegisterEvent(event) self.events[event] = true end
+    function methods:SetHitRectInsets(...) self.hitInsets = {...} end
+    function methods:SetAttribute(key, value)
+        self.attributes = self.attributes or {} self.attributes[key] = value
+    end
+    function methods:SetCooldown(start, duration) self.cooldownStart, self.cooldownDuration = start, duration end
     function methods:SetScript(script, callback) self.scripts[script] = callback end
     function methods:HookScript(script, callback)
         local previous = self.scripts[script]
@@ -697,8 +702,13 @@ local function mockUI()
     function methods:SetSize(width, height) self.width, self.height = width, height end
     function methods:SetWidth(width) self.width = width end
     function methods:GetWidth() return self.width end
+    function methods:SetParent(parent) self.parent = parent end
+    function methods:SetScale(scale) self.scale = scale end
     function methods:GetEffectiveScale() return 0.5 end
-    function methods:SetPoint(...) self.point = { ... } end
+    function methods:SetPoint(...)
+        self.point = {...} self.points = self.points or {} self.points[self.point[1]] = self.point
+    end
+    function methods:ClearAllPoints() self.point, self.points = nil, {} end
     function methods:GetFrameLevel() return 1 end
     function methods:SetFrameLevel() end
 
@@ -708,14 +718,14 @@ local function mockUI()
     end
 
     function methods:CreateTexture()
-        local texture = setmetatable({}, { __index = methods })
+        local texture = setmetatable({parent = self}, { __index = methods })
         self.textures = self.textures or {}
         self.textures[#self.textures + 1] = texture
         return texture
     end
 
     function methods:CreateLine()
-        local line = setmetatable({}, { __index = methods })
+        local line = setmetatable({parent = self}, { __index = methods })
         self.lines[#self.lines + 1] = line
         return line
     end
@@ -725,7 +735,7 @@ local function mockUI()
     end
 
     function methods:CreateFontString()
-        local fontString = setmetatable({ shown = true }, { __index = methods })
+        local fontString = setmetatable({ shown = true, parent = self }, { __index = methods })
         self.labels[#self.labels + 1] = fontString
         return fontString
     end
@@ -749,9 +759,10 @@ local function mockUI()
         end
     end
 
-    local function createFrame(_, _, parent)
+    local function createFrame(_, _, parent, template)
         local frame = setmetatable({ events = {}, scripts = {}, labels = {}, lines = {}, shown = true }, { __index = methods })
         frame.parent = parent
+        frame.template = template
         frames[#frames + 1] = frame
         return frame
     end
@@ -760,6 +771,8 @@ local function mockUI()
     end
     return frames, createFrame, createFont
 end
+
+assert(loadfile("tests/navigator_ui.lua"))()(test, equal, near, mockUI, loadAddon)
 
 test("Area groups expand into individual quests while single targets remain directly clickable", function()
     local frames, createFrame, createFont = mockUI()
@@ -957,11 +970,15 @@ test("TOC startup and quest events update the tracker with or without optional a
                 equal(variable, ({
                     language = "FOREVERQUESTNAVIGATOR_LANGUAGE",
                     detailMode = "FOREVERQUESTNAVIGATOR_DETAIL_MODE",
+                    navigatorView = "FOREVERQUESTNAVIGATOR_NAVIGATOR_VIEW",
+                    trackerMaxHeight = "FOREVERQUESTNAVIGATOR_MAX_HEIGHT",
+                    trackerWidth = "FOREVERQUESTNAVIGATOR_WIDTH",
                     highContrast = "FOREVERQUESTNAVIGATOR_HIGH_CONTRAST",
                     showTravelPreparation = "FOREVERQUESTNAVIGATOR_TRAVEL_PREPARATION",
                     quietNavigation = "FOREVERQUESTNAVIGATOR_QUIET_NAVIGATION",
                     showRouteMarkers = "FOREVERQUESTNAVIGATOR_ROUTE_MARKERS",
                     showQuestRewards = "FOREVERQUESTNAVIGATOR_QUEST_REWARDS",
+                    rememberNavigation = "FOREVERQUESTNAVIGATOR_REMEMBER_NAVIGATION",
                     showRewardComparison = "FOREVERQUESTNAVIGATOR_REWARD_COMPARISON",
                     showTravelTime = "FOREVERQUESTNAVIGATOR_TRAVEL_TIME",
                     adaptiveLayout = "FOREVERQUESTNAVIGATOR_ADAPTIVE_LAYOUT",
@@ -982,16 +999,21 @@ test("TOC startup and quest events update the tracker with or without optional a
                     offerRows = "FOREVERQUESTNAVIGATOR_OFFER_ROWS",
                 })[key])
                 local expectedType = ({ opacityPercent = "number", questieOfferRadius = "number", language = "string",
-                    fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string" })[key]
+                    fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string",
+                    navigatorView = "string", trackerMaxHeight = "number", trackerWidth = "number" })[key]
                 equal(variableType, expectedType or "boolean")
                 equal(name, ({
                     language = "Language",
                     detailMode = "Tracker detail",
+                    navigatorView = "Navigator view",
+                    trackerMaxHeight = "Maximum navigator height",
+                    trackerWidth = "Navigator width",
                     highContrast = "High contrast",
                     showTravelPreparation = "Show travel preparation hints",
                     quietNavigation = "Quiet navigation during combat",
                     showRouteMarkers = "Number the next stops on the map",
                     showQuestRewards = "Show gold and item rewards in tooltips",
+                    rememberNavigation = "Remember quest tour and priority",
                     showRewardComparison = "Compare reward base stats",
                     showTravelTime = "Show approximate travel time",
                     adaptiveLayout = "Adapt details to narrow windows",
@@ -1022,6 +1044,9 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "fontPercent" then expectedDefault = 100 end
                 if key == "acceptedRows" then expectedDefault = 2 end
                 if key == "offerRows" then expectedDefault = 3 end
+                if key == "navigatorView" then expectedDefault = "all" end
+                if key == "trackerMaxHeight" then expectedDefault = 600 end
+                if key == "trackerWidth" then expectedDefault = 352 end
                 equal(defaultValue, expectedDefault)
                 local setting = { key = key }
                 function setting:SetValue(value)
@@ -1042,6 +1067,9 @@ test("TOC startup and quest events update the tracker with or without optional a
             CreateDropdown = function(owner, setting, getOptions)
                 equal(owner, category)
                 local options = getOptions()
+                if setting == settingsByKey.navigatorView then
+                    equal(#options, 3) equal(options[1].value, "goal") equal(options[3].value, "all") return
+                end
                 if setting == settingsByKey.detailMode then
                     equal(#options, 2)
                     equal(options[1].value, "detailed")
@@ -1091,12 +1119,15 @@ test("TOC startup and quest events update the tracker with or without optional a
                         settingsByKey.history = initializer
                     elseif initializer.name == "Quests after your level-up" then
                         settingsByKey.levelChanges = initializer
+                    elseif initializer.name == "Arrange interface" then settingsByKey.arrange = initializer
                     else
                         settingsByKey.resetPositions = initializer
                     end
                 end
             end,
             CreateSliderOptions = function(minimum, maximum, step)
+                if minimum == 360 then equal(maximum, 1000) equal(step, 20) return {SetLabelFormatter = noOp} end
+                if minimum == 330 then equal(maximum, 640) equal(step, 10) return {SetLabelFormatter = noOp} end
                 if minimum == 80 then
                     equal(maximum, 140)
                     equal(step, 10)
@@ -1165,7 +1196,8 @@ test("TOC startup and quest events update the tracker with or without optional a
         assert(name == "Reset window positions" or name == "Restore avoided objectives" or name == "Reset appearance and positions"
             or name == "Open session overview" or name == "Saved access points" or name == "Appearance preview" or name == "Open diagnostic report"
             or name == "Quest notepad" or name == "Quick introduction" or name == "Zone overview" or name == "Export regression case" or name == "Quest planning"
-            or name == "Temporary feedback" or name == "Appearance profiles" or name == "Changes and undo" or name == "Quests after your level-up")
+            or name == "Temporary feedback" or name == "Appearance profiles" or name == "Changes and undo" or name == "Quests after your level-up"
+            or name == "Find quests" or name == "My quest tour" or name == "Copy problem report" or name == "Arrange interface")
         equal(buttonText, name)
         equal(searchable, true)
         return { name = name, callback = callback }
@@ -1319,16 +1351,18 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, "[8] Wolves")
     local function FindGoal(owner, index)
         for _, candidate in ipairs(frames) do
-            if candidate.parent == owner and candidate.goal and candidate.goal.index == index then return candidate end
+            if (candidate.parent == owner or candidate.parent == owner.scrollBody) and candidate.goal and candidate.goal.index == index then return candidate end
         end
         error("Goal missing: " .. index)
     end
-    equal(FindGoal(content, 1).label.text, "Wolves slain: 0/8")
+    equal(FindGoal(content, 1).label.text, "Wolves slain")
+    equal(FindGoal(content, 1).counter.text, "0/8")
 
     objectives[2][1].text = "Wolves slain: 3/8"
     fire("QUEST_LOG_CRITERIA_UPDATE", 2)
     flush()
-    equal(FindGoal(content, 1).label.text, "Wolves slain: 3/8")
+    equal(FindGoal(content, 1).label.text, "Wolves slain")
+    equal(FindGoal(content, 1).counter.text, "3/8")
 
     complete[2] = true
     fire("QUEST_WATCH_UPDATE", 2)
@@ -1347,10 +1381,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_ACCEPTED", 3)
     flush()
     equal(title.text, "[7] Elite wolves |cffffc447+|r")
-    equal(skip:IsShown(), true)
+    equal(skip:IsShown(), false)
     equal(history.enabled, false)
 
-    skip:Click()
+    tracker:OpenDetails() tracker.detailPanel.skip:Click()
     flush()
     equal(title.text, "[9] Supplies")
     equal(history.enabled, true)
@@ -1358,7 +1392,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(title.text, "[9] Supplies")
 
-    skip:Click()
+    tracker:OpenDetails() tracker.detailPanel.skip:Click()
     flush()
     equal(title.text, "No matching outdoor quests on the available maps.")
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[1].quest.title, "Supplies")
@@ -1371,7 +1405,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, "[7] Elite wolves |cffffc447+|r")
     equal(history.enabled, false)
 
-    skip:Click()
+    tracker:OpenDetails() tracker.detailPanel.skip:Click()
     flush()
     quests[2] = nil
     fire("QUEST_REMOVED", 3)
@@ -1409,7 +1443,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     currentMapID = 10
     fire("QUEST_LOG_UPDATE")
     flush()
-    skip:Click()
+    tracker:OpenDetails() tracker.detailPanel.skip:Click()
     flush()
     equal(title.text, "No matching outdoor quests on the available maps.")
 
@@ -1417,7 +1451,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     local function FindTrackerButton(parent, text)
         for _, frame in ipairs(frames) do
-            if frame.parent == parent and frame.text == text then return frame end
+            if (frame.parent == parent or frame.parent == parent.scrollBody) and frame.text == text then return frame end
         end
         error("Tracker button missing: " .. text)
     end
@@ -1629,15 +1663,16 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_LOG_UPDATE")
     flush()
     equal(title.text, "[11] Local courier")
-    equal(FindGoal(updatedContent, 1).label.text, "Letters delivered: 1/2")
+    equal(FindGoal(updatedContent, 1).label.text, "Letters delivered")
 
-    rowOne.checkbox:Click()
+    updatedTracker.detailPanel:Hide()
+    rowOne.detailButton:Click() updatedTracker.detailPanel.skip:Click()
     flush()
     equal(title.text, "[11] Local courier")
     equal(rowOne.label.text, "[9] Supplies")
     equal(rowTwo.label.text, "[12] Local harvest")
     equal(history.text, "Skipped (1)")
-    activeCheckbox:Click()
+    updatedTracker:OpenDetails() updatedTracker.detailPanel.skip:Click()
     flush()
     equal(title.text, "[9] Supplies")
     equal(rowOne.label.text, "[12] Local harvest")
@@ -1775,7 +1810,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     local function Goal(index)
         return FindGoal(updatedContent, index)
     end
-    equal(Goal(1).label.text, "Wolves slain: 8/8")
+    equal(Goal(1).label.text, "Wolves slain")
     equal(Goal(1).goal.selectable, false)
     equal(Goal(1):IsShown(), false)
     local finished = FindTrackerButton(updatedContent, "+  1 completed objective")
@@ -1788,14 +1823,15 @@ test("TOC startup and quest events update the tracker with or without optional a
     finished:Click()
     equal(Goal(1):IsShown(), false)
     equal(tooltip.text, nil)
-    equal(Goal(2).label.text, "Boars slain: 0/8")
-    equal(Goal(2).indicator.text, ">")
+    equal(Goal(2).label.text, "Boars slain")
+    equal(Goal(2).indicator.text, "")
+    assert(Goal(2).caption.text:find("Current objective · ", 1, true) == 1)
     equal(activeDistance.point[2], Goal(2))
     equal(navigation.goal.text, "Boars slain: 0/8")
     equal(activeDistance.text, "~50 yd")
     local areaFrame
     for _, frame in ipairs(frames) do
-        if frame.parent == updatedContent and frame.SetData then areaFrame = frame end
+        if frame.parent == updatedTracker.scrollBody and frame.SetData then areaFrame = frame end
     end
     assert(areaFrame)
     local areaHeader
@@ -1834,13 +1870,13 @@ test("TOC startup and quest events update the tracker with or without optional a
     Goal(2):Click("RightButton")
     equal(activeDistance.text, "~150 yd")
     equal(Goal(2).goal.avoided, true)
-    equal(Goal(3).indicator.text, ">")
+    equal(Goal(3).indicator.text, "")
     equal(navigation.notice.text, "New navigation target")
     equal(areaHeader.text, "+ Here: 1 objective · 0 turn-ins")
     Goal(3):Click("RightButton")
     equal(activeDistance.text, "—")
     equal(navigation.status.text, "All known objectives are temporarily avoided")
-    equal(areaHeader.text, "+ Here: 0 objectives · 0 turn-ins")
+    equal(areaFrame:IsShown(), false)
     settingsByKey.restoreObjectives.callback()
     equal(activeDistance.text, "~50 yd")
     equal(Goal(2).goal.avoided, false)
@@ -1850,7 +1886,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     Goal(3):Click()
     equal(activeDistance.text, "~150 yd")
     equal(navigation.goal.text, "Supplies collected: 0/3")
-    equal(Goal(3).indicator.text, "•")
+    assert(Goal(3).caption.text:find("Current objective · Fixed · ", 1, true) == 1)
     equal(activeDistance.point[2], Goal(3))
     local resetObjective = FindTrackerButton(updatedContent, "Back to automatic")
     equal(resetObjective:IsShown(), true)
@@ -1859,7 +1895,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(activeDistance.text, "~50 yd")
     playerX = 0.44
     distanceTicker.tick()
-    equal(Goal(2).indicator.text, ">")
+    equal(Goal(2).indicator.text, "")
     equal(activeDistance.text, "~110 yd")
     playerX = 0.37
     distanceTicker.tick()
@@ -1870,14 +1906,14 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(activeDistance.text, "~50 yd")
     near(arrow.lines[1].tipX, 8)
     Goal(2):Click()
-    equal(Goal(2).indicator.text, "•")
+    assert(Goal(2).caption.text:find("Current objective · Fixed · ", 1, true) == 1)
     objectives[7][2].finished = true
     fire("QUEST_LOG_CRITERIA_UPDATE", 7)
     flush()
     equal(Goal(2).goal.selectable, false)
     equal(Goal(2):IsShown(), false)
     equal(finished.text, "+  2 completed objectives")
-    equal(Goal(3).indicator.text, ">")
+    equal(Goal(3).indicator.text, "")
     equal(resetObjective:IsShown(), false)
     equal(activeDistance.text, "~150 yd")
     near(arrow.lines[1].tipX, -8)
@@ -1898,7 +1934,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     local rowBottom = -rowOne.point[3] + rowOne:GetHeight()
     assert(headingTop - rowBottom >= 8)
     updatedTracker:RenderNearbyOffers()
-    rowOne.checkbox:Click()
+    updatedTracker.detailPanel:Hide()
+    rowOne.detailButton:Click() updatedTracker.detailPanel.skip:Click()
     flush()
     equal(nearby:IsShown(), false)
     quests[2], objectives[7][3], objectives[7][2].finished = nil, nil, nil
@@ -1915,18 +1952,18 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(offer:IsShown(), false)
     settingsByKey.showQuestieOffers:SetValue(true)
     flush()
-    equal(offer.text, "−  Available nearby (2)")
+    equal(offer.text, "−  To accept (2)")
     equal(offer:IsShown(), true)
     local firstOffer = frames[firstNewFrame + 16]
     local secondOffer = frames[firstNewFrame + 18]
     equal(firstOffer.label.text, "[10] Other nearby quest")
     equal(secondOffer.label.text, "[8] Near quest")
-    equal(firstOffer.distance.text, "Accept ~60 yd")
+    equal(firstOffer.distance.text, "~60 yd")
     equal(firstOffer.checkbox, nil)
     equal(firstOffer.recommendation:IsShown(), false)
     local offersToggle = offer.point[2]
     offersToggle:Click()
-    equal(offer.text, "+  Available nearby (2)")
+    equal(offer.text, "+  To accept (2)")
     equal(firstOffer:IsShown(), false)
     equal(env.ForeverQuestNavigatorDB.offersCollapsed, true)
     offersToggle:Click()
@@ -1948,7 +1985,9 @@ test("TOC startup and quest events update the tracker with or without optional a
     settingsByKey.questieOfferRadius:SetValue(1000)
     flush()
     equal(firstOffer.label.text, "[10] Other nearby quest")
-    equal(firstOffer.details.text, "|cffffc447Recommended|r · ~2400 XP · Objective: Westfall · ~10 yd after accepting · Target fits one active quest")
+    equal(firstOffer.details.text, "~2400 XP · Recommended")
+    assert(firstOffer.fullDetails:find("Target: Westfall", 1, true))
+    assert(firstOffer.fullDetails:find("~10 yd", 1, true))
     equal(firstOffer.recommendation:IsShown(), true)
     firstOffer.scripts.OnEnter(firstOffer)
     equal(tooltip.text, "[10] Other nearby quest")
@@ -1959,7 +1998,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(firstOffer.measurement.id, 96)
     equal(firstOffer.measurement.recommended, nil)
-    assert(firstOffer.details.text:find("~10 yd after accepting", 1, true))
+    assert(firstOffer.fullDetails:find("~10 yd", 1, true))
     env.QuestieTestFrame96.data.QuestData.level = 10
     fire("QUEST_LOG_UPDATE")
     flush()
@@ -1976,13 +2015,13 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, beforeOfferTitle)
     reloadedAddon.ShowQuestMapMarker = originalMarker
     equal(secondOffer.recommendation:IsShown(), false)
-    equal(firstOffer.distance.text, "Accept ~60 yd")
+    equal(firstOffer.distance.text, "~60 yd")
     equal(frames[firstNewFrame + 20].label.text, "Distant quest")
     reloadedCollapse:Click()
     equal(firstOffer:IsShown(), false)
     equal(secondOffer:IsShown(), false)
     equal(title:IsShown(), true)
-    equal(objective:IsShown(), true)
+    equal(objective:IsShown(), false)
     equal(updatedContent:IsShown(), true)
     reloadedCollapse:Click()
     equal(firstOffer:IsShown(), true)
@@ -2040,14 +2079,14 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(routeNote.text, "Follow-up 2 saves ~200 yd")
     local heightWithRoute = updatedTracker.height
     local topWithRoute = updatedTracker.point[5]
-    local routeToggle, routeDetails = frames[firstNewFrame + 22], updatedContent.labels[7]
+    local routeToggle, routeDetails = updatedTracker.routeToggle, updatedTracker.routeDetails
     equal(routeDetails:IsShown(), false)
     equal(updatedTracker.routeMap:IsShown(), true)
     local alternativesHeading = updatedContent.labels[4]
-    equal(alternativesHeading.text, "−  Also in your quest log (1)")
+    equal(alternativesHeading.text, "−  Other active quests (1)")
     local alternativesToggle = alternativesHeading.point[2]
     alternativesToggle:Click()
-    equal(alternativesHeading.text, "+  Also in your quest log (1)")
+    equal(alternativesHeading.text, "+  Other active quests (1)")
     equal(rowOne:IsShown(), false)
     equal(env.ForeverQuestNavigatorDB.alternativesCollapsed, true)
     alternativesToggle:Click()
@@ -2056,7 +2095,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(routeDetails:IsShown(), true)
     assert(routeDetails.text:find("Turn in Stop B\nFollow-up 1: Middle stop\nFollow-up 2: Back to A\nSame visit: Stop A", 1, true))
     assert(not routeDetails.text:find("Estimated:", 1, true))
-    assert(updatedTracker.height > heightWithRoute)
+    equal(updatedTracker.height, heightWithRoute)
+    assert(updatedTracker.detailPanel:IsShown())
     equal(updatedTracker.point[5], topWithRoute)
     routeToggle:Click()
     equal(updatedTracker.height, heightWithRoute)
@@ -2064,7 +2104,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     PinQuest(71)
     flush()
     equal(title.text, "[9] Stop A")
-    equal(routeNote:IsShown(), true)
+    equal(routeNote:IsShown(), false)
     equal(routeNote.text, "Manually selected · automatic choice paused")
     equal(routeToggle:IsShown(), true)
     auto:Click()
@@ -2074,7 +2114,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_TURNED_IN", 999)
     flush()
     equal(title.text, "[9] Stop A")
-    equal(routeNote:IsShown(), true)
+    equal(routeNote:IsShown(), false)
     equal(routeNote.text, "Ready to turn in")
 
     local combat = false
@@ -2168,7 +2208,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_DATA_LOAD_RESULT", 74)
     flush()
     equal(title.text, "[10] A in the next zone")
-    equal(routeNote:IsShown(), true)
+    equal(routeNote:IsShown(), false)
     equal(routeNote.text, "Ready to turn in")
 
     env.LibQuestieDB = nil
@@ -2179,9 +2219,9 @@ test("TOC startup and quest events update the tracker with or without optional a
         { questID = 83, level = 10, title = "PvP objective" },
         { questID = 84, level = 10, title = "Heroic objective" },
         { questID = 85, level = 10, title = "Outdoor dungeon turn-in" },
-        { questID = 86, level = 10, title = "Indoor raid turn-in" },
+        { questID = 86, level = 10, title = "Indoor dungeon turn-in" },
     }
-    local questTags = { [80] = 1, [81] = 81, [82] = 88, [83] = 41, [85] = 81, [86] = 62 }
+    local questTags = { [80] = 1, [81] = 81, [82] = 88, [83] = 41, [85] = 81, [86] = 81 }
     api.GetQuestTagInfo = function(id) return questTags[id] and { tagID = questTags[id] } end
     modules.QuestieDB = { GetQuestTagInfo = function(id) return id == 84 and 85 or nil end }
     api.IsOnQuest = function(id) return id >= 80 and id <= 86 end
@@ -2204,7 +2244,9 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, "[10] Outdoor dungeon turn-in")
     equal(objective.text, "Ready to turn in")
     equal(rowOne.label.text, "[10] Outdoor elite |cffffc447+|r")
-    equal(rowTwo:IsShown(), false)
+    equal(rowTwo:IsShown(), true)
+    equal(rowTwo.label.text, "[10] Indoor dungeon turn-in")
+    equal(reloadedAddon.GetNavigationSnapshot().measurements[86], nil)
     questMapButton:Click()
     equal(openedMap, 20)
     equal(selectedQuest, 85)
@@ -2410,7 +2452,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     assert(rowOne.routeDetails.text:find("Unlocked flight point: Neighbor flight point (~50 yd from target)", 1, true))
     equal(title.text, "[10] Local task")
     equal(openedMap, nil)
-    rowOne.routeMap:Click()
+    updatedTracker.detailPanel.map:Click()
     equal(openedMap, 1416)
     equal(title.text, "[10] Local task")
     playerMapOffset = 0
@@ -2504,12 +2546,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(title.text, "[12] On the approach")
     equal(routeNote.text, "Outing saves ~160 yd")
     assert(routeDetails.text:find("1. Work on On the approach\n2. Work on Main objective\n3. Turn in Outdoor hand-in", 1, true))
-    local preview
-    for _, frame in ipairs(frames) do
-        if frame.parent == updatedContent and frame.labels[1] and frame.labels[1].text == "Next stops" then
-            preview = frame
-        end
-    end
+    local preview = updatedTracker.routeStopPreview
     assert(preview)
     equal(preview:IsShown(), false)
     routeToggle:Click()
@@ -2591,17 +2628,19 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(title.text, "[10] Regular objective")
     local xpLabel = updatedContent.labels[9]
-    equal(xpLabel.text, "~175 XP")
+    equal(xpLabel.text, "~175 XP · ~125 to level 11")
     assert(routeDetails.text:find("125 XP still needed afterward", 1, true))
     equal(rowOne.reward.text, "~250 XP")
-    equal(rowOne:GetHeight(), 36)
-    equal(rowOne.reward.point[3], -20)
-    equal(rowOne.routeButton.point[1], "TOPRIGHT")
+    assert(rowOne.actionBadge:IsShown()) equal(rowOne.actionBadge.text, "Turn in")
+    equal(rowOne:GetHeight(), 38)
+    equal(rowOne.reward.point[3], -24)
+    equal(rowOne.routeButton.point[1], "RIGHT")
     assert(rowOne.routeDetails.text:find("50 XP still needed afterward", 1, true))
     settingsByKey.showQuestXP:SetValue(false)
     flush()
     equal(xpLabel:IsShown(), false)
-    equal(rowOne.reward:IsShown(), false)
+    assert(not xpLabel.text:find("XP", 1, true))
+    equal(rowOne.reward:IsShown(), false) assert(rowOne.actionBadge:IsShown())
     equal(env.ForeverQuestNavigatorDB.showQuestXP, false)
     settingsByKey.showQuestXP:SetValue(true)
     flush()
@@ -2610,14 +2649,14 @@ test("TOC startup and quest events update the tracker with or without optional a
     playerXP = 710
     fire("PLAYER_XP_UPDATE", "player")
     equal(title.text, "[10] Regular objective")
-    equal(xpLabel.text, "~175 XP")
+    equal(xpLabel.text, "~175 XP · ~115 to level 11")
     assert(routeDetails.text:find("115 XP still needed afterward", 1, true))
     equal(rowOne.reward.text, "~250 XP")
     assert(rowOne.routeDetails.text:find("40 XP still needed afterward", 1, true))
     playerXP = 750
     fire("PLAYER_XP_UPDATE", "player")
     equal(title.text, "[10] Ready reward")
-    equal(xpLabel.text, "Level-up possible")
+    equal(xpLabel.text, "~250 XP · level 11 possible")
     equal(routeDetails:IsShown(), false)
     equal(routeNote:IsShown(), false)
     assert(routeDetails.text:find("250 XP · 250 XP to level 11", 1, true))
@@ -2625,19 +2664,19 @@ test("TOC startup and quest events update the tracker with or without optional a
     PinQuest(701)
     flush()
     equal(rowOne.reward.text, "~250 XP · Level-up possible")
-    equal(rowOne:GetHeight(), 36)
+    equal(rowOne:GetHeight(), 38)
     auto:Click()
     flush()
     equal(title.text, "[10] Ready reward")
     settingsByKey.showQuestXP:SetValue(false)
     flush()
-    equal(xpLabel:IsShown(), false)
+    assert(not xpLabel.text:find("XP", 1, true))
     equal(title.text, "[10] Ready reward")
     assert(routeDetails.text:find("Easier after leveling: Hard quest", 1, true))
     env.IsXPUserDisabled = function() return true end
     fire("PLAYER_XP_UPDATE", "player")
     assert(not routeDetails.text:find("XP to level", 1, true))
-    equal(xpLabel:IsShown(), false)
+    assert(not xpLabel.text:find("XP", 1, true))
     env.IsXPUserDisabled = nil
     playerLevel, playerXP = 11, 0
     table.remove(quests, 2)
@@ -2755,15 +2794,16 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     local heading = updatedContent.labels[4]
     local acceptedToggle = heading.point[2]
-    assert(heading.text:find("1–2/7", 1, true))
+    assert(heading.text:find("2/7", 1, true))
     local firstID = rowOne.questID
     acceptedToggle.scripts.OnMouseWheel(acceptedToggle, -1)
-    assert(rowOne.questID ~= firstID)
+    equal(rowOne.questID, firstID)
+    updatedTracker.moreEntries.accepted:Click() equal(rowOne.questID, firstID)
     settingsByKey.acceptedRows:SetValue(5)
     local function VisibleAcceptedRows()
         local count = 0
         for _, frame in ipairs(frames) do
-            if frame.parent == updatedContent and frame.checkbox and frame.questID and frame:IsShown() then
+            if frame.parent == updatedTracker.scrollBody and frame.checkbox and frame.questID and frame:IsShown() then
                 count = count + 1
             end
         end
@@ -2785,16 +2825,18 @@ test("TOC startup and quest events update the tracker with or without optional a
     updatedTracker:RenderNearbyOffers(offerSamples)
     settingsByKey.offerRows:SetValue(5)
     local offerHeading = updatedContent.labels[5]
-    assert(offerHeading.text:find("1–5/6", 1, true))
+    assert(offerHeading.text:find("5/6", 1, true))
     offerHeading.point[2].scripts.OnMouseWheel(offerHeading.point[2], -1)
-    equal(firstOffer.label.text, "Offer 2")
+    equal(firstOffer.label.text, "Offer 1")
+    updatedTracker.moreEntries.offers:Click()
+    equal(updatedTracker.offerRows[6].label.text, "Offer 6")
     settingsByKey.offerRows:SetValue(3)
     local mainMapButton = frames[firstNewFrame + 23]
     mainMapButton.scripts.OnEnter(mainMapButton)
     assert(tooltip.text:find("Scrollable quest 1", 1, true))
     assert(tooltip.lines[1]:find("Why this quest?", 1, true))
     assert(tooltip.lines[1]:find("You selected this quest", 1, true))
-    activeCheckbox:Click()
+    updatedTracker:OpenDetails() updatedTracker.detailPanel.skip:Click()
     flush()
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[901].quest.id, 901)
     local undo = FindTrackerButton(updatedContent, "Quest skipped · Undo")
@@ -2804,7 +2846,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[901], nil)
     equal(undo:IsShown(), false)
     local nextSkipped = activeCheckbox.quest.id
-    activeCheckbox:Click()
+    updatedTracker:OpenDetails() updatedTracker.detailPanel.skip:Click()
     flush()
     undo.scripts.OnUpdate(undo, 9)
     equal(undo:IsShown(), false)
@@ -2982,14 +3024,17 @@ test("TOC startup and quest events update the tracker with or without optional a
     local detailedHeight = updatedTracker:GetHeight()
     local selectedTitle = title.text
     settingsByKey.detailMode:SetValue("compact")
-    equal(routeDetails:IsShown(), false)
+    equal(routeDetails:IsShown(), true)
     equal(rowOne.reward:IsShown(), false)
-    equal(rowOne.routeButton:IsShown(), false)
+    assert(rowOne.actionBadge:IsShown()) equal(rowOne.actionBadge.text, "Turn in")
+    equal(rowOne.routeButton:IsShown(), true)
     assert(updatedTracker:GetHeight() < detailedHeight)
     equal(title.text, selectedTitle)
     mainMapButton.scripts.OnEnter(mainMapButton)
-    assert(tooltip.lines[1]:find("Known goals and turn-in", 1, true))
+    assert(tooltip.lines[1]:find("complete information", 1, true))
+    assert(routeDetails.text:find("Known goals and turn-in", 1, true))
     assert(tooltip.lines[1]:find("750 XP", 1, true))
+    assert(routeDetails.text:find("750 XP", 1, true))
     settingsByKey.detailMode:SetValue("detailed")
     equal(routeDetails:IsShown(), true)
     equal(rowOne.reward:IsShown(), true)
@@ -3162,7 +3207,51 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(introduction:IsShown(), true)
     introduction.skip:Click()
+    do (function()
+        local data = {quests = {{id = 701, title = "Alpha quest", level = 30}, {id = 702, title = "Beta quest", level = 30},
+            {id = 703, title = "Skipped quest"}}, offers = {{id = 704, title = "Nearby offer"}}, skipped = {[703] = {quest = {id = 703}}},
+            measurements = {[701] = {yards = 200, marker = {mapID = 10, x = .4, y = .5}},
+                [702] = {yards = 100, marker = {mapID = 10, x = .6, y = .5}}}}
+        local saved, selected, mapped
+        local controller = reloadedAddon.PlanningWorkspace.New({read = function() return data end,
+            priority = function() return selected end, remember = function() return true end, save = function(value) saved = value end,
+            select = function(id) selected = id end, restore = function(id) data.skipped[id] = nil end,
+            changed = function() end, cancelReturn = function() end,
+            position = function() return {mapID = 10, x = .5, y = .5, name = "Return"} end,
+            destination = function(id) return data.measurements[id] and {target = data.measurements[id].marker, zoneName = "Test zone"} end,
+            map = function(entry) mapped = entry.quest.id end,
+            metric = function() return function(a, b) return math.abs(a.x - b.x) * 1000 end end}, nil)
+        local panel = reloadedAddon.ShowQuestWorkbench(controller, "finder")
+        assert(panel:GetHeight() <= 650) equal(panel.search:IsShown(), true)
+        panel.search:SetText("Alpha") panel.search.scripts.OnTextChanged()
+        equal(panel.rows[1].entry.quest.id, 701) equal(panel.rows[2]:IsShown(), false)
+        panel.rows[1]:Click() equal(mapped, 701) equal(selected, nil)
+        panel.rows[1].add:Click() equal(controller.plan.stops[1].id, 701) equal(controller:Current(), nil)
+        panel.rows[1].primary:Click() equal(selected, 701)
+        panel.search:SetText("Skipped") panel.search.scripts.OnTextChanged()
+        panel.filters[4]:Click() equal(panel.rows[1].entry.kind, "skipped")
+        panel.rows[1].primary:Click() equal(data.skipped[703], nil)
+        controller:Action("add", {quest = data.quests[2]})
+        panel:SelectMode("tour") assert(panel:GetHeight() < 575) equal(panel.search:IsShown(), false)
+        panel.rows[1].down:Click() equal(controller.plan.stops[1].id, 702)
+        panel.optimize:Click() assert(controller.preview) equal(panel.start.enabled, false)
+        panel.apply:Click() equal(controller.preview, nil)
+        panel.returnHere:Click() equal(saved.plan.returnPoint.name, "Return")
+        panel.start:Click() equal(controller:Current(), 702)
+        panel.start:Click() equal(controller.plan.running, false)
+        panel.rows[1].remove:Click() equal(#controller.plan.stops, 1)
+        panel:Hide()
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("find Other")
+        equal(panel.controller, reloadedAddon.GetPlanningWorkspace()) equal(panel.search:GetText(), "Other")
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("tour") equal(panel.mode, "tour")
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("problem")
+        local reportWindow = Window("Copy problem report")
+        assert(reportWindow.edit.text:find("FQN problem report", 1, true))
+        assert(not reportWindow.edit.text:find("accessName=", 1, true))
+        panel:Hide() reportWindow:Hide()
+    end)() end
     env.InCombatLockdown = previousCombat
+    env.SlashCmdList.FOREVERQUESTNAVIGATOR("session")
     updatedTracker:Hide()
     equal(questieTicker.cancelled, true)
     currentXP, sessionNow = 300, 190
@@ -3223,6 +3312,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     quick.search:SetText("Tracker opacity")
     quick.search.scripts.OnTextChanged()
     local originalOpacity = env.ForeverQuestNavigatorDB.opacityPercent
+    quick.rows[1]:Click() equal(env.ForeverQuestNavigatorDB.opacityPercent, originalOpacity)
     quick.rows[1].minus:Click()
     equal(env.ForeverQuestNavigatorDB.opacityPercent, math.max(0, originalOpacity - 5))
     settingsByKey.opacityPercent:SetValue(originalOpacity)
@@ -3230,11 +3320,36 @@ test("TOC startup and quest events update the tracker with or without optional a
     quick.search.scripts.OnTextChanged()
     quick.advanced:Click()
     assert(quick.next.enabled)
-    quick.planning:Click()
+    do (function()
+        quick.search:SetText("Language") quick.search.scripts.OnTextChanged()
+        equal(quick.rows[1].entry.key, "language") assert(quick.rows[1].choose:IsShown())
+        local previousLanguage = env.ForeverQuestNavigatorDB.language
+        quick.rows[1].choose:Click() equal(#historyMenu.entries, 3)
+        for _, entry in ipairs(historyMenu.entries) do if entry.label:find("Deutsch", 1, true) then entry.restore() break end end
+        equal(env.ForeverQuestNavigatorDB.language, "deDE")
+        settingsByKey.language:SetValue(previousLanguage)
+        quick.search:SetText("no_such_fqn_setting") quick.search.scripts.OnTextChanged()
+        equal(quick.rows[1]:IsShown(), false) equal(quick.clear:IsShown(), true)
+        quick.clear:Click() equal(quick.search:GetText(), "")
+        quick.search:SetText("Quiet navigation") quick.search.scripts.OnTextChanged()
+        local previousQuiet = env.ForeverQuestNavigatorDB.quietNavigation
+        quick.rows[1].toggle:Click() flush() equal(env.ForeverQuestNavigatorDB.quietNavigation, not previousQuiet)
+        quick.rows[1].toggle:Click() flush() equal(env.ForeverQuestNavigatorDB.quietNavigation, previousQuiet)
+        reloadedAddon.UI.ToolHub.Open("finder")
+        reloadedAddon.UI.ToolHub.Open("settings")
+        equal(quick.search:GetText(), "Quiet navigation")
+        quick.clearQuery:Click() equal(quick.search:GetText(), "")
+        local hub = reloadedAddon.UI.ToolHub
+        hub.Open("help") equal(hub.key, "help") equal(quick:IsShown(), false)
+        hub.root.back:Click() equal(hub.key, "settings") assert(quick:IsShown())
+    end)() end
+    reloadedAddon.UI.ToolHub.Open("automatic")
     local planning
     for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "Quest planning" then planning = frame end end
     assert(planning and planning:IsShown())
-    planning.turnIns:Click()
+    planning.modeSelector:Click() equal(#historyMenu.entries, 4)
+    historyMenu.entries[3].restore() equal(planning.mode, "items")
+    planning:SelectMode("turnIns")
     planning.scripts.OnUpdate(planning, 1)
     assert(planning.summary.text:find("turn-ins", 1, true))
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("plan")
@@ -3301,8 +3416,13 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(env.WorldMapFrame.activePinCount, 0)
     mainMapButton:Click("RightButton")
     local feedbackGroup, diagnosticGroup
+    local secondary
     for _, entry in ipairs(historyMenu.entries) do
         assert(entry.label ~= "Report an unsuitable target position")
+        if entry.label == "More actions" then secondary = entry end
+    end
+    assert(secondary and #historyMenu.entries <= 6)
+    for _, entry in ipairs(secondary.entries) do
         if entry.label == "Recommendation feedback" then feedbackGroup = entry end
         if entry.label == "Diagnostics" then diagnosticGroup = entry end
     end
@@ -3454,9 +3574,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     env.GetQuestLogChoiceInfo = function(index, id) equal(id, 1002) return index == 2 and "Quest staff" or nil, nil, 1, 2, true, 10 + index end
     fire("QUEST_LOG_UPDATE") flush()
     mainMapButton.scripts.OnEnter(mainMapButton)
-    assert(tooltip.lines[1]:find("1g 23s 45c", 1, true))
-    assert(tooltip.lines[1]:find("Guaranteed items:", 1, true))
-    assert(tooltip.lines[1]:find("Choose one reward:", 1, true))
+    assert(updatedTracker.detailExplanation.text:find("1g 23s 45c", 1, true))
+    assert(updatedTracker.detailExplanation.text:find("Guaranteed items:", 1, true))
+    assert(updatedTracker.detailExplanation.text:find("Choose one reward:", 1, true))
+    assert(tooltip.lines[1]:find("complete information", 1, true))
     equal(selectedQuest, rewardSelection)
     equal(reloadedAddon.QuestRewards.HasPending(), true)
     local callsBefore = rewardCalls
@@ -3469,7 +3590,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("GET_ITEM_INFO_RECEIVED", 11, true) flush()
     equal(reloadedAddon.QuestRewards.HasPending(), false)
     mainMapButton.scripts.OnEnter(mainMapButton)
-    assert(tooltip.lines[1]:find("Quest sword x1", 1, true))
+    assert(updatedTracker.detailExplanation.text:find("Quest sword x1", 1, true))
     fire("GET_ITEM_INFO_RECEIVED", 15, true)
     equal(#timers, 0)
     equal(selectedQuest, rewardSelection)
@@ -3526,10 +3647,10 @@ test("TOC startup and quest events update the tracker with or without optional a
         fire("QUEST_LOG_UPDATE") flush()
         local shared = reloadedAddon.GetNavigationSnapshot().sharedItems
         equal(#shared, 1) equal(shared[1].required, 18) equal(shared[1].remaining, 13)
-        env.SlashCmdList.FOREVERQUESTNAVIGATOR("plan") planning.items:Click()
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("plan") planning:SelectMode("items")
         assert(planning.rows[1]:GetText():find("Shared supply", 1, true))
         assert(planning.rows[1]:GetText():find("13", 1, true))
-        planning.chains:Click()
+        planning:SelectMode("chains")
         assert(planning.rows[2].detail:find("Next patrol", 1, true))
         assert(planning.rows[1].detail:find(reloadedAddon.L.UnknownFollowUps, 1, true))
 
@@ -3569,7 +3690,7 @@ test("TOC startup and quest events update the tracker with or without optional a
         env.GetTime = beforeClock
         reloadedAddon.NavigationController.Compute = compute
         settingsByKey.fontPercent:SetValue(140)
-        equal(rowOne.reward:IsShown(), false)
+        equal(rowOne.reward:IsShown(), false) assert(rowOne.actionBadge:IsShown())
         settingsByKey.adaptiveLayout:SetValue(false) flush()
         assert(rowOne:GetHeight() > 36)
         equal(env.ForeverQuestNavigatorDB.detailMode, "detailed")
@@ -3625,6 +3746,33 @@ test("TOC startup and quest events update the tracker with or without optional a
         reloadedAddon.DemoData.Load = loader
     end)() end
     reloadedAddon.QuestieIntegration.GetObjectiveMarkers = originalObjectives
+    do (function()
+        local live = reloadedAddon.GetPlanningWorkspace()
+        local previousPlan, previousPending = live.plan, live.pending
+        local previousX, oldComplete = playerX, complete[1002]
+        live.plan, live.pending = reloadedAddon.TourPlan.New(), nil
+        complete[1002] = nil
+        live:Action("add", {quest = {id = 1002, title = "Other patrol"}})
+        live:Action("start") flush()
+        equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, 1002)
+        equal(reloadedAddon.GetNavigationSnapshot().decision, "tour")
+        equal(env.ForeverQuestNavigatorCharacterDB.navigationPlan.plan.stops[1].id, 1002)
+        complete[1002] = true fire("QUEST_LOG_UPDATE") flush()
+        equal(#live.plan.stops, 0) equal(live.plan.running, false)
+        complete[1002] = oldComplete
+        live:Action("returnHere") flush()
+        assert(live.plan.returnPoint)
+        local returnX = live.plan.returnPoint.x
+        playerX = returnX + .1
+        live:Action("start") flush()
+        assert(updatedTracker.detour and updatedTracker.detour.tourReturn)
+        playerX = returnX
+        directionTicker.tick()
+        if #timers > 0 then flush() end
+        equal(live.plan.running, false) equal(updatedTracker.detour, nil)
+        live.plan, live.pending, playerX = previousPlan, previousPending, previousX
+        live:Save()
+    end)() end
     end)() end
     env.InCombatLockdown = previousCombat
 end)
@@ -3638,4 +3786,6 @@ assert(loadfile("tests/release_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/demo_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/stability_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/final_release_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/workspace_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/ux_features.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

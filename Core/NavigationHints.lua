@@ -10,9 +10,12 @@ function Hints.TargetKind(marker)
     return "approximate"
 end
 function Hints.TargetText(marker) return addon.L["TargetQuality_" .. Hints.TargetKind(marker)] end
-function Hints.NextAction(quest, marker)
+function Hints.Short(marker) return addon.L["TargetShort_" .. Hints.TargetKind(marker)] end
+function Hints.NextAction(quest, marker, item)
     if quest and quest.readyToTurnIn then return addon.L.ArrivalTurnIn end
     local kind = Hints.TargetKind(marker)
+    if kind == "access" then return addon.L.ArrivalAccess end
+    if item and item.inRange == true then return addon.L.ArrivalUseItem:format(item.name) end
     return kind == "access" and addon.L.ArrivalAccess or kind == "area" and addon.L.ArrivalArea or addon.L.ArrivalObjective
 end
 function Hints.Why(snapshot, quest, manual)

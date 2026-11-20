@@ -26,6 +26,7 @@ function addon.CreateRoutePreview(parent, actions)
 
     function frame:Render(stops)
         count = math.min(stops and #stops or 0, 3)
+        self.hasStops = count > 0
         for index = 1, count do
             local row = rows[index]
             if not row then

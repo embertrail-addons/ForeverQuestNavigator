@@ -61,7 +61,7 @@ function addon.ShowQuestNotepad(actions)
     end
     notes.actions = actions
     notes:Refresh()
-    notes:Show()
+    addon.UI.ShowUtilityPanel(notes)
 end
 
 function addon.ShowIntroduction(settings)
@@ -89,7 +89,7 @@ function addon.ShowIntroduction(settings)
     end
     guide.settings, guide.step = settings, 1
     guide:Refresh()
-    guide:Show()
+    addon.UI.ShowUtilityPanel(guide)
 end
 
 function addon.RefreshQuestNotepad()

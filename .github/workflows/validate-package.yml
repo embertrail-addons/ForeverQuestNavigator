@@ -41,6 +41,10 @@ jobs:
           BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           if [ -n "$BUILD_TAG" ]; then
+            if ! [[ "$BUILD_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Only regular release tags are allowed; prerelease publication is disabled." >&2
+              exit 1
+            fi
             python3 scripts/check_release.py --tag "$BUILD_TAG"
           else
             python3 scripts/check_release.py
@@ -52,7 +56,7 @@ jobs:
           if [ -n "$BUILD_TAG" ]; then
             python3 scripts/package.py --tag "$BUILD_TAG"
           else
-            python3 scripts/package.py --channel beta
+            python3 scripts/package.py
           fi
       - uses: actions/upload-artifact@v7
         with:

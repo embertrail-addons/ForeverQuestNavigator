@@ -30,7 +30,7 @@ function addon.ShowUndoHistory(history)
             self.undo:SetEnabled(#lines > 0) self.discard:SetEnabled(#lines > 0)
         end
     end
-    historyWindow.history = history historyWindow:Refresh() historyWindow:Show()
+    historyWindow.history = history historyWindow:Refresh() addon.UI.ShowUtilityPanel(historyWindow)
 end
 function addon.RefreshUndoHistory()
     if historyWindow and historyWindow:IsShown() then historyWindow:Refresh() end

@@ -5,7 +5,8 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
     slot = slot or "live"
     local window = windows[slot]
     if not window then
-        window = addon.UI.CreateUtilityPanel(600, 600, L.PlanningOverview)
+        window = addon.UI.CreateUtilityPanel(600, 564, L.PlanningOverview)
+        window.hubStandalone = slot ~= "live"
         windows[slot] = window
         window.comparison = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.comparison:SetPoint("TOPLEFT", 18, -48)
@@ -13,24 +14,33 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
         window.comparison:SetJustifyH("LEFT")
         window.comparison:SetMaxLines(5)
         addon.UI.BindTooltip(window, function() return L.RouteComparison, window.model and window.model.comparison end)
-        window.bundles = addon.UI.CreateUtilityButton(window, L.SharedQuestStops, 220, function() window.mode, window.page = "bundles", 1 window:Refresh() end)
-        window.bundles:SetPoint("TOPLEFT", 18, -145)
-        window.turnIns = addon.UI.CreateUtilityButton(window, L.TurnInTour, 220, function() window.mode, window.page = "turnIns", 1 window:Refresh() end)
-        window.turnIns:SetPoint("TOPLEFT", 250, -145)
-        window.items = addon.UI.CreateUtilityButton(window, L.SharedItems, 220, function() window.mode, window.page = "items", 1 window:Refresh() end)
-        window.items:SetPoint("TOPLEFT", 18, -178)
-        window.chains = addon.UI.CreateUtilityButton(window, L.QuestChains, 220, function() window.mode, window.page = "chains", 1 window:Refresh() end)
-        window.chains:SetPoint("TOPLEFT", 250, -178)
+        function window:SelectMode(mode)
+            self.modePages = self.modePages or {}
+            if self.mode then self.modePages[self.mode] = self.page end
+            self.mode, self.page = mode, self.modePages[mode] or 1 self:Refresh()
+        end
+        window.modeSelector = addon.UI.CreateUtilityButton(window, "", 564, function()
+            if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+            MenuUtil.CreateContextMenu(window.modeSelector, function(_, menu)
+                menu:CreateTitle(L.PlanningView)
+                for _, entry in ipairs({{"bundles", L.SharedQuestStops}, {"turnIns", L.TurnInTour}, {"items", L.SharedItems}, {"chains", L.QuestChains}}) do
+                    local mode = entry[1]
+                    menu:CreateButton((window.mode == mode and "[x] " or "") .. entry[2], function() window:SelectMode(mode) end)
+                end
+            end)
+        end)
+        window.modeSelector:SetPoint("TOPLEFT", 18, -145)
+        addon.UI.BindTooltip(window.modeSelector, function() return L.PlanningView, L.PlanningViewHelp end)
         window.summary = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
-        window.summary:SetPoint("TOPLEFT", 18, -214)
-        window.summary:SetPoint("TOPRIGHT", -18, -214)
+        window.summary:SetPoint("TOPLEFT", 18, -178)
+        window.summary:SetPoint("TOPRIGHT", -18, -178)
         window.summary:SetJustifyH("LEFT")
         window.summary:SetMaxLines(3)
         window.rows = {}
         for index = 1, 4 do
             local row = addon.UI.CreateUtilityButton(window, "", 564, function() end)
             row:SetHeight(54)
-            row:SetPoint("TOPLEFT", 18, -288 - (index - 1) * 60)
+            row:SetPoint("TOPLEFT", 18, -252 - (index - 1) * 60)
             row.textLabel:ClearAllPoints()
             row.textLabel:SetPoint("LEFT", 8, 0)
             row.textLabel:SetPoint("RIGHT", -8, 0)
@@ -51,13 +61,11 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             self.model = model
             self.comparison:SetText(model.comparison or L.ComparisonUnavailable)
             local tour = model.turnInTour or {stops = {}}
-            self.bundles:SetText((self.mode == "bundles" and "> " or "") .. L.SharedQuestStops .. " (" .. #(model.bundles or {}) .. ")")
-            self.turnIns:SetText((self.mode == "turnIns" and "> " or "") .. L.TurnInTour .. " (" .. #tour.stops .. ")")
-            self.items:SetText((self.mode == "items" and "> " or "") .. L.SharedItems .. " (" .. #(model.sharedItems or {}) .. ")")
-            self.chains:SetText((self.mode == "chains" and "> " or "") .. L.QuestChains)
             local entries = self.mode == "bundles" and (model.bundles or {}) or tour.stops
             if self.mode == "items" then entries = model.sharedItems or {} end
             if self.mode == "chains" then entries = model.chains or {} end
+            local names = {bundles = L.SharedQuestStops, turnIns = L.TurnInTour, items = L.SharedItems, chains = L.QuestChains}
+            self.modeSelector:SetText(L.PlanningView .. ": " .. (names[self.mode] or L.SharedQuestStops) .. " (" .. #entries .. ") v")
             local pages = math.max(1, math.ceil(#entries / 4))
             self.page = math.min(self.page, pages)
             local summary = self.mode == "bundles" and L.SharedStopsHelp or L.TourSummary:format(#entries, tour.total or 0, tour.xp or 0)
@@ -101,6 +109,7 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             end
             self.previous:SetEnabled(self.page > 1)
             self.next:SetEnabled(self.page < pages)
+            self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
             self.pageLabel:SetText(#entries > 0 and (self.page .. " / " .. pages) or L.NoPlanningStops)
         end
         window:SetScript("OnUpdate", function(self, elapsed)
@@ -108,12 +117,14 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
         end)
     end
-    window.getModel, window.openStop, window.mode, window.page = getModel, openStop, "bundles", 1
+    window.getModel, window.openStop = getModel, openStop
+    window.mode, window.page = window.mode or "bundles", window.page or 1
     window:Refresh()
-    if #(window.model.bundles or {}) == 0 and window.model.turnInTour and #window.model.turnInTour.stops > 1 then
+    if not window.hasOpened and #(window.model.bundles or {}) == 0 and window.model.turnInTour and #window.model.turnInTour.stops > 1 then
         window.mode = "turnIns"
         window:Refresh()
     end
-    window:Show()
+    window.hasOpened = true
+    addon.UI.ShowUtilityPanel(window)
     return window
 end

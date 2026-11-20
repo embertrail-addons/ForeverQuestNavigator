@@ -57,6 +57,7 @@ local temporaryDetour, detourMeasurement
 local insights = {sharedItems = {}}
 local movementState
 local ShowLevelChanges
+local workspace
 
 local function CurrentMapRoute(id)
     if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return shownRoutePreview end
@@ -318,6 +319,19 @@ local function ShowDiagnostics()
     addon.ShowDiagnosticReport(BuildDiagnostics())
 end
 
+function addon.OpenProblemReport()
+    local quest = shownQuests and shownQuests[1]
+    local measurement = quest and questMeasurements and questMeasurements[quest.id]
+    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie")
+    local markers = addon.GetMapMarkerStatus()
+    local report = addon.ProblemReport.Build({version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version"),
+        quest = quest, marker = measurement and measurement.marker, yards = measurement and measurement.yards,
+        level = UnitLevel and UnitLevel("player"), manual = manualQuestID ~= nil,
+        decision = navigationSnapshot and navigationSnapshot.decision, questieLoaded = loaded, questieReady = not not integration.IsReady(),
+        markerCount = markers.count, tourStops = workspace and #workspace.plan.stops})
+    addon.ShowTextWindow("problemReport", report, L.ProblemReportTitle, L.ProblemReportPrivacy)
+end
+
 local function GetNearbyStops(quest, destination, ranked, playerLevel)
     if not (destination and destination.zoneID and destination.target) then return end
     local distance = addon.QuestLocation.GetDistanceMetric(C_Map, destination.target)
@@ -354,35 +368,10 @@ local function SameNearbyStops(previous, current)
 end
 
 local function GetObjectiveTargets(quest, objectives)
-    if not objectives then return end
-    local targets = not quest.readyToTurnIn and objectiveDistances and objectiveDistances[quest.id]
-    local measurement = questMeasurements and questMeasurements[quest.id]
-    local selected = targets and measurement and measurement.marker.objectiveIndex or nil
-    local avoided = avoidedObjectives[quest.id] or {}
-    local details = { index = selected, locked = objectiveLock and objectiveLock.questID == quest.id, avoidedCount = 0 }
-    for index, goal in ipairs(objectives) do
-        if goal.text and goal.text ~= "" then
-            details[#details + 1] = {
-                index = index, text = goal.text, finished = goal.finished == true,
-                selectable = not goal.finished and targets and targets[index] ~= nil or false,
-                avoided = avoided[index] == true,
-            }
-            if avoided[index] then details.avoidedCount = details.avoidedCount + 1 end
-        end
-    end
-    if #details > 0 then return details end
+    return addon.TrackerPresentation.Targets(quest, objectives, objectiveDistances, questMeasurements, avoidedObjectives, objectiveLock)
 end
 
-local function SameObjectiveTargets(a, b)
-    if not a or not b then return a == b end
-    if a.index ~= b.index or a.locked ~= b.locked or a.avoidedCount ~= b.avoidedCount or #a ~= #b then return false end
-    for index, goal in ipairs(a) do
-        local other = b[index]
-        if goal.index ~= other.index or goal.text ~= other.text or goal.finished ~= other.finished
-            or goal.selectable ~= other.selectable or goal.avoided ~= other.avoided then return false end
-    end
-    return true
-end
+local SameObjectiveTargets = addon.TrackerPresentation.SameTargets
 
 local function SameApproachStops(a, b)
     if not a or not b then return a == b end
@@ -438,6 +427,18 @@ local function BuildRoutePreview(quest, destination, forecast, nextQuest)
     local preview = { { quest = quest, target = target, action = target.accessPoint and "access" or quest.readyToTurnIn and "turnIn" or "objective",
         yards = first and first.yards, current = true } }
     local distance = addon.QuestLocation.GetDistanceMetric(C_Map, target)
+    if workspace and workspace:Current() == quest.id then
+        for index = 2, math.min(3, #workspace.plan.stops) do
+            local stop = workspace.plan.stops[index]
+            local nextDestination = GetQuestDestination(stop.id)
+            local candidate
+            for _, entry in ipairs(eligibleQuests or {}) do if entry.id == stop.id then candidate = entry break end end
+            if not (candidate and nextDestination and nextDestination.target) then break end
+            preview[#preview + 1] = {quest = candidate, target = nextDestination.target,
+                action = candidate.readyToTurnIn and "turnIn" or "objective"}
+        end
+        return preview
+    end
     local function AddStop(candidate, marker, action)
         if not marker or #preview == 3 then return end
         local previous = preview[#preview].target
@@ -510,7 +511,8 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     navigationSnapshot.sharedItems = insights.sharedItems
     navigationSnapshot.chains = addon.QuestInsights.Chains(C_Map, Enum and Enum.UIMapType, ranked, routeChains, questMeasurements)
     local quest = ranked[1]
-    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or flightQuestID or combatQuestID or (temporaryDetour and temporaryDetour.questID)
+    local tourID = workspace and workspace:Current()
+    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or flightQuestID or combatQuestID or tourID or (temporaryDetour and temporaryDetour.questID)
     if selectedQuestID then
         local manualQuest
         for _, candidate in ipairs(ranked) do
@@ -529,26 +531,32 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
             combatQuestID = nil
         end
     end
-    if not (manualQuestID or objectiveLock or flightQuestID or combatQuestID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
+    if not (manualQuestID or objectiveLock or flightQuestID or combatQuestID or tourID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
         quest = routeQuest
     else
         routeNote = manualQuestID and (heldQuest and L.HeldQuestReason or L.ManualSelection)
             or DescribeRecommendation(quest, playerLevel)
         routeDetails = nil
     end
+    if tourID and quest.id == tourID and not manualQuestID then
+        routeNote = L.TourRunning navigationSnapshot.decision = "tour"
+    end
     local progressHint = addon.QuestTools.ProgressHint(quest)
     if progressHint then routeNote = routeNote and (routeNote .. " · " .. progressHint) or progressHint end
+    local summaryImportant = not not (manualQuestID or tourID or routeQuest or quest.readyToTurnIn or progressHint
+        or addon.QuestPrioritizer.GetDifficulty(quest, playerLevel) == "red")
     for _, bundle in ipairs(navigationSnapshot.decision == "ranking" and navigationSnapshot.bundles or {}) do
         for _, entry in ipairs(bundle.entries) do
             if entry.quest.id == quest.id then
                 local hint = L.SharedStopCount:format(#bundle.entries)
+                summaryImportant = true
                 routeNote = routeNote and (routeNote .. " · " .. hint) or hint
                 break
             end
         end
     end
     local feedback = navigationSnapshot.feedback and navigationSnapshot.feedback[quest.id]
-    if feedback then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.FeedbackActive end
+    if feedback then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.FeedbackActive summaryImportant = true end
     if quest.readyToTurnIn and navigationSnapshot.capacity and (navigationSnapshot.capacity.full or navigationSnapshot.capacity.reserveNeeded) then
         routeNote = (routeNote and (routeNote .. " · ") or "") .. (navigationSnapshot.capacity.full and L.FreeQuestSlot or L.ReserveQuestSlot)
     end
@@ -563,7 +571,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local rewardText, reward = DescribeQuestXP(quest, xpNeeded, playerLevel)
     local rewards = {}
     if settings.showQuestXP and reward then
-        rewards[1] = reward >= xpNeeded and L.QuestXPLevelUpShort or L.QuestXPReward:format(reward)
+        rewards[1] = addon.TrackerPresentation.XPLine(reward, xpNeeded, playerLevel)
     end
     if reward and reward >= xpNeeded and type(playerLevel) == "number" and playerLevel > 0 and playerLevel < math.huge then
         if quest.readyToTurnIn and not manualQuestID and not (routeQuest and routeDetails) then
@@ -578,7 +586,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     elseif rewards[1] then
         routeDetails = routeDetails and (routeDetails .. "\n" .. rewardText) or rewardText
     end
-    if routeNote == L.LevelUpOnTurnIn and rewards[1] == L.QuestXPLevelUpShort then routeNote = nil end
+    if routeNote == L.LevelUpOnTurnIn and settings.showQuestXP and reward and reward >= xpNeeded then routeNote = nil end
     local nearbyStops = GetNearbyStops(quest, destination, ranked, playerLevel)
     local approachStops
     local flightContext = addon.QuestLocation.GetFlightContext(C_Map, distanceMaps, flightRoutes)
@@ -633,6 +641,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local targets = GetObjectiveTargets(quest, rawObjectives)
     local hasMap = destination ~= nil
     local text = quest.readyToTurnIn and L.ReadyToTurnIn or (not targets and L.SeeQuestLog or "")
+    if quest.special and quest.readyToTurnIn and not (destination and destination.target) then text = text .. "\n" .. L.SpecialTurnInUnknown end
     local reasonLines = { L.WhyThisQuest }
     if heldQuest then reasonLines[#reasonLines + 1] = heldQuest.policy == "turnIn" and L.PriorityUntilTurnIn
         or heldQuest.policy == "complete" and L.PriorityUntilComplete or L.HeldQuestReason end
@@ -670,7 +679,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         local advisory = L.ZoneSuggestion:format(suggestion.name, suggestion.clusterSuitable, suggestion.clusterYards or suggestion.yards)
         routeDetails = routeDetails .. "\n" .. advisory reason = reason .. "\n" .. advisory
     end
-    if not routeNote and rewards[1] ~= L.QuestXPLevelUpShort then routeNote = explanation end
+    if not routeNote and not (settings.showQuestXP and reward and reward >= xpNeeded) then routeNote = explanation end
     local itemHint = addon.QuestItemHints.Read(C_QuestLog, quest.id, GetQuestLogSpecialItemInfo, GetItemCount)
     if itemHint then
         local hint = L.QuestItemHint:format(itemHint.name)
@@ -689,7 +698,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         navigationSnapshot.preparation = preparation
         navigationSnapshot.view = { quest = quest, objectives = text, alternatives = alternatives,
             changeNotice = addon.NavigationHints.Change(shownQuests and shownQuests[1], quest, navigationSnapshot, manualQuestID or objectiveLock),
-            manual = manualQuestID ~= nil, routeNote = routeNote, routeDetails = routeDetails,
+            manual = manualQuestID ~= nil, routeNote = routeNote, routeDetails = routeDetails, summaryImportant = summaryImportant,
             reason = reason, zones = zones, alternativeRoutes = alternativeRoutes, preview = preview,
             nearbyStops = nearbyStops, rewards = rewards, targets = targets, hasMap = hasMap,
             approachStops = approachStops, area = area }
@@ -727,25 +736,11 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
 end
 
 local function DescribeRoute(quest, route)
-    local first = quest.readyToTurnIn and L.TurnIn or L.FinishAndTurnIn
-    local lines = { ("%s %s"):format(first, quest.title or L.QuestNumber:format(quest.id)) }
-    for index, title in ipairs(route.followUps) do
-        lines[#lines + 1] = L.FollowUp:format(index, title)
-        if index == route.depth then
-            lines[#lines + 1] = L.SameVisit:format(route.original.title or L.QuestNumber:format(route.original.id))
-        end
-    end
-    return table.concat(lines, "\n")
+    return addon.TrackerPresentation.Route(quest, route)
 end
 
 local function DescribeOuting(stops)
-    local lines = { L.OutingOrder }
-    for index, stop in ipairs(stops) do
-        local quest = stop.quest
-        local title = quest.title or L.QuestNumber:format(quest.id)
-        lines[#lines + 1] = ("%d. %s %s"):format(index, quest.readyToTurnIn and L.TurnIn or L.WorkOn, title)
-    end
-    return table.concat(lines, "\n")
+    return addon.TrackerPresentation.Outing(stops)
 end
 
 local function UpdateOuting(ranked, measurements, playerLevel, followUp)
@@ -829,9 +824,16 @@ local function UpdateDirection()
     if addon.DemoMode.IsActive() then return end
     local performanceStart = addon.Performance:Begin()
     UpdateFlightState()
+    local returnPoint = workspace and workspace:ReturnTarget()
+    if returnPoint and not temporaryDetour and not manualQuestID and not combatQuestID and not isFlying
+        and addon.TemporaryDetour.IsOutdoor(C_Map, Enum and Enum.UIMapType, returnPoint.mapID) then
+        temporaryDetour = addon.TemporaryDetour.New(returnPoint.mapID, returnPoint.x, returnPoint.y, returnPoint.name)
+        temporaryDetour.tourReturn = true
+    end
     if temporaryDetour then
         detourMeasurement = addon.TemporaryDetour.Measure(C_Map, temporaryDetour)
         if detourMeasurement and detourMeasurement.yards <= 12 and not isFlying and not (IsInInstance and IsInInstance()) then
+            if temporaryDetour.tourReturn and workspace then workspace:Arrived() end
             temporaryDetour, detourMeasurement = nil, nil
             tracker:SetDetour(nil)
             print("FQN | " .. L.DetourReturned)
@@ -858,13 +860,14 @@ local function UpdateDirection()
     elseif not measurement then
         status = active and next(avoidedObjectives[active.id] or {}) and L.NavigationAvoided or L.NavigationUnknown
     elseif arrived then
-        status = addon.NavigationHints.NextAction(active, measurement and measurement.marker)
+        status = addon.NavigationHints.NextAction(active, measurement and measurement.marker, tracker:GetQuestItemHint())
     elseif not right then
         status = L.NavigationFacingUnavailable
     end
     if temporaryDetour then
         arrived = false
-        status = isFlying and L.FlightGeneric or inInstance and L.NavigationInstance or not detourMeasurement and L.NavigationUnknown or L.DetourActive
+        status = isFlying and L.FlightGeneric or inInstance and L.NavigationInstance or not detourMeasurement and L.NavigationUnknown
+            or temporaryDetour.tourReturn and L.ReturnJourney or L.DetourActive
     end
     if arrived or inInstance or isFlying then right, forward = nil, nil end
     tracker:RenderDirection(right, forward, status, arrived and not inInstance)
@@ -887,9 +890,9 @@ local function TrackingVisible()
 end
 
 local function UpdateDirectionTicker()
-    if TrackingVisible() and settings.showDirectionArrow then
+    if TrackingVisible() and (settings.showDirectionArrow or temporaryDetour or (workspace and workspace:ReturnTarget())) then
         UpdateDirection()
-        local canRotate = GetPlayerFacing and (measurableQuestIDs or nearbyOffers or temporaryDetour)
+        local canRotate = (settings.showDirectionArrow and GetPlayerFacing and (measurableQuestIDs or nearbyOffers) or temporaryDetour)
             and not isFlying and not (IsInInstance and IsInInstance())
         if canRotate and not directionTicker then
             directionTicker = C_Timer.NewTicker(0.2, UpdateDirection)
@@ -1056,7 +1059,8 @@ local function SetTurnInMarkers(quests, mapType, targetMaps)
             marker.outdoorTurnIn = true
             questMarkers[quest.id] = { marker }
         elseif quest.special then
-            questMarkers[quest.id] = nil
+            -- Keep completed special quests visible even without an outdoor pin.
+            questMarkers[quest.id] = quest.readyToTurnIn and {} or nil
         end
     end
 end
@@ -1092,6 +1096,7 @@ local function Refresh()
     objectiveDistances = nil
     questDestinations = {}
     local quests, used = addon.QuestLog.Read(C_QuestLog)
+    if workspace then workspace:Sync(quests, skippedQuestIDs) end
     if not insights.lastLevel or insights.lastLevel <= 0 then
         local level = UnitLevel and UnitLevel("player")
         if type(level) == "number" and level > 0 then insights.lastLevel = level end
@@ -1143,9 +1148,10 @@ local function Refresh()
         end
     end
     SetTurnInMarkers(quests, mapType, targetMaps)
-    if manualQuestID then
+    local explicitID = manualQuestID or (workspace and workspace:Current())
+    if explicitID then
         for _, quest in ipairs(quests) do
-            if quest.id == manualQuestID and not quest.special then
+            if quest.id == explicitID and (not quest.special or quest.readyToTurnIn) then
                 questMarkers[quest.id] = questMarkers[quest.id] or {}
                 break
             end
@@ -1235,6 +1241,16 @@ local function ApplyQuestAction(action, value)
     local effect = addon.QuestActions.Apply(state, action, value)
     heldQuest, manualQuestID, objectiveLock, outing = state.held, state.manual, state.lock, state.outing
     flightQuestID, avoidedObjectives, skipOrder = state.flightID, state.avoided, state.order
+    if workspace then
+        if effect.selection then
+            workspace.pending = nil
+            if manualQuestID then
+                workspace.plan.running = false
+                workspace.context.cancelReturn()
+            end
+        end
+        workspace:Save()
+    end
     if effect.selection then UpdateQuestLogButton() end
     if effect.undo then tracker:ShowUndoSkip(effect.undo) end
     if effect.refresh then ScheduleRefresh() end
@@ -1511,21 +1527,30 @@ local function OpenQuestMenu(owner, questID, isOffer)
         if not isOffer and CanPinQuest(questID) then
             menu:CreateButton(manualQuestID == questID and L.ClearActiveQuest or L.SetActiveQuest,
                 function() if manualQuestID == questID then SelectQuest(nil) else SelectQuest(questID) end end)
+            local priorityMenu = Submenu(menu, L.PriorityMenu)
             if chosen and not chosen.readyToTurnIn then
-                menu:CreateButton(L.PriorityUntilComplete, function() ApplyQuestAction("prioritize", {id = questID}) end)
+                priorityMenu:CreateButton(L.PriorityUntilComplete, function() ApplyQuestAction("prioritize", {id = questID}) end)
             end
-            menu:CreateButton(L.PriorityUntilTurnIn, function() ApplyQuestAction("prioritize", {id = questID, turnIn = true}) end)
+            priorityMenu:CreateButton(L.PriorityUntilTurnIn, function() ApplyQuestAction("prioritize", {id = questID, turnIn = true}) end)
         end
-        menu:CreateButton(questNotes[questID] and L.UnmarkQuest or L.MarkQuest, function()
+        local more = Submenu(menu, L.MoreActions)
+        more:CreateButton(questNotes[questID] and L.UnmarkQuest or L.MarkQuest, function()
             local point = isOffer and chosen and chosen.marker or target
             addon.QuestTools.ToggleNote(questNotes, questID, chosen and chosen.title, point, isOffer)
             addon.RefreshQuestNotepad()
         end)
         if chosen and not isOffer and addon.CampAlternatives.Find(C_Map, chosen, measured, questMarkers[questID], campAvoidance, SessionTime()) then
-            menu:CreateButton(L.AnotherCamp, function() SwitchCamp(questID) end)
+            more:CreateButton(L.AnotherCamp, function() SwitchCamp(questID) end)
         end
-        menu:CreateButton(L.PlanningOverview, function() ShowPlanning() end)
-        local feedbackMenu = Submenu(menu, L.FeedbackSubmenu)
+        more:CreateButton(L.PlanningOverview, function() ShowPlanning() end)
+        if chosen and not isOffer then
+            local tourMenu = Submenu(menu, L.MyTour)
+            tourMenu:CreateButton(L.AddToTour, function()
+                if workspace then workspace:Action("add", {quest = chosen}) addon.OpenWorkspace("tour") end
+            end)
+            tourMenu:CreateButton(L.MyTour, function() addon.OpenWorkspace("tour") end)
+        end
+        local feedbackMenu = Submenu(more, L.FeedbackSubmenu)
         if chosen and not isOffer then
             feedbackMenu:CreateButton(L.FeedbackHard, function() Feedback("hard") end)
             feedbackMenu:CreateButton(L.FeedbackBlocked, function() Feedback("blocked") end)
@@ -1539,7 +1564,7 @@ local function OpenQuestMenu(owner, questID, isOffer)
         end
         feedbackMenu:CreateButton(L.FeedbackManager, function() ShowFeedback() end)
         if not (isOffer or ready or not target) then
-            local access = Submenu(menu, L.AccessSubmenu)
+            local access = Submenu(more, L.AccessSubmenu)
             local saved = addon.TravelSupport.GetAccess(savedAccessPoints, questID, target, C_Map)
             local steps = saved and addon.TravelSupport.AccessSteps(saved)
             access:CreateButton(steps and #steps > 1 and L.ReplaceAccessHere or L.SaveAccessHere, function()
@@ -1583,7 +1608,7 @@ local function OpenQuestMenu(owner, questID, isOffer)
                 access:CreateButton(L.UseAccessHint:format(text), function() Save(point, text) end)
             end
         end
-        local diagnostic = Submenu(menu, L.SettingsDiagnostics)
+        local diagnostic = Submenu(more, L.SettingsDiagnostics)
         diagnostic:CreateButton(L.PositionReport, function() ShowTargetReport(questID, isOffer) end)
     end)
 end
@@ -1710,6 +1735,19 @@ ShowPlanning = function()
     end, OpenRouteStop)
 end
 
+function addon.OpenWorkspace(mode)
+    if addon.DemoMode.IsActive() then print("FQN | " .. L.DemoReadOnly) return end
+    if workspace then return addon.ShowQuestWorkbench(workspace, mode) end
+end
+function addon.GetPlanningWorkspace() return workspace end
+function addon.ResumePlan()
+    if addon.DemoMode.IsActive() then print("FQN | " .. L.DemoReadOnly) return end
+    if workspace then workspace:Action("resume") addon.OpenWorkspace("tour") end
+end
+function addon.ForgetRememberedNavigation()
+    if workspace then workspace.pending = nil workspace:Save() end
+end
+
 ShowFeedback = function()
     addon.ShowFeedbackManager({
         list = function()
@@ -1736,11 +1774,13 @@ function addon.OpenDetourTools()
             if not addon.TemporaryDetour.IsOutdoor(C_Map, Enum and Enum.UIMapType, point.mapID)
                 or not addon.TemporaryDetour.Measure(C_Map, point) then return false end
             point.questID = shownQuests and shownQuests[1] and shownQuests[1].id
+            if workspace then workspace.plan.running = false workspace:Save() end
             temporaryDetour = point
             ScheduleRefresh() UpdateDirectionTicker()
             return true
         end,
         cancel = function()
+            if temporaryDetour and temporaryDetour.tourReturn and workspace then workspace.plan.running = false workspace:Save() end
             temporaryDetour, detourMeasurement = nil, nil
             tracker:SetDetour(nil) ScheduleRefresh() UpdateDirection()
         end,
@@ -1812,6 +1852,43 @@ local function OpenSettings()
         function() addon.ShowUndoHistory(addon.Undo) end)
 end
 
+function addon.ConfigureUXHub()
+    addon.UI.ToolHub.Configure({
+        finder = function() addon.OpenWorkspace("finder") end, tour = function() addon.OpenWorkspace("tour") end,
+        details = function() if tracker and tracker.OpenDetails then tracker:OpenDetails() end end,
+        notes = ShowNotepad, feedback = ShowFeedback, automatic = ShowPlanning, zones = ShowZones,
+        access = ShowAccessManager, detour = function() addon.OpenDetourTools() end,
+        session = ShowSession, changes = function() addon.ShowUndoHistory(addon.Undo) end,
+        settings = OpenSettings, profiles = ShowProfiles,
+        share = function() addon.ShowDisplayTransfer(settings, addon.SettingsController.catalog) end,
+        help = function() addon.ShowUXHelp({problem = addon.OpenProblemReport, diagnostic = ShowDiagnostics,
+            guide = function() addon.ShowIntroduction(settings) end,
+            updates = function() addon.ShowReleaseNotes(settings, C_AddOns.GetAddOnMetadata(addonName, "Version")) end}) end,
+    })
+end
+
+local function InitializeWorkspace(character)
+    workspace = addon.PlanningRuntime.New(character, settings, {
+        priority = function() return manualQuestID, heldQuest end,
+        read = function()
+            return {quests = addon.QuestLog.Read(C_QuestLog), offers = nearbyOffers, skipped = skippedQuestIDs,
+                measurements = questMeasurements, turnInTour = navigationSnapshot and navigationSnapshot.turnInTour}
+        end,
+        select = function(id, policy)
+            if id and not CanPinQuest(id) then return false end
+            if policy == "complete" or policy == "turnIn" then ApplyQuestAction("prioritize", {id = id, turnIn = policy == "turnIn"})
+            else SelectQuest(id) end
+            return true
+        end,
+        destination = GetQuestDestination, restore = RestoreQuest, map = OpenRouteStop,
+        changed = ScheduleRefresh,
+        prepareStart = function() temporaryDetour, detourMeasurement = nil, nil tracker:SetDetour(nil) end,
+        cancelReturn = function()
+            if temporaryDetour and temporaryDetour.tourReturn then temporaryDetour, detourMeasurement = nil, nil tracker:SetDetour(nil) end
+        end,
+    })
+end
+
 local function AddonLoaded(name)
     if name == addonName and not tracker then
         settings = ForeverQuestNavigatorDB
@@ -1853,6 +1930,8 @@ local function AddonLoaded(name)
         end
         settings.acceptedRows = RowCount(settings.acceptedRows, 2)
         settings.offerRows = RowCount(settings.offerRows, 3)
+        settings.trackerMaxHeight = addon.TrackerPresentation.HeightLimit(settings.trackerMaxHeight)
+        if settings.navigatorView ~= "goal" and settings.navigatorView ~= "quest" then settings.navigatorView = "all" end
         settings.includeElite = nil
         settings.currentZoneOnly = nil
         settings.useQuestieKillLocations = settings.useQuestieKillLocations ~= false
@@ -1876,6 +1955,8 @@ local function AddonLoaded(name)
         settings.opacityPercent = type(opacity) == "number" and opacity >= 0 and opacity <= 100 and opacity or DEFAULT_OPACITY
         LoadSkippedQuests()
         local character = ForeverQuestNavigatorCharacterDB
+        settings.rememberNavigation = settings.rememberNavigation ~= false
+        InitializeWorkspace(character)
         questNotes = type(character.questNotes) == "table" and character.questNotes or {}
         character.questNotes = questNotes
         savedAccessPoints = type(character.accessPoints) == "table" and character.accessPoints or {}
@@ -1898,6 +1979,7 @@ local function AddonLoaded(name)
             toggleQuestHold = ToggleQuestHold,
             getQuestHold = function() return heldQuest ~= nil end,
             openSettings = OpenSettings,
+            openFinder = function() addon.OpenWorkspace("finder") end,
             openQuestMap = OpenQuestMap,
             openQuestMenu = OpenQuestMenu,
             openOfferMap = OpenOfferMap,
@@ -1958,6 +2040,15 @@ local function AddonLoaded(name)
                 print("FQN | Questie: " .. addon.ReadQuestieStatus(C_AddOns))
             elseif command == "debug" then
                 ShowDiagnostics()
+            elseif command == "problem" then
+                addon.OpenProblemReport()
+            elseif command == "find" or command:match("^find%s") then
+                local panel = addon.OpenWorkspace("finder")
+                if panel then panel.search:SetText(message:match("^%s*%S+%s+(.-)%s*$") or "") end
+            elseif command == "tour" then
+                addon.OpenWorkspace("tour")
+            elseif command == "resume" then
+                addon.ResumePlan()
             elseif command == "session" then
                 ShowSession()
             elseif command == "access" then
@@ -1993,6 +2084,9 @@ local function AddonLoaded(name)
                 if quest then ShowTargetReport(quest.id) end
             elseif command == "settings" then
                 OpenSettings()
+            elseif command == "tools" then
+                addon.UI.ToolHub.Open(addon.UI.ToolHub.key or "finder")
+            elseif command == "arrange" then tracker:ArrangeUI()
             elseif command == "" then
                 ToggleTracker()
             else
@@ -2001,6 +2095,7 @@ local function AddonLoaded(name)
         end
 
         ConnectQuestie()
+        addon.ConfigureUXHub()
         ScheduleRefresh()
     elseif tracker and name == "Questie" then
         ConnectQuestie()
@@ -2018,7 +2113,7 @@ addon.EventController.Bind(events, {
         session:TurnIn(arg, title, rewardXP)
         session:Save(SessionTime())
     end,
-    saveSession = function() if session then session:Save(SessionTime()) end end,
+    saveSession = function() if session then session:Save(SessionTime()) end if workspace then workspace:Save() end end,
     loaded = AddonLoaded,
     hasMeasurements = function() return measurableQuestIDs ~= nil end,
     visible = TrackingVisible,
@@ -2036,6 +2131,9 @@ addon.EventController.Bind(events, {
         AddQuestLogButton()
         if not minimapButton then
             minimapButton = addon.CreateMinimapButton(settings, CycleDisplayMode, OpenSettings)
+        end
+        if workspace and workspace.pending and not workspace.announced then
+            workspace.announced = true print("FQN | " .. L.ResumeOffer)
         end
     end,
     introduction = function()

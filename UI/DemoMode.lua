@@ -149,6 +149,7 @@ function Mode.Open(settings, live, onStop, requested)
     demo.controls.shot = Button(L.DemoScreenshot, 18, 20, function() demo.controls:Hide() if GameTooltip then GameTooltip:Hide() end end)
     demo.controls.stop = Button(L.DemoStop, 218, 20, Mode.Stop)
     current = demo
+    if addon.UI.ToolHub then addon.UI.ToolHub.Hide() end
     live:Hide() live.navigation:Hide()
     local ok, rendered = pcall(Render, demo)
     if not ok or not rendered then
@@ -156,6 +157,7 @@ function Mode.Open(settings, live, onStop, requested)
         print("FQN | " .. L.DemoDataMissing)
         return false
     end
+    demo.controls:Show()
     print("FQN | " .. L.DemoHelp)
     return true
 end

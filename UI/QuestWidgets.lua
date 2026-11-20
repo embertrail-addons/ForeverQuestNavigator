@@ -15,6 +15,10 @@ addon.UI.Style = {
     highlight = { 0.74, 0.55, 0.28, 0.19 },
     stripe = { 0.66, 0.47, 0.23 },
 }
+function addon.UI.ExpandHitArea(button, padding, vertical)
+    vertical = vertical or padding
+    if button.SetHitRectInsets then button:SetHitRectInsets(-padding, -padding, -vertical, -vertical) end
+end
 
 function addon.UI.FormatDistance(measurement, compact)
     if compact and measurement and measurement.yards >= 1000 then return ("~%.1fk yd"):format(measurement.yards / 1000) end
@@ -27,19 +31,33 @@ end
 
 function addon.UI.AlignNavigationRow(row, height, lineHeight, inset, arrowSpace)
     local offset = (height - lineHeight) / 2
-    local distanceWidth = math.max(60, row.distance:GetStringWidth() + 5)
+    local distanceWidth = math.max(76 * fontPercent / 100, row.distance:GetStringWidth() + 5)
+    local actionWidth = row.detailButton and 22 * fontPercent / 100 or 0
     row:SetHeight(height)
     row.label:ClearAllPoints()
-    row.label:SetPoint("LEFT", inset, offset)
-    row.label:SetPoint("RIGHT", -distanceWidth - arrowSpace, offset)
+    row.label:SetPoint("LEFT", inset + (row.stateGlyph and row.stateGlyph:IsShown() and 16 or 0), offset)
+    if row.stateGlyph then row.stateGlyph:ClearAllPoints() row.stateGlyph:SetPoint("LEFT", inset, offset) end
+    row.label:SetPoint("RIGHT", -distanceWidth - arrowSpace - actionWidth, offset)
     row.distance:ClearAllPoints()
-    row.distance:SetPoint("RIGHT", 0, offset)
+    row.distance:SetPoint("RIGHT", -actionWidth, offset)
     row.arrow:ClearAllPoints()
-    row.arrow:SetPoint("RIGHT", -distanceWidth - 3, offset)
+    row.arrow:SetPoint("RIGHT", -distanceWidth - 3 - actionWidth, offset)
+    if row.detailButton then
+        row.detailButton:SetSize(20 * fontPercent / 100, lineHeight)
+        row.detailButton:ClearAllPoints()
+        row.detailButton:SetPoint("RIGHT", 0, offset)
+    end
     if row.checkbox then
         row.checkbox:ClearAllPoints()
         row.checkbox:SetPoint("LEFT", -2, offset)
     end
+end
+
+function addon.UI.CreateStateGlyph(parent)
+    local glyph = addon.UI.CreateLabel(parent, "GameFontNormalSmall")
+    glyph:SetWidth(13) glyph:SetJustifyH("CENTER")
+    addon.UI.Theme.Bind(glyph, "muted", 1, "text")
+    return glyph
 end
 
 function addon.UI.AddRowHighlight(row)
@@ -56,6 +74,9 @@ function addon.UI.LinkQuestHover(frame, getID, region)
     texture:Hide()
     local function Update(ids)
         local id = getID(frame)
+        if addon.QuestHover.owner == frame and frame:IsShown() and id and not ids[id] then
+            addon.QuestHover.Set(frame, {[id] = true}) return
+        end
         texture:SetShown(frame:IsShown() and id ~= nil and ids[id] == true)
     end
     addon.QuestHover.Subscribe(Update)
@@ -128,16 +149,18 @@ local function EnableTitleTooltip(row)
         local quest = self.checkbox and self.checkbox.quest
         local detail = quest and (quest.demoDetails or addon.DescribeQuest and addon.DescribeQuest(quest, self.measurement)
             or addon.Recommendation.Describe(quest, self.measurement, UnitLevel and UnitLevel("player")))
+        if quest then local _, state = addon.QuestState.Read(quest) detail = state .. "\n" .. (detail or "") end
         if self.compact then
             if self.routeDetails and self.routeDetails:GetText() then detail = (detail or "") .. "\n" .. self.routeDetails:GetText() end
             if self.reward and self.reward:GetText() then detail = (detail or "") .. "\n" .. self.reward:GetText() end
         end
-        return self.label:GetText(), detail
+        return self.label:GetText(), addon.TrackerPresentation.Summary(detail, 3) .. "\n" .. L.NavigatorDetailsHint
     end)
 end
 
 local function MakeButton(parent)
     local button = CreateFrame("Button", nil, parent)
+    addon.UI.ExpandHitArea(button, 2)
     local label = addon.UI.CreateLabel(button, "GameFontHighlightSmall")
     label:SetPoint("CENTER")
     button:SetFontString(label)
@@ -154,19 +177,22 @@ end
 local function AddRowBackground(row, index)
     local background = row:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
-    addon.UI.Theme.Bind(background, "stripe", index % 2 == 1 and 0.11 or 0.045)
+    addon.UI.Theme.Bind(background, "stripe", index % 2 == 1 and 0.055 or 0.025)
 end
 
 local function CreateSkipCheckbox(parent, skipQuest)
-    local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    -- Keep the existing field name for callers; this is an action, not progress.
+    local checkbox = MakeButton(parent)
     checkbox:SetSize(22, 22)
+    checkbox:SetText("-")
+    checkbox.textLabel:SetTextColor(addon.UI.Theme.Color("muted"))
     checkbox:SetScript("OnClick", function(self)
-        self:SetChecked(false)
-        skipQuest(self.quest)
+        if self.quest then skipQuest(self.quest) end
     end)
     checkbox:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L.SkipQuest)
+        GameTooltip:AddLine(L.NavigatorSkipHint, 1, 1, 1, true)
         GameTooltip:Show()
     end)
     checkbox:SetScript("OnLeave", function() GameTooltip:Hide() end)

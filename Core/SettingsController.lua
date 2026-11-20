@@ -17,16 +17,19 @@ function addon.SettingsController.Register(context)
     local DEFAULT_OFFER_RADIUS = context.DEFAULT_OFFER_RADIUS
     local MAX_OFFER_RADIUS = context.MAX_OFFER_RADIUS
     local catalog, byControl = {}, {}
+    local currentSection
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true }
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
-        fontPercent = {80, 140, 10}, acceptedRows = {2, 5, 1}, offerRows = {2, 5, 1} }
+        fontPercent = {80, 140, 10}, acceptedRows = {2, 5, 1}, offerRows = {2, 5, 1},
+        trackerMaxHeight = {360, 1000, 20}, trackerWidth = {330, 640, 10} }
     local function RegisterSetting(owner, variable, key, db, kind, name, default)
         local control = Settings.RegisterAddOnSetting(owner, variable, key, db, kind, name, default)
-        local entry = { key = key, name = name, control = control, basic = basic[key],
+        local entry = { key = key, name = name, control = control, basic = basic[key], section = currentSection,
             kind = kind == Settings.VarType.Boolean and "boolean" or kind }
         if key == "language" then entry.choices = {"auto", "deDE", "enUS"} end
         if key == "detailMode" then entry.choices = {"detailed", "compact"} end
+        if key == "navigatorView" then entry.choices = {"goal", "quest", "all"} end
         local range = ranges[key]
         if range then entry.minimum, entry.maximum, entry.step = unpack(range) end
         catalog[#catalog + 1], byControl[control] = entry, entry
@@ -46,9 +49,20 @@ function addon.SettingsController.Register(context)
     end
     local category = Settings.RegisterVerticalLayoutCategory("Forever Quest Navigator")
     local function Section(name)
+        currentSection = name
         Settings.RegisterInitializer(category, CreateSettingsListSectionHeaderInitializer(name))
     end
     Section(L.SettingsGeneral)
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.QuestFinder, L.QuestFinder,
+        function() addon.OpenWorkspace("finder") end, L.FinderHelp, true))
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.MyTour, L.MyTour,
+        function() addon.OpenWorkspace("tour") end, L.TourEditorHelp, true))
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.ProblemReportTitle, L.ProblemReportTitle,
+        function() addon.OpenProblemReport() end, L.ProblemReportPrivacy, true))
+    local remember = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_REMEMBER_NAVIGATION", "rememberNavigation", settings,
+        Settings.VarType.Boolean, L.RememberNavigation, true)
+    remember:SetValueChangedCallback(function() addon.ForgetRememberedNavigation() end)
+    Checkbox(category, remember, L.RememberNavigationHelp)
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.ChangeHistory, L.ChangeHistory,
         context.ShowHistory, L.UndoScope, true))
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.LevelChangesTitle, L.LevelChangesTitle,
@@ -182,8 +196,25 @@ function addon.SettingsController.Register(context)
         addon.RefreshAppearancePreview()
     end)
     Dropdown(category, detailMode, function() return detailOptions:GetData() end, L.DetailModeHelp)
+    local view = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_NAVIGATOR_VIEW", "navigatorView", settings,
+        Settings.VarType.String, L.NavigatorView, "all")
+    local viewOptions = Settings.CreateControlTextContainer()
+    for _, key in ipairs({"goal", "quest", "all"}) do viewOptions:Add(key, L["NavigatorView_" .. key]) end
+    view:SetValueChangedCallback(function() context.getTracker():SetNavigatorView(settings.navigatorView) end)
+    Dropdown(category, view, function() return viewOptions:GetData() end, L.NavigatorViewHint)
+    local maximum = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_MAX_HEIGHT", "trackerMaxHeight", settings,
+        Settings.VarType.Number, L.NavigatorMaxHeight, 600)
+    maximum:SetValueChangedCallback(function() context.getTracker():UpdateNavigatorLayout() end)
+    Slider(category, maximum, Settings.CreateSliderOptions(360, 1000, 20), L.NavigatorMaxHeightHelp)
+    local width = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_WIDTH", "trackerWidth", settings,
+        Settings.VarType.Number, L.NavigatorWidth, 352)
+    width:SetValueChangedCallback(function()
+        context.getTracker():SetWidth(settings.trackerWidth)
+        context.getTracker():UpdateListSettings() addon.RefreshAppearancePreview()
+    end)
+    Slider(category, width, Settings.CreateSliderOptions(330, 640, 10), L.NavigatorWidthHelp)
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.AppearancePreview, L.AppearancePreview,
-        function() addon.ShowAppearancePreview(settings) end, L.AppearancePreviewHelp, true))
+        function() addon.ShowAppearancePreview(settings, catalog) end, L.AppearancePreviewHelp, true))
     local questXP = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_SHOW_QUEST_XP",
         "showQuestXP", settings, Settings.VarType.Boolean, L.ShowQuestXP, true)
     questXP:SetValueChangedCallback(function() ScheduleRefresh() addon.RefreshAppearancePreview() end)
@@ -226,6 +257,8 @@ function addon.SettingsController.Register(context)
         context.getTracker():ResetPositions()
     end, L.ResetPositionsHelp, true)
     Settings.RegisterInitializer(category, reset)
+    Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.ArrangeUI, L.ArrangeUI,
+        function() context.getTracker():ArrangeUI() end, L.ArrangeHelp, true))
     local appearance = CreateSettingsButtonInitializer(L.ResetAppearance, L.ResetAppearance, function()
         detailMode:SetValue("detailed")
         contrast:SetValue(false)
@@ -233,6 +266,7 @@ function addon.SettingsController.Register(context)
         font:SetValue(100)
         acceptedRows:SetValue(2)
         offerRows:SetValue(3)
+        maximum:SetValue(600) view:SetValue("all") width:SetValue(352)
         resize:SetValue(false)
         lockTracker:SetValue(false)
         lockNavigation:SetValue(false)

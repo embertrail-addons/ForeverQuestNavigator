@@ -2,6 +2,21 @@ local _, addon = ...
 local Profiles = {}
 addon.AppearanceProfiles = Profiles
 Profiles.order = {"minimal", "standard", "detailed"}
+function Profiles.Snapshot(settings)
+    local snapshot = {}
+    for _, key in ipairs({"fontPercent", "opacityPercent", "trackerWidth", "trackerMaxHeight", "navigatorView",
+        "detailMode", "showQuestXP", "highContrast", "acceptedRows", "offerRows"}) do snapshot[key] = settings[key] end
+    return snapshot
+end
+function Profiles.Restore(snapshot, settings, catalog)
+    local count = 0
+    for _, entry in ipairs(catalog or {}) do
+        if snapshot[entry.key] ~= nil and settings[entry.key] ~= snapshot[entry.key] then
+            entry.control:SetValue(snapshot[entry.key]) count = count + 1
+        end
+    end
+    return count
+end
 Profiles.presets = {
     minimal = {detailMode = "compact", acceptedRows = 2, offerRows = 2, fontPercent = 100,
         opacityPercent = 80, showScreenArrow = true, showQuestXP = false, highContrast = false},

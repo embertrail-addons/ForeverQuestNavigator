@@ -9,7 +9,7 @@ import curseforge_upload as upload
 
 
 class UploadTests(unittest.TestCase):
-    def fixture(self, root, tag="v1.2.3-beta"):
+    def fixture(self, root, tag="v1.2.3"):
         (root / "ForeverQuestNavigator.toc").write_text("## Version: 1.2.3\nMain.lua\n")
         for name in ("Main.lua", "LICENSE", "README.md"):
             (root / name).write_text("example")
@@ -37,10 +37,10 @@ class UploadTests(unittest.TestCase):
             archive = self.fixture(root)
             archive.write_bytes(b"corrupt")
             with self.assertRaises(ValueError):
-                upload.release_info(root, "v1.2.3-beta")
+                upload.release_info(root, "v1.2.3")
             (root / "release/curseforge-changelog-1.2.3.md").unlink()
             with self.assertRaises(OSError):
-                upload.release_info(root, "v1.2.3-beta")
+                upload.release_info(root, "v1.2.3")
 
     def test_exact_client_version_required(self):
         self.assertEqual(upload.game_version_id([{"name": "1.60.1", "id": 42}]), 42)
@@ -66,8 +66,16 @@ class UploadTests(unittest.TestCase):
                 self.assertEqual(upload.main(["--root", directory, "--check-only"]), 0)
                 self.assertEqual([p for p, _ in calls], ["/game/versions"])
                 calls.clear()
-                self.assertEqual(upload.main(["--root", directory, "--tag", "v1.2.3-beta"]), 0)
+                self.assertEqual(upload.main(["--root", directory, "--tag", "v1.2.3"]), 0)
                 self.assertEqual([p for p, _ in calls], ["/game/versions", "/projects/1812992/upload-file"])
+
+    def test_prerelease_publication_is_blocked_before_any_network_request(self):
+        for tag in ("v1.2.3-alpha", "v1.2.3-beta", "v1.2.3-rc.1"):
+            with self.subTest(tag=tag), TemporaryDirectory() as directory:
+                self.fixture(Path(directory), tag)
+                with patch.dict(upload.os.environ, {"CURSEFORGE_API_TOKEN": "fake-test-token"}), patch.object(upload, "api_request") as request:
+                    self.assertEqual(upload.main(["--root", directory, "--tag", tag]), 1)
+                    request.assert_not_called()
 
     def test_missing_secret_never_calls_api(self):
         with TemporaryDirectory() as directory:

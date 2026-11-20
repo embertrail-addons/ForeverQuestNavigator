@@ -70,7 +70,7 @@ function addon.CreateNavigationDisplay(settings)
     navigation:RegisterForDrag("LeftButton")
     local movingNavigation
     navigation:SetScript("OnDragStart", function(self)
-        if settings.lockNavigationPosition then return end
+        if settings.lockNavigationPosition and not self.arranging then return end
         movingNavigation = true
         addon.UI.HideTextTooltip(self)
         self:StartMoving()
@@ -81,20 +81,25 @@ function addon.CreateNavigationDisplay(settings)
         self:StopMovingOrSizing()
         local x, y = self:GetCenter()
         local centerX, centerY = UIParent:GetCenter()
-        if x and y then settings.screenArrowX, settings.screenArrowY = x - centerX, y - centerY end
+        if x and y then
+            x, y = x - centerX, y - centerY
+            if self.arranging then x, y = addon.LayoutGeometry.Snap(x, y, self:GetWidth(), self:GetHeight(), UIParent:GetWidth(), UIParent:GetHeight()) end
+            settings.screenArrowX, settings.screenArrowY = x, y
+        end
         AnchorNavigation()
     end
     navigation:SetScript("OnDragStop", StopNavigationDrag)
     navigation:SetScript("OnEnter", function(self)
-        local titleText = addon.UI.FullTextIfTruncated(self.title)
-        local goalText = FullTextIfTruncated(self.goal)
-        if titleText or goalText then
-            addon.UI.ShowTextTooltip(self, self.title:GetText(), self.goal:GetText() ~= "" and self.goal:GetText() or nil)
-        end
+        self.expanded = true
+        self:UpdateLayout()
+        addon.UI.ShowTextTooltip(self, self.title:GetText(), self.goal:GetText() ~= "" and self.goal:GetText() or nil)
     end)
-    navigation:SetScript("OnLeave", HideTextTooltip)
+    navigation:SetScript("OnLeave", function(self)
+        HideTextTooltip(self) self.expanded = false self:UpdateLayout()
+    end)
     navigation:SetScript("OnHide", function(self)
         HideTextTooltip(self)
+        self.expanded = false
         StopNavigationDrag(self)
     end)
     local navigationBackground = navigation:CreateTexture(nil, "BACKGROUND")
@@ -123,18 +128,41 @@ function addon.CreateNavigationDisplay(settings)
     navigation.notice:SetJustifyH("LEFT")
     navigation.notice:SetMaxLines(2)
     navigation.notice:Hide()
+    navigation.state = addon.UI.CreateLabel(navigation, "GameFontNormalSmall")
+    navigation.state:SetPoint("TOPLEFT", 45, -7)
+    navigation.state:SetWidth(12)
+    function navigation:SetQuestState(quest, manual)
+        local special = quest and (quest.readyToTurnIn or manual)
+        self.state:SetText(special and addon.QuestState.Read(quest, false, manual) or "")
+        self.state:SetShown(special == true)
+    end
     function navigation:UpdateLayout()
         if self.noticeDeadline and GetTime and GetTime() >= self.noticeDeadline then
             self.noticeDeadline, self.noticeSeconds = nil, nil
             self.notice:Hide()
         end
-        local bottom = 10 + self.title:GetStringHeight()
-            + math.max(self.goal:GetStringHeight(), self.distance:GetStringHeight())
+        self.title:SetShown(self.expanded == true)
+        local hasGoal = self.goal:GetText() and self.goal:GetText() ~= ""
+        -- Keep a useful action even for quests without an objective counter.
+        local primary = hasGoal and self.goal or self.title
+        if not hasGoal then self.title:Show() end
+        primary:ClearAllPoints()
+        primary:SetPoint("TOPLEFT", self.state:IsShown() and 61 or 47, -6)
+        primary:SetPoint("TOPRIGHT", -90, -6)
+        self.distance:ClearAllPoints()
+        self.distance:SetPoint("TOPRIGHT", -9, -6)
+        if hasGoal and self.expanded then
+            self.title:ClearAllPoints()
+            self.title:SetPoint("TOPLEFT", 47, -26)
+            self.title:SetPoint("TOPRIGHT", -9, -26)
+        end
+        local bottom = math.max(26, 10 + math.max(primary:GetStringHeight(), self.distance:GetStringHeight()))
+        if hasGoal and self.expanded then bottom = math.max(bottom, 30 + self.title:GetStringHeight()) end
         self.status:ClearAllPoints()
-        self.status:SetPoint("TOPLEFT", 47, -math.max(43, bottom + 4))
-        self.status:SetPoint("TOPRIGHT", -9, -math.max(43, bottom + 4))
-        local height = math.max(44, bottom + 8)
-        if self.status:IsShown() then height = math.max(43, bottom + 4) + self.status:GetStringHeight() + 6 end
+        self.status:SetPoint("TOPLEFT", 47, -bottom)
+        self.status:SetPoint("TOPRIGHT", -9, -bottom)
+        local height = math.max(44, bottom + 6)
+        if self.status:IsShown() then height = bottom + self.status:GetStringHeight() + 6 end
         if self.notice:IsShown() then
             self.notice:ClearAllPoints()
             self.notice:SetPoint("TOPLEFT", 47, -height)
@@ -176,6 +204,7 @@ function addon.CreateNavigationDisplay(settings)
         settings.screenArrowX, settings.screenArrowY = nil, nil
         AnchorNavigation()
     end
+    navigation.Reanchor = AnchorNavigation
 
     return navigation
 end

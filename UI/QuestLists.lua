@@ -25,13 +25,15 @@ function addon.CreateAcceptedQuestRow(parent, actions, index)
     end)
     row.checkbox = CreateSkipCheckbox(row, actions.skip)
     row.checkbox:SetPoint("LEFT", -2, 0)
+    row.checkbox:Hide()
     row.distance = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.distance:SetPoint("RIGHT", 0, 0)
-    row.zone = addon.UI.CreateLabel(row, "GameFontNormalSmall")
+    row.zone = addon.UI.CreateLabel(row, "GameFontDisableSmall")
     row.zone:SetPoint("TOPRIGHT", 0, -22)
     row.zone:SetJustifyH("RIGHT")
     row.zone:SetMaxLines(1)
     row.zone:Hide()
+    row.stateGlyph = addon.UI.CreateStateGlyph(row)
     addon.UI.LinkQuestHover(row, function(self) return self.questID end)
     row:Hide()
     return row
@@ -58,10 +60,12 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         if button == "RightButton" and actions.openQuestMenu then actions.openQuestMenu(self, self.measurement.id, true)
         else actions.openOfferMap(self.measurement.id) end
     end)
-    addon.UI.BindTooltip(row, function(self)
+    row.Describe = function(self)
         local offer = self.measurement
         if not offer then return end
         local lines = {}
+        local _, state = addon.QuestState.Read(offer, true)
+        lines[#lines + 1] = state
         if offer.capacityFull then lines[#lines + 1] = L.QuestLogFull end
         local contextual = addon.PlanningInsights.OfferReason(offer)
         if contextual then lines[#lines + 1] = contextual end
@@ -92,14 +96,18 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         if offer.group then lines[#lines + 1] = L.GroupQuest end
         if settings.showQuestXP and offer.xp then lines[#lines + 1] = L.QuestXPReward:format(offer.xp) end
         if settings.showQuestXP and not offer.xp then lines[#lines + 1] = L.UnknownXP end
-        if settings.showQuestRewards ~= false then lines[#lines + 1] = addon.QuestRewards.Describe(addon.QuestRewards.Client(offer.id)) end
-        if settings.showQuestRewards ~= false and settings.showRewardComparison ~= false then
+        if offer.id and settings.showQuestRewards ~= false then lines[#lines + 1] = addon.QuestRewards.Describe(addon.QuestRewards.Client(offer.id)) end
+        if offer.id and settings.showQuestRewards ~= false and settings.showRewardComparison ~= false then
             local comparison = addon.RewardComparison.Describe(addon.QuestRewards.Client(offer.id))
             if comparison then lines[#lines + 1] = comparison end
         end
         lines[#lines + 1] = L.OfferMapHint
         lines[#lines + 1] = L.QuestMenuHint
         return self.label:GetText(), table.concat(lines, "\n")
+    end
+    addon.UI.BindTooltip(row, function(self)
+        local title, detail = self:Describe()
+        return title, addon.TrackerPresentation.Summary(detail, 3) .. "\n" .. L.NavigatorDetailsHint
     end)
     addon.UI.LinkQuestHover(row, function(self) return self.measurement and self.measurement.id end)
     row.distance = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
@@ -109,6 +117,7 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
     row.details = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
     row.details:SetJustifyH("LEFT")
     row.details:SetMaxLines(2)
+    addon.UI.Theme.Bind(row.details, "muted", nil, "text")
     row.details:SetPoint("TOPLEFT", 5, -20)
     row.details:SetPoint("TOPRIGHT", -3, -20)
     row.recommendation = row:CreateTexture(nil, "ARTWORK")
@@ -120,6 +129,7 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
     row.discovery:SetAllPoints()
     addon.UI.Theme.Bind(row.discovery, "recommended", 0.16)
     row.discovery:Hide()
+    row.stateGlyph = addon.UI.CreateStateGlyph(row)
     row:SetScript("OnUpdate", function(self, elapsed)
         if not self.noticeSeconds then return end
         self.noticeSeconds = self.noticeSeconds - elapsed

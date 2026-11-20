@@ -1,0 +1,545 @@
+return function(test, equal, near, mockUI, loadAddon)
+    local function Fixture(locale)
+        local frames, createFrame, createFont = mockUI()
+        local parent = createFrame()
+        parent:SetSize(1920, 1080)
+        local time, maps, skipped = 0, {}, {}
+        local env = setmetatable({CreateFrame = createFrame, CreateFont = createFont, UIParent = parent,
+            UISpecialFrames = {}, GetLocale = function() return locale or "enUS" end, GetTime = function() return time end,
+            print = function() end}, {__index = getfenv()})
+        env.GameTooltip = {IsOwned = function() return false end, Hide = function() end,
+            SetOwner = function() end, SetText = function() end, AddLine = function() end, Show = function() end}
+        local addon = loadAddon(env, false)
+        local settings = {x = 0, y = 0, opacityPercent = 80, fontPercent = 100, showQuestRewards = false,
+            showScreenArrow = true, acceptedRows = 2, offerRows = 3}
+        local actions = {openQuestMap = function(id) maps[#maps + 1] = id end,
+            openOfferMap = function(id) maps[#maps + 1] = id end,
+            skip = function(quest) skipped[#skipped + 1] = quest.id end,
+            resumeAutoSelect = function() maps[#maps + 1] = "resume" end,
+            openFinder = function() maps[#maps + 1] = "finder" end,
+            hideTracker = function() end, openSettings = function() end,
+            restore = function() end, resetSkips = function() end}
+        local tracker = addon.CreateQuestTracker(settings, actions, "test")
+        function tracker:GetLeft() return 600 end
+        function tracker:GetRight() return 952 end
+        function tracker:GetEffectiveScale() return 1 end
+        function parent:GetEffectiveScale() return 1 end
+        local a = {id = 1, title = "Active quest", level = 10}
+        local b = {id = 2, title = "Other quest", level = 10}
+        local c = {id = 3, title = "Third quest", level = 10}
+        local function Render(alternatives, manual, targets)
+            alternatives = alternatives or {b, c}
+            local zones, routes, rewards = {}, {}, {"~100 XP"}
+            for index, quest in ipairs(alternatives) do
+                zones[index + 1], routes[index], rewards[index + 1] = "Zone " .. quest.id, "Route " .. quest.id, "XP " .. quest.id
+            end
+            tracker:Render(a, "Defeat enemies: 2/8", {}, alternatives, manual == true, nil,
+                "Main route details", zones, routes, nil, rewards, targets or {index = 1,
+                    {index = 1, text = "Defeat enemies: 2/8", selectable = true},
+                    {index = 2, text = "Collect supplies: 0/3", selectable = true}}, true)
+        end
+        Render()
+        return addon, tracker, settings, maps, skipped, Render, b, c, parent, env, frames
+    end
+    test("Navigator details open beside the tracker without moving the list and close persistently", function()
+        local _, tracker, _, maps, _, render = Fixture()
+        local height = tracker:GetHeight()
+        tracker.routeToggle:Click()
+        local pane = tracker.detailPanel
+        equal(pane.placement, "right") assert(pane:IsShown())
+        equal(tracker.routeDetails.parent, pane.body)
+        equal(tracker:GetHeight(), height)
+        pane.map:Click() equal(maps[1], 1)
+        pane.closeButton:Click() render()
+        equal(pane:IsShown(), false)
+        tracker.routeToggle:Click() assert(pane:IsShown())
+        equal(tracker:GetHeight(), height)
+    end)
+    test("All quest details share one pane and keep the correct map action", function()
+        local _, tracker, _, maps = Fixture()
+        tracker.routeToggle:Click()
+        local row = tracker.acceptedRows[1]
+        local height = row:GetHeight()
+        row.detailButton:Click()
+        equal(tracker.routeDetails:IsShown(), false)
+        equal(row.routeDetails.parent, tracker.detailPanel.body)
+        equal(row:GetHeight(), height)
+        tracker.detailPanel.map:Click() equal(maps[1], 2)
+        tracker:RenderNearbyOffers({{id = 10, title = "Offer", level = 10, yards = 25, xp = 100,
+            pickupZone = "Here", objectiveZone = "Elsewhere", objectiveYards = 300, recommended = true}}, true)
+        local offer = tracker.offerRows[1]
+        assert(offer.details.text:find("Elsewhere", 1, true))
+        offer.detailButton:Click()
+        equal(row.routeDetails:IsShown(), false)
+        equal(offer.detailText.parent, tracker.detailPanel.body)
+        assert(offer.detailText.text:find("300 yd", 1, true))
+        tracker.detailPanel.map:Click() equal(maps[2], 10)
+        equal(offer.checkbox, nil)
+        equal(tracker.detailPanel.skip:IsShown(), false)
+    end)
+    test("Narrow navigator details reopen through the tool hub and compact view retains access", function()
+        local addon, tracker, settings, _, _, render, _, _, parent = Fixture()
+        parent:SetWidth(700)
+        addon.UI.ToolHub.Configure({details = function() tracker:OpenDetails() end})
+        function tracker:GetLeft() return 150 end
+        function tracker:GetRight() return 502 end
+        settings.detailMode = "compact" render()
+        tracker.routeToggle:Click()
+        equal(tracker.detailPanel.placement, "tools")
+        equal(addon.UI.ToolHub.key, "details")
+        assert(addon.UI.ToolHub.root:IsShown())
+        addon.UI.ToolHub.root.close:Click() render()
+        equal(tracker.detailPanel:IsShown(), false)
+        tracker.routeToggle:Click()
+        assert(addon.UI.ToolHub.root:IsShown()) assert(tracker.detailPanel:IsShown())
+    end)
+    test("Quest rows stay under the cursor without changing live ranking or keeping removed quests", function()
+        local addon, tracker, _, _, _, render, b, c = Fixture()
+        function tracker:IsMouseOver() return true end
+        render({c, b})
+        equal(tracker.acceptedRows[1].questID, b.id)
+        equal(tracker.acceptedRows[2].questID, c.id)
+        equal(tracker.acceptedRows[1].routeDetails.text, "Route 2")
+        equal(tracker.acceptedRows[1].reward.text, "XP 2 · Zone 2")
+        render({c}) equal(tracker.acceptedRows[1].questID, c.id)
+        function tracker:IsMouseOver() return false end
+        render({b, c}) equal(tracker.acceptedRows[1].questID, b.id)
+        local order = addon.TrackerPresentation.VisualOrder({2, 3}, {c, b}, false)
+        equal(order[1], 1)
+    end)
+    test("Skip is an explicit reversible action and opening details preserves the active quest", function()
+        local _, tracker, _, _, skipped = Fixture()
+        equal(tracker.acceptedRows[1].checkbox:IsShown(), false)
+        tracker.acceptedRows[1].detailButton:Click() tracker.detailPanel.skip:Click()
+        equal(skipped[1], 2)
+        tracker.acceptedRows[2].detailButton:Click()
+        equal(tracker.navigation.title.text, "[10] Active quest")
+        tracker.detailPanel.skip:Click()
+        equal(skipped[2], 3) equal(tracker.detailPanel:IsShown(), false)
+    end)
+    test("The screen arrow emphasizes the goal and reveals the quest on hover without fading text", function()
+        local _, tracker, settings = Fixture()
+        local nav = tracker.navigation
+        nav:UpdateLayout()
+        equal(nav.title:IsShown(), false)
+        equal(nav.goal.text, "Defeat enemies: 2/8")
+        nav.scripts.OnEnter(nav)
+        equal(nav.title:IsShown(), true)
+        nav.scripts.OnLeave(nav) equal(nav.title:IsShown(), false)
+        settings.opacityPercent = 0 nav:UpdateOpacity()
+        equal(nav.textures[1].colorAlpha, 0) equal(nav.alpha, nil)
+        equal(nav.goal.alpha, nil)
+        nav:SetQuestState({readyToTurnIn = true}) equal(nav.state.text, "?")
+    end)
+    test("Detail placement chooses the free side before falling back to tools", function()
+        local addon = Fixture()
+        equal(addon.TrackerPresentation.DetailPlacement(100, 500, 1000, 340), "right")
+        equal(addon.TrackerPresentation.DetailPlacement(600, 950, 1000, 340), "left")
+        equal(addon.TrackerPresentation.DetailPlacement(100, 500, 700, 340), "tools")
+    end)
+    test("Removing an inspected quest closes its details before a row can point at another quest", function()
+        local _, tracker, _, _, _, render, _, c = Fixture()
+        tracker.acceptedRows[1].detailButton:Click()
+        render({c})
+        equal(tracker.detailPanel:IsShown(), false)
+        equal(tracker.acceptedRows[1].questID, c.id)
+        tracker:RenderNearbyOffers({{id = 10, title = "Offer", yards = 25}}, false)
+        tracker.offerRows[1].detailButton:Click()
+        tracker:RenderNearbyOffers({}, false)
+        equal(tracker.detailPanel:IsShown(), false)
+    end)
+    test("Current objectives use words and an accent instead of repeated direction symbols", function()
+        local _, tracker = Fixture()
+        local row = tracker.goalRows[1]
+        equal(row.indicator:IsShown(), false) equal(row.indicator.text, "")
+        equal(row.caption.text, "Current objective · Target unknown") assert(row.accent:IsShown())
+        equal(row.label.text, "Defeat enemies") equal(row.counter.text, "2/8")
+        near(row.fraction, .25) assert(row.bar:IsShown())
+        equal(tracker.acceptedRows[1].stateGlyph:IsShown(), false)
+        equal(tracker.navigation.state:IsShown(), false)
+        equal(tracker.statusLine.text, "Automatic recommendation")
+    end)
+    test("Compact and collapsed views disclose additional objectives without losing the current one", function()
+        local _, tracker, settings, _, _, render = Fixture()
+        settings.detailMode = "compact" render()
+        assert(tracker.goalRows[1]:IsShown()) equal(tracker.goalRows[2]:IsShown(), false)
+        equal(tracker.moreGoals.text, "1 more objective")
+        tracker.moreGoals:Click() assert(tracker.goalRows[2]:IsShown())
+        tracker.moreGoals:Click() equal(tracker.goalRows[2]:IsShown(), false)
+        settings.detailMode, settings.collapsed = "detailed", true render()
+        assert(tracker.moreGoals:IsShown()) equal(tracker.goalRows[2]:IsShown(), false)
+        equal(tracker.navigation.goal.text, "Defeat enemies: 2/8")
+    end)
+    test("Objective counters require usable numbers and leave unknown or narrative text intact", function()
+        local addon = Fixture()
+        local progress = addon.TrackerPresentation.ObjectiveProgress
+        equal(progress({text = "Find the 3 missing pages"}), "Find the 3 missing pages")
+        local label, counter, fraction = progress({text = "Supplies: 3/12"})
+        equal(label, "Supplies") equal(counter, "3/12") near(fraction, .25)
+        label, counter, fraction = progress({text = "Speak to the guard", numFulfilled = 1, numRequired = 1})
+        equal(label, "Speak to the guard") equal(counter, "1/1") equal(fraction, 1)
+        equal(select(2, progress({text = "Unknown", numFulfilled = 0, numRequired = 0})), nil)
+        equal(select(2, progress({text = "Unknown", numFulfilled = 0/0, numRequired = 5})), nil)
+    end)
+    test("Priority status puts Resume beside the explanation instead of the footer", function()
+        local _, tracker, _, maps, _, render = Fixture()
+        render(nil, true)
+        equal(tracker.statusLine.text, "Manually prioritized") assert(tracker.resumeAuto:IsShown())
+        equal(tracker.resumeAuto.text, "Resume automatic")
+        tracker.resumeAuto:Click() equal(maps[1], "resume")
+        render() equal(tracker.resumeAuto:IsShown(), false)
+    end)
+    test("Completed objectives can still be opened independently in compact view", function()
+        local _, tracker, settings, _, _, render = Fixture()
+        settings.detailMode = "compact"
+        render(nil, false, {index = 1, {index = 1, text = "Current: 2/8", selectable = true},
+            {index = 2, text = "Completed: 3/3", finished = true}})
+        equal(tracker.goalRows[2]:IsShown(), false)
+        assert(tracker.finishedToggle:IsShown())
+        tracker.finishedToggle:Click() assert(tracker.goalRows[2]:IsShown())
+        tracker.finishedToggle:Click() equal(tracker.goalRows[2]:IsShown(), false)
+    end)
+    test("Numeric objective changes invalidate a snapshot even when its text is unchanged", function()
+        local addon = Fixture()
+        equal(addon.TrackerPresentation.SameTargets({{index = 1, text = "Supplies", numFulfilled = 1, numRequired = 3}},
+            {{index = 1, text = "Supplies", numFulfilled = 2, numRequired = 3}}), false)
+        equal(addon.TrackerPresentation.QuestStatus({readyToTurnIn = true, group = true}, true),
+            "Manually prioritized · Turn in · Elite or group quest")
+    end)
+    test("Opened details mark their quest and clear the mark immediately when closed", function()
+        local addon, tracker = Fixture()
+        addon.DescribeQuest = function() return "Full reward and objective information" end
+        local first, second = tracker.acceptedRows[1], tracker.acceptedRows[2]
+        first.detailButton:Click()
+        assert(first.detailSelection:IsShown()) equal(first.routeLabel.text, "x")
+        equal(first.detailExplanation.text, "Full reward and objective information")
+        second.detailButton:Click()
+        equal(first.detailSelection:IsShown(), false) assert(second.detailSelection:IsShown())
+        tracker.detailPanel.closeButton:Click()
+        equal(second.detailSelection:IsShown(), false) equal(second.routeLabel.text, "i")
+        tracker.routeToggle:Click()
+        assert(tracker.questMap.detailSelection:IsShown())
+        tracker.detailPanel.closeButton:Click()
+        equal(tracker.questMap.detailSelection:IsShown(), false)
+    end)
+    test("Height limits pin the quest heading and retain scrolling across refreshes", function()
+        local _, tracker, settings, _, _, render = Fixture()
+        settings.trackerMaxHeight = 360
+        local targets = {index = 1}
+        for index = 1, 30 do targets[index] = {index = index, text = "Objective " .. index .. ": 2/8", selectable = true} end
+        render(nil, false, targets)
+        assert(tracker:GetHeight() <= 360) assert(tracker.viewport.maximum > 0)
+        assert(tracker.questTitle.parent ~= tracker.scrollBody)
+        equal(tracker.goalRows[1].parent, tracker.scrollBody)
+        tracker.viewport:ScrollBy(90) equal(tracker.viewport.offset, 90)
+        render(nil, false, targets) equal(tracker.viewport.offset, 90)
+        tracker:RenderDistances({}) equal(tracker.viewport.offset, 90)
+        tracker.viewport:ScrollBy(10000) equal(tracker.viewport.offset, tracker.viewport.maximum)
+        tracker.viewport:ScrollBy(-10000) equal(tracker.viewport.offset, 0)
+    end)
+    test("Title menu changes presentation without changing the active quest", function()
+        local _, tracker, settings, _, _, _, _, _, _, env = Fixture()
+        local choices = {}
+        env.MenuUtil = {CreateContextMenu = function(_, build)
+            build(nil, {CreateTitle = function() end, CreateRadio = function(_, label, checked, action)
+                choices[#choices + 1] = {label = label, checked = checked, action = action}
+            end})
+        end}
+        tracker.header.scripts.OnMouseUp(tracker.header, "RightButton")
+        equal(#choices, 3) choices[1].action()
+        equal(settings.navigatorView, "goal") equal(tracker.acceptedRows[1]:IsShown(), false)
+        equal(tracker.navigation.title.text, "[10] Active quest")
+        choices[2].action() equal(settings.navigatorView, "quest") assert(tracker.goalRows[2]:IsShown())
+        choices[3].action() assert(tracker.acceptedRows[1]:IsShown())
+    end)
+    test("Empty and unmapped states explain a useful action without claiming a route", function()
+        local _, tracker, _, maps = Fixture()
+        tracker:Render(nil, "No matching quests", {}, {}, false)
+        assert(tracker.emptyMessage:IsShown()) assert(tracker.emptyMessage.text:find("No suitable quests", 1, true))
+        tracker.emptyAction:Click() equal(maps[1], "finder")
+        tracker:Render({id = 99, title = "Unknown target"}, "Find the objective", {}, {}, false,
+            nil, nil, nil, nil, nil, nil, nil, false)
+        assert(tracker.emptyMessage.text:find("No coordinates", 1, true))
+        tracker.emptyAction:Click() equal(maps[2], 99)
+    end)
+    test("Information lines have consistent ordering and nearby zones use the player's zone", function()
+        local addon, tracker, _, _, _, _, _, _, _, env = Fixture()
+        equal(addon.TrackerPresentation.Information("Elsewhere", "~100 XP", "Recommended"), "Elsewhere · ~100 XP · Recommended")
+        equal(addon.TrackerPresentation.Information(nil, "~100 XP", nil), "~100 XP")
+        env.GetRealZoneText = function() return "Here" end
+        tracker:RenderNearbyOffers({{id = 10, title = "Offer", yards = 25, pickupZone = "Elsewhere", objectiveZone = "Here", xp = 100}}, true)
+        equal(tracker.offerRows[1].details.text, "~100 XP")
+        equal(addon.TrackerPresentation.Summary("One\nTwo\nThree\nFour", 2), "One\nTwo")
+        assert(tracker.offerRows[1].fullDetails:find("Target: Here", 1, true))
+    end)
+    test("Appearance preview can adjust font width and opacity then restore its opening snapshot", function()
+        local addon, tracker, settings, _, _, _, _, _, _, _, frames = Fixture()
+        local catalog = {}
+        for _, key in ipairs({"fontPercent", "trackerWidth", "opacityPercent"}) do
+            local field = key
+            catalog[#catalog + 1] = {key = field, control = {SetValue = function(_, value)
+                settings[field] = value
+                if field == "trackerWidth" then tracker:SetWidth(value) tracker:UpdateListSettings()
+                elseif field == "fontPercent" then tracker:UpdateFontSize()
+                else tracker:UpdateOpacity() end
+            end}}
+        end
+        settings.questieOfferRadius = 450
+        addon.ShowAppearancePreview(settings, catalog)
+        local preview
+        for _, frame in ipairs(frames) do if frame.sampleBackdrop then preview = frame end end
+        assert(preview)
+        preview.controls[1].plus:Click() equal(settings.fontPercent, 110)
+        preview.controls[2].plus:Click() equal(settings.trackerWidth, 362)
+        preview.controls[3].minus:Click() equal(settings.opacityPercent, 75)
+        preview.restore:Click()
+        equal(settings.fontPercent, 100) equal(settings.trackerWidth, 352) equal(settings.opacityPercent, 80)
+        equal(settings.questieOfferRadius, 450)
+        preview.controls[1].plus:Click() preview.keep:Click()
+        addon.ShowAppearancePreview(settings, catalog)
+        preview.controls[1].plus:Click() preview.restore:Click() equal(settings.fontPercent, 110)
+    end)
+    test("Scrolling never replaces rows at the boundary; Show more appends entries", function()
+        local _, tracker, settings, _, _, render, b, c = Fixture()
+        settings.trackerMaxHeight = 360
+        local targets = {index = 1}
+        for index = 1, 30 do targets[index] = {index = index, text = "Objective " .. index .. ": 0/8"} end
+        render({b, c, {id = 4, title = "Fourth"}}, false, targets)
+        tracker.viewport:ScrollBy(10000)
+        local row = tracker.acceptedRows[1]
+        row.scripts.OnMouseWheel(row, -1)
+        equal(row.questID, b.id)
+        tracker.moreEntries.accepted:Click()
+        equal(row.questID, b.id) equal(tracker.acceptedRows[3].questID, 4)
+    end)
+    test("Viewport limits are finite and fit a smaller screen without changing preferences", function()
+        local addon = Fixture()
+        equal(addon.TrackerPresentation.HeightLimit(0/0), 600)
+        equal(addon.TrackerPresentation.HeightLimit(-100), 360)
+        local height, visible, maximum = addon.TrackerPresentation.ViewportHeight(100, 800, 12, 600, 400)
+        equal(height, 360) equal(visible, 248) equal(maximum, 552)
+    end)
+    test("Quest items update counts and cooldowns but never mutate their protected action in combat", function()
+        local _, tracker, _, _, _, render, _, _, _, env = Fixture()
+        local combat, count, item, assignments = false, 2, 123, 0
+        env.InCombatLockdown = function() return combat end
+        env.GetTime = function() return 100 end
+        env.C_QuestLog = {GetLogIndexForQuestID = function() return 3 end, IsComplete = function() return false end}
+        env.GetQuestLogSpecialItemInfo = function() return "|Hitem:" .. item .. "|h[Signal]|h", 1234, nil, false end
+        env.GetItemCount = function() return count end
+        env.IsQuestLogSpecialItemInRange = function() return 1 end
+        env.GetQuestLogSpecialItemCooldown = function() return 95, 10 end
+        env.UseItemByName = function() error("An item was used without a player click") end
+        env.RegisterStateDriver = function(button, state, condition)
+            assert(not combat) equal(state, "visibility") button.driver = condition
+        end
+        render()
+        local controller = tracker.questItem
+        local button = controller.button
+        assert(button) equal(button.template, "SecureActionButtonTemplate")
+        equal(button.attributes.type, "item") equal(button.attributes.item, "item:123")
+        equal(button.attributes.useOnKeyDown, false)
+        equal(controller.host.count.text, "2") equal(controller.host.cooldown.cooldownDuration, 10)
+        assert(controller.host.label.text:find("5s", 1, true))
+        local write = button.SetAttribute
+        button.SetAttribute = function(self, key, value) assert(not combat) assignments = assignments + 1 write(self, key, value) end
+        local shown, point = button.SetShown, button.SetPoint
+        button.SetShown = function(self, value) assert(not combat) shown(self, value) end
+        button.SetPoint = function(self, ...) assert(not combat) point(self, ...) end
+        combat, item = true, 456
+        controller:Refresh()
+        equal(assignments, 0) equal(button.attributes.item, "item:123")
+        assert(controller.host.label.text:find("after combat", 1, true))
+        combat = false controller.scripts.OnEvent(controller, "PLAYER_REGEN_ENABLED")
+        equal(button.attributes.item, "item:456") assert(assignments > 0)
+        count = 0 controller:Refresh()
+        equal(controller.hint, nil) equal(button.attributes.item, nil) equal(button:IsShown(), false)
+    end)
+    test("Arrival instructions require evidence for item use and preserve entrance and turn-in actions", function()
+        local addon = Fixture()
+        local hints = addon.NavigationHints
+        equal(hints.NextAction({}, {targetKind = "area"}, {name = "Signal"}), addon.L.ArrivalArea)
+        equal(hints.NextAction({}, {targetKind = "area"}, {name = "Signal", inRange = true}), "Use quest item: Signal")
+        equal(hints.NextAction({}, {accessPoint = true}, {name = "Signal", inRange = true}), addon.L.ArrivalAccess)
+        equal(hints.NextAction({readyToTurnIn = true}, {}, {name = "Signal", inRange = true}), addon.L.ArrivalTurnIn)
+        equal(hints.Short(nil), "Target unknown") equal(hints.Short({targetKind = "area"}), "Quest area")
+        equal(hints.Short({turnInName = "NPC"}), "Quest giver")
+        equal(select(3, addon.QuestItemHints.Cooldown({logIndex = 1}, function() return 0/0, 5 end, 10)), 0)
+    end)
+    test("Layout editing snaps positions, cancels without changing locks and locks both windows on Done", function()
+        local _, tracker, settings = Fixture()
+        settings.x, settings.y, settings.screenArrowX, settings.screenArrowY = 90, 150, -70, 200
+        settings.lockTrackerPosition, settings.lockNavigationPosition = true, true
+        local editor = tracker.layoutEditor
+        tracker:ArrangeUI() assert(editor:IsShown()) assert(tracker.arranging)
+        local moving = tracker.startedMoving or 0
+        tracker.header.scripts.OnDragStart(tracker.header) equal(tracker.startedMoving, moving + 1)
+        tracker.header.scripts.OnDragStop(tracker.header) equal(settings.x, 0)
+        editor.cancel:Click()
+        equal(settings.x, 90) equal(settings.y, 150) equal(settings.screenArrowX, -70)
+        equal(settings.lockTrackerPosition, true) equal(tracker.arranging, nil)
+        tracker:ArrangeUI() settings.x = 10 editor:Hide() equal(settings.x, 90)
+        settings.lockTrackerPosition, settings.lockNavigationPosition = false, false
+        tracker:ArrangeUI() editor.done:Click()
+        equal(settings.lockTrackerPosition, true) equal(settings.lockNavigationPosition, true)
+    end)
+    test("Layout snapping respects center lines and a sixteen pixel edge margin", function()
+        local addon = Fixture()
+        local x, y = addon.LayoutGeometry.Snap(7, -8, 300, 200, 1000, 800)
+        equal(x, 0) equal(y, 0)
+        x, y = addon.LayoutGeometry.Snap(330, 280, 300, 200, 1000, 800)
+        equal(x, 334) equal(y, 284)
+        x, y = addon.LayoutGeometry.Snap(10000, -10000, 300, 200, 1000, 800)
+        equal(x, 334) equal(y, -284)
+    end)
+    test("Expanded header hit areas remain separated from adjacent actions", function()
+        local _, tracker, _, _, _, _, _, _, _, _, frames = Fixture()
+        local positions = {}
+        for _, frame in ipairs(frames) do
+            if frame.parent == tracker and frame.hitInsets and frame.point and frame.point[1] == "TOPRIGHT" then
+                positions[#positions + 1] = frame.point[2]
+                equal(frame.hitInsets[1], -4)
+            end
+        end
+        table.sort(positions)
+        equal(#positions, 3)
+        assert(positions[2] - positions[1] >= 28) assert(positions[3] - positions[2] >= 28)
+    end)
+    test("Navigator stress matrix retains bounds and full details for long texts and many objectives", function()
+        for _, locale in ipairs({"enUS", "deDE"}) do
+            for _, size in ipairs({80, 140}) do
+                for _, width in ipairs({330, 640}) do
+                    for _, limit in ipairs({360, 600}) do
+                        local addon, tracker, settings, _, _, _, _, _, _, env = Fixture(locale)
+                        settings.fontPercent, settings.trackerMaxHeight = size, limit
+                        tracker:SetWidth(width) tracker:UpdateFontSize()
+                        tracker:SetNavigatorView("quest")
+                        local title = "Ein außergewöhnlich langer Questtitel für die Prüfung der Navigatoranzeige"
+                        local targets = {index = 1}
+                        for index = 1, 24 do targets[index] = {index = index, text = "Eine lange Zielbeschreibung\nmit zusätzlichem Fortschritt: 2/12", selectable = true} end
+                        tracker:Render({id = 1, title = title, level = 34}, "", {}, {}, false, nil,
+                            "Full route details", nil, nil, nil, nil, targets, true)
+                        assert(tracker:GetHeight() <= limit) assert(tracker.viewport.maximum > 0)
+                        assert(tracker.scrollBody:GetWidth() <= width)
+                        equal(tracker.questTitle.text, "[34] " .. title)
+                        local height = tracker:GetHeight()
+                        tracker:OpenDetails() equal(tracker:GetHeight(), height)
+                        tracker.detailPanel.closeButton:Click()
+                        tracker:SetNavigatorView("goal") assert(tracker.goalRows[1]:IsShown())
+                        tracker:SetNavigatorView("all") equal(tracker.navigation.title.text, "[34] " .. title)
+                    end
+                end
+            end
+        end
+    end)
+    test("Section headings and quest rows share the scroll coordinate space and clipping", function()
+        local _, tracker = Fixture("deDE")
+        tracker:RenderNearbyOffers({{id = 10, title = "Vorschlag", yards = 25}}, false)
+        for index, header in ipairs(tracker.sectionHeaders) do
+            assert(header.toggle.parent == tracker.scrollBody, "A section heading is outside the scroll body")
+            assert(header.label.parent == header.toggle, "A heading label must move with its clickable header")
+            local row = index == 1 and tracker.acceptedRows[1] or tracker.offerRows[1]
+            equal(row.parent, tracker.scrollBody)
+            local bottom = -header.toggle.point[3] + header.toggle:GetHeight()
+            assert(-row.point[3] >= bottom + 4, "Quest content overlaps a heading")
+        end
+    end)
+    test("Wrapped section headings reserve their measured height before the next row", function()
+        local _, tracker = Fixture("deDE")
+        local header = tracker.sectionHeaders[1]
+        header.label.GetStringHeight = function() return 40 end
+        tracker:UpdateNavigatorLayout()
+        assert(header.toggle:GetHeight() >= 44, "Wrapped heading is taller than its clickable area")
+        local bottom = -header.toggle.point[3] + header.toggle:GetHeight()
+        assert(-tracker.acceptedRows[1].point[3] >= bottom + 4)
+    end)
+    test("Show more preserves the visible prefix and map identity across both lists", function()
+        local _, tracker, _, maps, _, render = Fixture()
+        local quests = {}
+        for index = 1, 8 do quests[index] = {id = 100 + index, title = "Quest " .. index} end
+        render(quests)
+        local first = tracker.acceptedRows[1].questID
+        tracker.moreEntries.accepted:Click()
+        equal(tracker.acceptedRows[1].questID, first)
+        equal(tracker.acceptedRows[4].questID, 104)
+        tracker.acceptedRows[4]:Click() equal(maps[1], 104)
+        local offers = {}
+        for index = 1, 7 do offers[index] = {id = 200 + index, title = "Offer " .. index, yards = 25} end
+        tracker:RenderNearbyOffers(offers, false)
+        tracker.moreEntries.offers:Click() equal(tracker.offerRows[1].measurement.id, 201)
+        tracker.moreEntries.offers:Click() equal(tracker.moreEntries.offers:IsShown(), false)
+        equal(tracker.offerRows[7].measurement.id, 207)
+    end)
+    test("Transient notices occupy a fixed footer without shifting quest rows or window height", function()
+        local _, tracker = Fixture()
+        local height, maximum = tracker:GetHeight(), tracker.viewport.maximum
+        local top = tracker.acceptedRows[1].point[3]
+        tracker.statusMessage = "Arrival: a longer instruction\nwith another line"
+        tracker:RefreshNotice() tracker:UpdateNavigatorLayout()
+        equal(tracker:GetHeight(), height) equal(tracker.acceptedRows[1].point[3], top)
+        equal(tracker.viewport.maximum, maximum)
+        equal(tracker.noticeLabel.parent, tracker.noticeSlot)
+        tracker.statusMessage, tracker.noticeMessage, tracker.noticeRemaining = "", "Recommendation changed", 4
+        tracker:RefreshNotice() tracker.scripts.OnUpdate(tracker, 5)
+        equal(tracker.noticeLabel:IsShown(), false) equal(tracker:GetHeight(), height)
+        equal(tracker.acceptedRows[1].point[3], top)
+    end)
+    test("Target quality is part of the objective caption instead of a second navigator label", function()
+        local _, tracker = Fixture()
+        tracker:RenderDistances({[1] = {yards = 50, marker = {targetKind = "area"}}})
+        tracker:RenderDirection(0, 1)
+        equal(tracker.goalRows[1].caption.text, "Current objective · Quest area")
+        equal(tracker.noticeLabel.text, "")
+    end)
+    test("Turn-in badges leave separate space for XP and keep the correct clipping parent", function()
+        local _, tracker, _, _, _, render, b, c = Fixture()
+        b.readyToTurnIn = true render({b, c})
+        local row = tracker.acceptedRows[1]
+        assert(row.actionBadge:IsShown()) equal(row.actionBadge.text, "Turn in")
+        assert(not row.reward.text:find("Turn in", 1, true))
+        equal(row.actionBadge.parent, row) equal(row.badgeBackground.parent, row)
+        local badge = row.actionBadge.points.TOPLEFT
+        local reward = row.reward.points.TOPLEFT
+        assert(reward[2] >= badge[2] + row.actionBadge:GetStringWidth() + 6)
+        equal(reward[3], badge[3])
+        assert(-reward[3] + row.reward:GetStringHeight() <= row:GetHeight())
+    end)
+    test("XP summaries keep numeric rewards and level forecasts while rejecting unknown values", function()
+        local addon = Fixture()
+        equal(addon.TrackerPresentation.XPLine(2800, 4000, 36), "~2800 XP · ~1200 to level 37")
+        equal(addon.TrackerPresentation.XPLine(2800, 2000, 36), "~2800 XP · level 37 possible")
+        equal(addon.TrackerPresentation.XPLine(nil, 2000, 36), nil)
+        equal(addon.TrackerPresentation.XPLine(0/0, 2000, 36), nil)
+        equal(addon.TrackerPresentation.XPLine(2800, nil, 36), "~2800 XP")
+    end)
+    test("Empty area summaries are hidden and useful area data can restore the overview", function()
+        local _, tracker = Fixture()
+        local area = tracker.areaOverview
+        area:SetData({objectives = 0, turnIns = 0, entries = {}, groups = {}})
+        tracker:UpdateNavigatorLayout() equal(area:IsShown(), false)
+        area:SetData({objectives = 1, turnIns = 0, entries = {}, groups = {}})
+        tracker:UpdateNavigatorLayout() assert(area:IsShown())
+        area:SetData({objectives = 0, turnIns = 0, entries = {}, groups = {}})
+        tracker:UpdateNavigatorLayout() equal(area:IsShown(), false)
+    end)
+    test("Quest progress fills the reserved footer and notices replace it without changing geometry", function()
+        local _, tracker = Fixture()
+        tracker:SetProgress({open = 12, turnIns = 7, unknown = 0})
+        equal(tracker.progressLine.parent, tracker.noticeSlot) assert(tracker.progressLine:IsShown())
+        local height, top = tracker:GetHeight(), tracker.acceptedRows[1].point[3]
+        tracker.statusMessage = "Arrival instruction" tracker:RefreshNotice()
+        equal(tracker.progressLine:IsShown(), false) assert(tracker.noticeLabel:IsShown())
+        tracker.statusMessage = "" tracker:RefreshNotice()
+        assert(tracker.progressLine:IsShown()) equal(tracker.noticeLabel:IsShown(), false)
+        equal(tracker:GetHeight(), height) equal(tracker.acceptedRows[1].point[3], top)
+    end)
+    test("The information line uses full width and actions reserve a separate row below it", function()
+        local _, tracker = Fixture("deDE")
+        local info = tracker.activeInfoLabel
+        info.GetStringHeight = function() return 24 end
+        tracker:UpdateNavigatorLayout()
+        equal(info.points.TOPRIGHT[2], -14)
+        local bottom = -info.points.TOPLEFT[3] + info:GetStringHeight()
+        assert(-tracker.routeMap.point[3] >= bottom + 4, "Quest actions overlap the information text")
+    end)
+end

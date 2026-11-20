@@ -5,6 +5,7 @@ addon.DisplayTransfer = Transfer
 local schema = {
     detailMode = {compact = true, detailed = true},
     acceptedRows = {2, 5}, offerRows = {2, 5}, fontPercent = {80, 140}, opacityPercent = {0, 100},
+    navigatorView = {goal = true, quest = true, all = true}, trackerMaxHeight = {360, 1000}, trackerWidth = {330, 640},
     showScreenArrow = "boolean", showDirectionArrow = "boolean", showQuestXP = "boolean",
     showQuestRewards = "boolean", highContrast = "boolean", adaptiveLayout = "boolean",
 }

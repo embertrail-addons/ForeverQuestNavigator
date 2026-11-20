@@ -5,7 +5,7 @@ function addon.ShowReleaseNotes(settings, version)
         window = addon.UI.CreateUtilityPanel(590, 370, addon.L.WhatsNew)
         window.text = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.text:SetPoint("TOPLEFT", 18, -50) window.text:SetPoint("TOPRIGHT", -18, -50)
-        window.text:SetJustifyH("LEFT") window.text:SetMaxLines(16)
+        window.text:SetJustifyH("LEFT") window.text:SetMaxLines(30)
         window.toggle = addon.UI.CreateUtilityButton(window, "", 550, function()
             local value, control = not window.settings.showUpdateNotes, nil
             for _, entry in ipairs(addon.SettingsController.catalog or {}) do if entry.key == "showUpdateNotes" then control = entry.control break end end
@@ -19,6 +19,7 @@ function addon.ShowReleaseNotes(settings, version)
     end
     window.settings = settings
     window.text:SetText(addon.ReleaseNotes.Text(version)) window:RefreshToggle()
+    window:SetHeight(math.max(370, window.text:GetStringHeight() + 116))
     settings.lastSeenVersion = version
-    window:Show()
+    addon.UI.ShowUtilityPanel(window)
 end

@@ -47,5 +47,5 @@ function addon.ShowZoneOverview(getGroups, openMap)
     end
     window.getGroups, window.openMap, window.page = getGroups, openMap, 1
     window:Refresh()
-    window:Show()
+    addon.UI.ShowUtilityPanel(window)
 end

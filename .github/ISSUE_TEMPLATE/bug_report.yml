@@ -7,7 +7,7 @@ body:
     id: version
     attributes:
       label: FQN and game versions
-      placeholder: "FQN 0.1.66, Forever 1.60.1"
+      placeholder: "FQN 0.1.68, Forever 1.60.1"
     validations:
       required: true
   - type: input
@@ -31,4 +31,4 @@ body:
     id: diagnostic
     attributes:
       label: Diagnostic information or screenshot
-      description: Paste the relevant /fqn debug or /fqn markers output. Include a Lua error if available. Review screenshots and copied reports for personal information before posting.
+      description: Paste /fqn problem output and a Lua error if available. Add /fqn markers for map issues. Review screenshots and copied reports for personal information before posting. If Questie is not loaded, include /fqn status and the message next to Questie in the game's addon list.
