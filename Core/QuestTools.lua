@@ -74,12 +74,27 @@ function Tools.ToggleNote(notes, id, title, point, offer)
     return true
 end
 
+function Tools.SetNoteText(notes, id, title, point, offer, text)
+    if not Count(id) or id <= 0 or type(text) ~= "string" then return false end
+    text = text:gsub("\r\n", "\n"):gsub("[%z\1-\8\11\12\14-\31]", ""):match("^%s*(.-)%s*$")
+    local characters = {}
+    for character in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        if #characters >= 240 then break end
+        characters[#characters + 1] = character
+    end
+    text = table.concat(characters)
+    if not notes[id] and text ~= "" then Tools.ToggleNote(notes, id, title, point, offer) end
+    if notes[id] then notes[id].text = text ~= "" and text or nil end
+    return true
+end
+
 function Tools.Notes(notes, api, resolve)
     local result = {}
     for id, note in pairs(notes) do
         if Count(id) and id > 0 and type(note) == "table" and note.id == id then
             local point = resolve(id) or note.point
             result[#result + 1] = { id = id, title = type(note.title) == "string" and note.title or addon.L.QuestNumber:format(id),
+                text = type(note.text) == "string" and note.text or nil,
                 order = Count(note.order) and note.order or 0, point = addon.TravelSupport.ValidPoint(point) and point or nil,
                 status = api.IsOnQuest and api.IsOnQuest(id) and addon.L.NoteAccepted
                     or api.IsQuestFlaggedCompleted and api.IsQuestFlaggedCompleted(id) and addon.L.NoteCompleted or addon.L.NoteLater }

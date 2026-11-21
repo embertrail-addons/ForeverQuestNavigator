@@ -2,7 +2,13 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current version: 0.1.76.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current version: 0.1.79.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+The navigator has two views: **Focus** (active quest, current objective and expandable further objectives) and **Overview** (adds Next and expandable Surroundings). The collapse button, title menu and settings select the same views. Three color designs, high contrast, reduced colors and example preview remain available. Background opacity does not fade text; settings dialogs stay opaque.
+
+Open **Plan outing** or `/fqn plan` -> **Quest areas** (expand one) / **Next round** -> **Build outing from area**. Review pickups, objectives and known hand-ins before explicit Start. Pause/resume preserves progress; quests are accepted and handed in manually. Arrival alone cannot complete a pickup. **Round progress** still offers advisory tracking without navigation.
+
+Quest menus add **Compare objective areas** and **Edit personal note**. Repeatables default to informational display in finder/offers, with levelling/hide options in settings. Starter items and prerequisites are shown where known. Settings can be filtered by display versus recommendations and opened with example preview. Map legend includes clear-FQN-markers. Saved access-route lengths affect ranking; unknown terrain and XP remain explicit. [Release notes](release/curseforge-changelog-0.1.79.md) · [Pending in-game checks](release/ui-smoketest-0.1.79.md) · [Publication authorization](release/acceptance-0.1.79.md).
 
 [CurseForge](https://www.curseforge.com/wow/addons/forever-quest-navigator) · [Source and issues](https://github.com/embertrail-addons/ForeverQuestNavigator)
 
@@ -38,7 +44,7 @@ The navigator and external direction display distinguish a quest giver, entrance
 
 Use **Arrange interface** in settings or `/fqn arrange` to position both displays together. Center and 16-pixel edge guides assist dragging, with snapping near those guides. Done and lock saves and locks both positions; Cancel or Escape restores the positions from when editing started. The direction display can also be centered from the editor.
 
-See the [0.1.76 release notes](release/curseforge-changelog-0.1.76.md) and [in-game UI check](release/ui-smoketest-0.1.73.md). Restart WoW after updating from the previous public release, 0.1.66, to load the new modules.
+See the [0.1.79 release notes](release/curseforge-changelog-0.1.79.md) and [pending in-game checks](release/ui-smoketest-0.1.79.md). Restart WoW after updating from 0.1.76 or earlier to load the new modules.
 
 - See the active quest, all known objective progress, distance and optional approximate XP.
 - Navigate toward the nearest usable unfinished objective with the movable direction arrow.

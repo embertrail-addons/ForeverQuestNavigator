@@ -24,7 +24,7 @@ function addon.ShowQuestNotepad(actions)
             row.label:SetMaxLines(2)
             row:EnableMouse(true)
             addon.UI.BindTooltip(row, function(self)
-                return self.entry and self.entry.title, L.NotepadMapHelp
+                return self.entry and self.entry.title, self.entry and self.entry.text or L.NotepadMapHelp
             end)
             row.map = Button(row, L.Map, 62, function() notes.actions.map(row.entry) end)
             row.map:SetPoint("TOPRIGHT")
@@ -53,7 +53,7 @@ function addon.ShowQuestNotepad(actions)
                 row.entry = entry
                 row:SetShown(entry ~= nil)
                 if entry then
-                    row.label:SetText(entry.title .. "\n" .. entry.status)
+                    row.label:SetText(entry.title .. "\n" .. (entry.text or entry.status))
                     row.map:SetEnabled(entry.point ~= nil)
                 end
             end

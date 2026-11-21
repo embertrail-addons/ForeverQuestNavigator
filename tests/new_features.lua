@@ -108,6 +108,6 @@ return function(test, addon, equal, near)
         addon.UI.Theme.Apply(true)
         near(texture.alpha, .11) near(label.g, .94)
         addon.UI.Theme.Apply(false)
-        near(texture.alpha, .11) near(label.g, .82)
+        near(texture.alpha, .11) near(label.g, .76)
     end)
 end

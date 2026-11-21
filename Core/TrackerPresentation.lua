@@ -75,6 +75,20 @@ function Presentation.QuestStatus(quest, manual)
     if quest and (quest.elite or quest.group) then parts[#parts + 1] = L.GroupQuest end
     return table.concat(parts, " · ")
 end
+
+-- Keep the old stored identifiers for compatible profiles and bindings.
+-- "quest" was the second, nearly identical focused view.
+function Presentation.NavigatorView(value)
+    return (value == "goal" or value == "quest" or value == "focus") and "goal" or "all"
+end
+function Presentation.MigrateNavigatorView(settings)
+    settings.navigatorView = settings.collapsed == true and "goal" or Presentation.NavigatorView(settings.navigatorView)
+    settings.collapsed = settings.navigatorView == "goal"
+    if settings.navigatorViewSchema ~= 2 and settings.navigatorLayout == "lists" and settings.environmentExpanded == nil then
+        settings.environmentExpanded = true
+    end
+    settings.navigatorViewSchema = 2
+end
 function Presentation.Targets(quest, objectives, distances, measured, avoided, lock)
     if not objectives then return end
     local targets = not quest.readyToTurnIn and distances and distances[quest.id]

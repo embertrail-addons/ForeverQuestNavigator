@@ -50,7 +50,7 @@ function Workspace.New(context, saved)
             entries[#entries + 1] = {quest = quest, index = index, stage = stop.stage,
                 target = destination and destination.target, zone = destination and destination.zoneName}
         end
-        local all = Finder.Build(data.quests, data.offers, data.skipped, self.context.destination)
+        local all = Finder.Build(data.quests, data.offers, data.skipped, self.context.destination, data.repeatablePolicy)
         local counts, inTour = {all = #all, active = 0, offer = 0, skipped = 0}, {}
         for _, entry in ipairs(all) do counts[entry.kind] = counts[entry.kind] + 1 end
         for _, stop in ipairs(self.plan.stops) do inTour[stop.id] = true end

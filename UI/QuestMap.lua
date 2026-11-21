@@ -156,6 +156,7 @@ local function SameRoute(a, b)
 end
 
 function addon.ShowQuestMapMarker(target, removeMarker, route)
+    if addon.UpdateMapLegend then addon.UpdateMapLegend(WorldMapFrame, target) end
     pending = nil
     if pendingWatch then pendingWatch:Hide() end
     if not canvasMarkers and target then canvasMarkers = addon.CanvasMarkers.New(WorldMapFrame, C_Map, CreateFrame) end

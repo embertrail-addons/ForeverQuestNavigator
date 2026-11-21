@@ -4,6 +4,7 @@ addon.SettingsController = {}
 
 function addon.SettingsController.Register(context)
     local settings = context.settings
+    addon.SettingsController.settings = settings
     local ShowSession = context.ShowSession
     local ShowAccessManager = context.ShowAccessManager
     local ShowNotepad = context.ShowNotepad
@@ -19,17 +20,23 @@ function addon.SettingsController.Register(context)
     local catalog, byControl = {}, {}
     local currentSection
     addon.SettingsController.catalog = catalog
-    local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true }
+    local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
+        theme = true, navigatorView = true, repeatablePolicy = true }
+    local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
+        rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
         fontPercent = {80, 140, 10}, acceptedRows = {2, 5, 1}, offerRows = {2, 5, 1},
         trackerMaxHeight = {360, 1000, 20}, trackerWidth = {330, 640, 10} }
     local function RegisterSetting(owner, variable, key, db, kind, name, default)
         local control = Settings.RegisterAddOnSetting(owner, variable, key, db, kind, name, default)
         local entry = { key = key, name = name, control = control, basic = basic[key], section = currentSection,
+            effect = logicKeys[key] and "logic" or "view",
             kind = kind == Settings.VarType.Boolean and "boolean" or kind }
         if key == "language" then entry.choices = {"auto", "deDE", "enUS"} end
         if key == "detailMode" then entry.choices = {"detailed", "compact"} end
-        if key == "navigatorView" then entry.choices = {"goal", "quest", "all"} end
+        if key == "navigatorView" then entry.choices = {"goal", "all"} end
+        if key == "theme" then entry.choices = {"graphite", "parchment", "midnight"} end
+        if key == "repeatablePolicy" then entry.choices = {"level", "show", "hide"} end
         local range = ranges[key]
         if range then entry.minimum, entry.maximum, entry.step = unpack(range) end
         catalog[#catalog + 1], byControl[control] = entry, entry
@@ -53,6 +60,12 @@ function addon.SettingsController.Register(context)
         Settings.RegisterInitializer(category, CreateSettingsListSectionHeaderInitializer(name))
     end
     Section(L.SettingsGeneral)
+    local repeatables = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_REPEATABLES", "repeatablePolicy", settings,
+        Settings.VarType.String, L.RepeatablePolicy, "show")
+    local repeatOptions = Settings.CreateControlTextContainer()
+    for _, key in ipairs({"level", "show", "hide"}) do repeatOptions:Add(key, L["RepeatablePolicy_" .. key]) end
+    repeatables:SetValueChangedCallback(ScheduleRefresh)
+    Dropdown(category, repeatables, function() return repeatOptions:GetData() end, L.RepeatablePolicyHelp)
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.QuestFinder, L.QuestFinder,
         function() addon.OpenWorkspace("finder") end, L.FinderHelp, true))
     Settings.RegisterInitializer(category, CreateSettingsButtonInitializer(L.MyTour, L.MyTour,
@@ -162,6 +175,23 @@ function addon.SettingsController.Register(context)
     Settings.RegisterInitializer(category, restoreObjectives)
 
     Section(L.SettingsAppearance)
+    local function AppearanceChanged()
+        addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)
+        context.getTracker():UpdateOpacity()
+        context.getTracker():UpdateListSettings()
+        addon.RefreshAppearancePreview()
+        ScheduleRefresh()
+    end
+    local theme = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_THEME", "theme", settings,
+        Settings.VarType.String, L.Design, "graphite")
+    local themeOptions = Settings.CreateControlTextContainer()
+    for _, key in ipairs({"graphite", "parchment", "midnight"}) do themeOptions:Add(key, L["Design_" .. key]) end
+    theme:SetValueChangedCallback(AppearanceChanged)
+    Dropdown(category, theme, function() return themeOptions:GetData() end, L.DesignHelp)
+    local reduced = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_REDUCED_COLORS", "reducedColors", settings,
+        Settings.VarType.Boolean, L.ReducedColors, false)
+    reduced:SetValueChangedCallback(AppearanceChanged)
+    Checkbox(category, reduced, L.ReducedColorsHelp)
     local adaptive = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ADAPTIVE_LAYOUT", "adaptiveLayout", settings,
         Settings.VarType.Boolean, L.AdaptiveLayout, true)
     adaptive:SetValueChangedCallback(function() context.getTracker():UpdateListSettings() ScheduleRefresh() end)
@@ -179,7 +209,7 @@ function addon.SettingsController.Register(context)
     local contrast = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_HIGH_CONTRAST",
         "highContrast", settings, Settings.VarType.Boolean, L.HighContrast, false)
     contrast:SetValueChangedCallback(function()
-        addon.UI.Theme.Apply(settings.highContrast)
+        addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)
         context.getTracker():UpdateOpacity()
         context.getTracker():UpdateListSettings()
         addon.RefreshAppearancePreview()
@@ -199,7 +229,7 @@ function addon.SettingsController.Register(context)
     local view = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_NAVIGATOR_VIEW", "navigatorView", settings,
         Settings.VarType.String, L.NavigatorView, "all")
     local viewOptions = Settings.CreateControlTextContainer()
-    for _, key in ipairs({"goal", "quest", "all"}) do viewOptions:Add(key, L["NavigatorView_" .. key]) end
+    for _, key in ipairs({"goal", "all"}) do viewOptions:Add(key, L["NavigatorView_" .. key]) end
     view:SetValueChangedCallback(function() context.getTracker():SetNavigatorView(settings.navigatorView) end)
     Dropdown(category, view, function() return viewOptions:GetData() end, L.NavigatorViewHint)
     local maximum = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_MAX_HEIGHT", "trackerMaxHeight", settings,

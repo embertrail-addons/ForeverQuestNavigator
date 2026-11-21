@@ -374,7 +374,8 @@ function QuestLocation.MeasureQuests(mapAPI, markersByQuest, questIDs, localMaps
 end
 
 function QuestLocation.GetRelativeDirection(direction, facing)
-    if not (direction and IsReadableNumber(facing) and math.abs(facing) < math.huge) then
+    if not (direction and IsReadableNumber(direction.east) and IsReadableNumber(direction.north)
+        and IsReadableNumber(facing) and math.abs(facing) < math.huge) then
         return nil
     end
     -- WoW measures facing counterclockwise from map north.

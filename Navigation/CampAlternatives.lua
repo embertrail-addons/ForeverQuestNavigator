@@ -23,9 +23,12 @@ function Camps.Filter(mapAPI, markers, store, now)
             for index = #entries, 1, -1 do if now >= entries[index].untilTime then table.remove(entries, index) end end
             if #entries == 0 then store[id], entries = nil, nil end
         end
-        result[id] = {}
-        for _, marker in ipairs(points) do
-            if not Rejected(mapAPI, marker, entries, now) then result[id][#result[id] + 1] = marker end
+        if not entries then result[id] = points
+        else
+            result[id] = {}
+            for _, marker in ipairs(points) do
+                if not Rejected(mapAPI, marker, entries, now) then result[id][#result[id] + 1] = marker end
+            end
         end
     end
     return result

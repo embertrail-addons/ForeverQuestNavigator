@@ -56,8 +56,19 @@ local function Render(demo)
     local model = addon.DemoData.Build(demo.data, demo.scene)
     if not model then print("FQN | " .. L.DemoDataMissing) return false end
     demo.model = model
+    demo.tracker.openDecisionPlanning = function(mode)
+        demo.planning = addon.ShowPlanningOverview(function() return demo.model end,
+            function(stop) OpenMap(demo, stop) end, "demo")
+        demo.planning:SelectMode(mode)
+    end
     demo.settings.detailMode = demo.scene == "compact" and "compact" or "detailed"
     demo.tracker:RenderSnapshot(model, {})
+    demo.tracker.openPickupPlanning = function()
+        demo.planning = addon.ShowPlanningOverview(function() return demo.model end,
+            function(stop) OpenMap(demo, stop) end, "demo")
+        demo.planning:SelectMode("outing")
+    end
+    demo.tracker:SetPickupPlanning(model.pickupPlanning)
     demo.tracker:RenderNearbyOffers(model.offers, true)
     demo.tracker:RenderDistances(model.measurements)
     local right, forward = addon.QuestLocation.GetRelativeDirection(model.activeMeasurement, .7)

@@ -171,7 +171,7 @@ function Demo.Build(data, scene)
     local note = ready and rewards[active.id] and rewards[active.id] >= xpNeeded and addon.L.LevelUpOnTurnIn or addon.L.DemoFrozen
     local reason = addon.L.DemoBadge .. "\n" .. description
     local model = {ranked = ranked, measurements = measured, activeQuestID = active.id, activeMeasurement = measured[active.id],
-        playerLevel = data.level, xpNeeded = xpNeeded, comparison = addon.L.DemoExplanation,
+        playerLevel = data.level, xpNeeded = xpNeeded, comparison = addon.L.DemoExplanation, knownRewards = rewards,
         bundles = addon.PlanningInsights.Bundles(api, quests, measured, data.level),
         turnInTour = addon.PlanningInsights.TurnIns(api, quests, measured, xpNeeded, nil, function(q) return rewards[q.id] end),
         offers = offers, origin = origin, scene = scene, zone = zone,
@@ -179,6 +179,9 @@ function Demo.Build(data, scene)
             alternatives = alternatives, routeNote = note, routeDetails = reason,
             zones = zones, alternativeRoutes = alternativeRoutes, rewards = rewardLines, targets = targets,
             hasMap = true, reason = reason, preview = preview}}
+    model.pickupPlanning = addon.PickupPlanning.Build(api, offers, quests, measured, active, nil, data.level, nil, nil, nil,
+        function(quest) return rewards[quest.id] end)
+    model.brief = addon.DecisionBrief.Build(model)
     return model
 end
 function Demo.Load(preset)

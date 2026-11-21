@@ -34,7 +34,17 @@ end
 function Hints.Change(previous, quest, snapshot, manual)
     if not previous or previous.id == quest.id then return end
     if manual then return addon.L.WhyManual end
-    if quest.readyToTurnIn then return addon.L.ChangeTurnIn end
+    local context = snapshot.changeContext or {}
+    if context.turnedIn and context.turnedIn == previous.id then return addon.L.ChangePreviousTurnedIn end
+    if context.accepted and context.accepted[quest.id] then return addon.L.ChangeNewQuest end
+    local currentPrevious
+    for _, candidate in ipairs(snapshot.ranked or {}) do if candidate.id == previous.id then currentPrevious = candidate break end end
+    if not previous.readyToTurnIn and currentPrevious and currentPrevious.readyToTurnIn then return addon.L.ChangePreviousFinished end
+    if quest.readyToTurnIn then
+        local before, after = snapshot.measurements and snapshot.measurements[previous.id], snapshot.measurements and snapshot.measurements[quest.id]
+        if before and after and type(before.yards) == "number" and type(after.yards) == "number" and after.yards < before.yards then return addon.L.ChangeTurnInCloser end
+        return addon.L.ChangeTurnIn
+    end
     local previousPresent
     for _, candidate in ipairs(snapshot.ranked or {}) do if candidate.id == previous.id then previousPresent = true break end end
     if not previousPresent then return addon.L.ChangePreviousGone end

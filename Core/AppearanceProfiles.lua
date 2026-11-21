@@ -5,7 +5,7 @@ Profiles.order = {"minimal", "standard", "detailed"}
 function Profiles.Snapshot(settings)
     local snapshot = {}
     for _, key in ipairs({"fontPercent", "opacityPercent", "trackerWidth", "trackerMaxHeight", "navigatorView",
-        "detailMode", "showQuestXP", "highContrast", "acceptedRows", "offerRows"}) do snapshot[key] = settings[key] end
+        "detailMode", "showQuestXP", "highContrast", "acceptedRows", "offerRows", "theme", "reducedColors"}) do snapshot[key] = settings[key] end
     return snapshot
 end
 function Profiles.Restore(snapshot, settings, catalog)

@@ -245,7 +245,7 @@ end
 
 function addon.ShowAppearancePreview(settings, catalog)
     if not preview then
-        preview = Panel(520, 390, L.AppearancePreview)
+        preview = Panel(520, 430, L.AppearancePreview)
         local backdrop = preview:CreateTexture(nil, "BACKGROUND")
         backdrop:SetPoint("TOPLEFT", 16, -170)
         backdrop:SetPoint("BOTTOMRIGHT", -16, 66)
@@ -271,6 +271,27 @@ function addon.ShowAppearancePreview(settings, catalog)
         preview.xp:SetPoint("TOPRIGHT", preview.detail, "BOTTOMRIGHT", 0, -10)
         preview.xp:SetMaxLines(2)
         preview.xp:SetText(L.PreviewXP)
+        addon.UI.Theme.Bind(preview.xp, "xp", nil, "text")
+        preview.designButtons = {}
+        for index, id in ipairs({"graphite", "parchment", "midnight"}) do
+            local design = id
+            local button = Button(preview, L["Design_" .. id], 150, function()
+                for _, entry in ipairs(preview.catalog or {}) do
+                    if entry.key == "theme" then entry.control:SetValue(design) break end
+                end
+                addon.RefreshAppearancePreview()
+            end)
+            button:SetPoint("TOPLEFT", 22 + (index - 1) * 157, -133)
+            preview.designButtons[index] = button
+        end
+        preview.resetDesign = Button(preview, L.DesignReset, 160, function()
+            for _, entry in ipairs(preview.catalog or {}) do
+                if entry.key == "theme" then entry.control:SetValue("graphite")
+                elseif entry.key == "highContrast" or entry.key == "reducedColors" then entry.control:SetValue(false) end
+            end
+            addon.RefreshAppearancePreview()
+        end)
+        preview.resetDesign:SetPoint("TOPLEFT", 22, -169)
         preview.controls = {}
         for index, definition in ipairs({{"fontPercent", L.FontSize, 10, 80, 140},
             {"trackerWidth", L.NavigatorWidth, 10, 330, 640}, {"opacityPercent", L.Opacity, 5, 0, 100}}) do
@@ -314,7 +335,7 @@ function addon.RefreshAppearancePreview()
     local settings = preview.settings
     preview:SetWidth(math.max(520, (settings.trackerWidth or 352) + 32))
     preview.sampleBackdrop:ClearAllPoints()
-    preview.sampleBackdrop:SetPoint("TOPLEFT", 16, -170)
+    preview.sampleBackdrop:SetPoint("TOPLEFT", 16, -205)
     preview.sampleBackdrop:SetSize(settings.trackerWidth or 352, 150)
     for _, row in ipairs(preview.controls) do
         row.label:SetText(row.spec[2] .. ": " .. tostring(settings[row.spec[1]]) .. (row.spec[1] ~= "trackerWidth" and "%" or ""))
@@ -322,7 +343,8 @@ function addon.RefreshAppearancePreview()
         row.minus:SetEnabled(enabled and settings[row.spec[1]] > row.spec[4])
         row.plus:SetEnabled(enabled and settings[row.spec[1]] < row.spec[5])
     end
-    preview.sampleBackdrop:SetColorTexture(0.35, 0.24, 0.1, settings.opacityPercent / 100)
+    local br, bg, bb = addon.UI.Theme.Color("active")
+    preview.sampleBackdrop:SetColorTexture(br, bg, bb, settings.opacityPercent / 100)
     local r, g, b = addon.UI.Theme.Color("heading")
     preview.bar:SetSize(((settings.trackerWidth or 352) - 24) * .4, 2)
     preview.bar:SetColorTexture(r, g, b, .45)

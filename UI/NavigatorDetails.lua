@@ -40,9 +40,22 @@ function addon.CreateNavigatorDetails(owner, settings)
     end
     function panel:Layout()
         self.body:SetWidth(math.max(180, self:GetWidth() - 48))
+        for _, label in pairs(self.sectionLabels or {}) do label:Hide() end
         local y = 0
         for _, widget in ipairs(self.widgets) do
             if widget:IsShown() then
+                if widget.sectionTitle then
+                    self.sectionLabels = self.sectionLabels or {}
+                    local label = self.sectionLabels[widget]
+                    if not label then
+                        label = addon.UI.CreateLabel(self.body, "GameFontNormalSmall")
+                        self.sectionLabels[widget] = label
+                        label:SetJustifyH("LEFT")
+                    end
+                    label:SetText(widget.sectionTitle) label:Show() label:ClearAllPoints()
+                    label:SetPoint("TOPLEFT", 0, -y) label:SetPoint("TOPRIGHT", 0, -y)
+                    y = y + math.max(18, label:GetStringHeight()) + 5
+                end
                 widget:ClearAllPoints()
                 widget:SetPoint("TOPLEFT", self.body, "TOPLEFT", 0, -y)
                 widget:SetPoint("TOPRIGHT", self.body, "TOPRIGHT", 0, -y)

@@ -54,12 +54,13 @@ function Recommendation.BuildReport(state)
         local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, state.playerLevel)
         local penalty = addon.QuestPrioritizer.GetLevelPenalty(quest, state.playerLevel)
         local journey = state.journeys and state.journeys[quest.id]
-        local travel = addon.TravelSupport.PlanningPenalty(quest, journey, state.journeys ~= nil)
+        local distance = addon.QuestPrioritizer.TravelDistance(measured)
+        local travel = addon.TravelSupport.PlanningPenalty(quest, journey, state.journeys ~= nil, measured and distance - measured.yards)
         local progress = addon.QuestPrioritizer.GetProgressBonus(quest, state.playerLevel)
         local adjustment = state.adjustments and state.adjustments[quest.id] or 0
         lines[#lines + 1] = ("quest=%s level=%s difficulty=%s turnIn=%s yards=%s levelPenalty=%s distanceScore=%s map=%s x=%s y=%s objective=%s xp=%s returnAllowance=%s journeyTotal=%s progressBonus=%s"):format(
             tostring(quest.id), Number(quest.level), difficulty or "unknown", tostring(quest.readyToTurnIn == true),
-            Number(measured and measured.yards), Number(penalty), Number(measured and measured.yards + penalty + travel - progress + adjustment),
+            Number(measured and measured.yards), Number(penalty), Number(measured and distance + penalty + travel - progress + adjustment),
             tostring(marker and marker.mapID or "unknown"), Number(marker and marker.x), Number(marker and marker.y),
             tostring(marker and marker.objectiveIndex or "unknown"), Number(addon.QuestLog.GetTurnInXP(quest)),
             Number(travel), Number(journey and journey.totalYards), Number(progress))

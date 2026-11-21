@@ -42,6 +42,7 @@ function QuestLog.Read(api)
                 elite = api.IsEliteQuest and api.IsEliteQuest(questID) == true,
                 group = group,
                 special = QuestLog.IsSpecialQuest(api, questID),
+                repeatable = info.isRepeatable == true or addon.QuestieIntegration.GetRepeatable(api, questID),
                 readyToTurnIn = ready,
                 failed = api.IsFailed and api.IsFailed(questID),
                 disabled = api.IsQuestDisabledForSession and api.IsQuestDisabledForSession(questID),

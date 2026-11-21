@@ -46,7 +46,7 @@ function Insights.Chains(mapAPI, mapType, quests, chains, measurements)
     local result = {}
     for _, quest in ipairs(quests or {}) do
         local chain = chains and chains[quest.id]
-        local entry = {quest = quest, known = chain ~= nil, detail = {quest.title or addon.L.QuestNumber:format(quest.id)}}
+        local entry = {quest = quest, known = chain ~= nil, targets = {}, detail = {quest.title or addon.L.QuestNumber:format(quest.id)}}
         if chain then
             local names, lastZone, sharedZone = {}, nil, nil
             for depth, title in ipairs(chain.followUps or {}) do
@@ -54,7 +54,9 @@ function Insights.Chains(mapAPI, mapType, quests, chains, measurements)
                 entry.detail[#entry.detail + 1] = "-> " .. title
                 for _, stop in ipairs(chain.stops or {}) do
                     if stop.depth == depth and stop.action == "objective" then
-                        if not entry.stop then entry.stop = {quest = {id = stop.questID, title = stop.title}, target = stop, action = "objective"} end
+                        local target = {quest = {id = stop.questID, title = stop.title}, target = stop, action = "objective"}
+                        entry.targets[#entry.targets + 1] = target
+                        if not entry.stop then entry.stop = target end
                         local _, zone = addon.QuestLocation.GetZone(mapAPI, mapType, stop.mapID)
                         lastZone = zone or addon.L.UnknownZone
                         entry.detail[#entry.detail + 1] = addon.L.ChainGoal:format(zone or addon.L.UnknownZone)

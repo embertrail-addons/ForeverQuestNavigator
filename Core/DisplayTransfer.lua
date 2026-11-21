@@ -3,6 +3,8 @@ local Transfer = {}
 addon.DisplayTransfer = Transfer
 -- A deliberately small data format. Never evaluate imported text as Lua.
 local schema = {
+    theme = {graphite = true, parchment = true, midnight = true}, reducedColors = "boolean",
+    navigatorLayout = {guided = true, lists = true},
     detailMode = {compact = true, detailed = true},
     acceptedRows = {2, 5}, offerRows = {2, 5}, fontPercent = {80, 140}, opacityPercent = {0, 100},
     navigatorView = {goal = true, quest = true, all = true}, trackerMaxHeight = {360, 1000}, trackerWidth = {330, 640},
@@ -14,7 +16,10 @@ function Transfer.Export(settings)
     for key in pairs(schema) do keys[#keys + 1] = key end
     table.sort(keys)
     for _, key in ipairs(keys) do
-        if settings[key] ~= nil then lines[#lines + 1] = key .. "=" .. tostring(settings[key]) end
+        if key ~= "navigatorLayout" and settings[key] ~= nil then
+            local value = key == "navigatorView" and addon.TrackerPresentation.NavigatorView(settings[key]) or settings[key]
+            lines[#lines + 1] = key .. "=" .. tostring(value)
+        end
     end
     return table.concat(lines, "\n")
 end
@@ -43,6 +48,9 @@ function Transfer.Parse(text)
             values[key], count = value, count + 1
         end
     end
+    if values.navigatorView then values.navigatorView = addon.TrackerPresentation.NavigatorView(values.navigatorView)
+    elseif values.navigatorLayout then values.navigatorView = "all" end
+    values.navigatorLayout = nil
     return count > 0 and values or nil
 end
 function Transfer.Changes(values, settings, catalog)

@@ -5,16 +5,19 @@ local function Fold(text)
     return (text:gsub("[A-Z]", function(letter) return string.char(letter:byte() + 32) end)
         :gsub("Ä", "ä"):gsub("Ö", "ö"):gsub("Ü", "ü"):gsub("ẞ", "ß"))
 end
-function addon.FilterSettings(entries, query, advanced)
+function addon.FilterSettings(entries, query, advanced, scope)
     local result = {}
     query = Fold(query or "")
     for _, entry in ipairs(entries) do
         local text = Fold(entry.name .. " " .. (entry.help or "") .. " " .. entry.key .. " " .. (entry.section or ""))
-        if (query ~= "" and text:find(query, 1, true)) or (query == "" and (advanced or entry.basic)) then result[#result + 1] = entry end
+        if ((query ~= "" and text:find(query, 1, true)) or (query == "" and (advanced or entry.basic)))
+            and (not scope or scope == "all" or entry.effect == scope) then result[#result + 1] = entry end
     end
     return result
 end
 local function Display(entry, value)
+    if entry.key == "repeatablePolicy" then return L["RepeatableShort_" .. value] end
+    if entry.key == "theme" then return L["Design_" .. value] end
     if entry.key == "language" then return value == "auto" and L.AutoShort or value == "deDE" and "Deutsch" or "English" end
     if entry.key == "detailMode" then return value == "compact" and L.DetailCompact or L.DetailDetailed end
     if entry.key == "navigatorView" then return L["NavigatorView_" .. value] end
@@ -42,6 +45,22 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
         window.searchHint = addon.UI.CreateLabel(window, "GameFontDisableSmall")
         window.searchHint:SetPoint("TOPLEFT", 18, -85) window.searchHint:SetPoint("TOPRIGHT", -18, -85)
         window.searchHint:SetMaxLines(1) window.searchHint:SetText(L.SettingsEssentialHelp)
+        window.searchHint:Hide()
+        window.scope = addon.UI.CreateUtilityButton(window, L.SettingsScope_all, 250, function()
+            if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+            MenuUtil.CreateContextMenu(window.scope, function(_, menu)
+                menu:CreateTitle(L.SettingsScope)
+                for _, key in ipairs({"all", "view", "logic"}) do
+                    local scope = key
+                    menu:CreateButton(L["SettingsScope_" .. key], function() window.filterScope, window.page = scope, 1 window:Refresh() end)
+                end
+            end)
+        end)
+        window.scope:SetPoint("TOPLEFT", 18, -80)
+        window.examples = addon.UI.CreateUtilityButton(window, L.SettingsExamples, 276, function()
+            addon.ShowAppearancePreview(window.settings, window.catalog)
+        end)
+        window.examples:SetPoint("TOPRIGHT", -18, -80)
         window.rows = {}
         for index = 1, 5 do
             local row = addon.UI.CreateUtilityButton(window, "", 534, function() end)
@@ -59,12 +78,16 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
             row.toggle:SetScript("OnClick", function() window:Change(row.entry, 1) end)
             row.choose = addon.UI.CreateUtilityButton(row, "", 150, function() window:Choose(row.entry) end)
             row.choose:SetPoint("RIGHT", -6, 0)
+            row.choose.textLabel:ClearAllPoints() row.choose.textLabel:SetPoint("LEFT", 5, 0) row.choose.textLabel:SetPoint("RIGHT", -5, 0)
+            row.choose.textLabel:SetJustifyH("CENTER") row.choose.textLabel:SetMaxLines(2)
             row:SetScript("OnClick", function(self)
                 if self.entry and self.entry.choices then window:Choose(self.entry)
                 elseif self.entry and self.entry.kind == "boolean" then window:Change(self.entry, 1) end
             end)
             for _, owner in ipairs({row, row.toggle, row.choose}) do
-                addon.UI.BindTooltip(owner, function() return row.entry and row.entry.name, row.entry and row.entry.help end)
+                addon.UI.BindTooltip(owner, function()
+                    return row.entry and row.entry.name, row.entry and (row.entry.help or "") .. "\n" .. L["SettingEffect_" .. (row.entry.effect or "view")]
+                end)
             end
             window.rows[index] = row
         end
@@ -101,7 +124,8 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
             entry.control:SetValue(value) self:Refresh()
         end
         function window:Refresh()
-            local entries = addon.FilterSettings(self.catalog, self.search:GetText(), self.showAdvanced)
+            local entries = addon.FilterSettings(self.catalog, self.search:GetText(), self.showAdvanced, self.filterScope)
+            self.scope:SetText(L["SettingsScope_" .. (self.filterScope or "all")])
             local pages = math.max(1, math.ceil(#entries / 5)) self.page = math.min(self.page, pages)
             self.advanced:SetText((self.showAdvanced and "[-] " or "[+] ") .. L.AdvancedSettings)
             for index, row in ipairs(self.rows) do

@@ -5,10 +5,11 @@ function Finder.Fold(text)
     return (tostring(text or ""):gsub("[A-Z]", function(letter) return string.char(letter:byte() + 32) end)
         :gsub("Ä", "ä"):gsub("Ö", "ö"):gsub("Ü", "ü"):gsub("ẞ", "ß"))
 end
-function Finder.Build(quests, offers, skipped, destination)
+function Finder.Build(quests, offers, skipped, destination, repeatables)
     local entries, seen = {}, {}
     local function Add(quest, kind, marker, zone)
         if not (quest and quest.id) or seen[quest.id] then return end
+        if repeatables == "hide" and quest.repeatable == true then seen[quest.id] = true return end
         seen[quest.id] = true
         local location = destination and destination(quest.id)
         entries[#entries + 1] = {quest = quest, kind = kind, target = marker or (location and location.target),

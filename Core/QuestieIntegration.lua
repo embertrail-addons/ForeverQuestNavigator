@@ -16,6 +16,13 @@ function Integration.GetQuestTagID(id)
     local ok, tagID = pcall(GetCorrectedTagID, id)
     if ok then return tagID end
 end
+function Integration.GetPreparation(api, id)
+    local db = LibQuestieDB and LibQuestieDB.Quest
+    return addon.QuestPreparation.Read(db, api, id, GetItemCount or C_Item and C_Item.GetItemCount, GetItemInfo)
+end
+function Integration.GetRepeatable(api, id)
+    return addon.QuestPreparation.Repeatable(LibQuestieDB and LibQuestieDB.Quest, api, id)
+end
 
 function Integration.GetObjectiveItemID(id, index)
     if not Integration.IsReady() then return end
@@ -123,13 +130,17 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
     local canEarnXP = addon.QuestLog.GetXPToNextLevel() ~= nil
     for id, measurement in pairs(addon.QuestLocation.MeasureQuests(mapAPI, markersByQuest, ids, localMaps)) do
         local distance = measurement.yards
+        local preparation = distance <= radius and Integration.GetPreparation(questAPI, id) or {}
         if distance <= radius
             and not questAPI.IsOnQuest(id)
-            and not (questAPI.IsQuestFlaggedCompleted and questAPI.IsQuestFlaggedCompleted(id))
+            and (preparation.repeatable or not (questAPI.IsQuestFlaggedCompleted and questAPI.IsQuestFlaggedCompleted(id)))
             and not (questAPI.IsQuestDisabledForSession and questAPI.IsQuestDisabledForSession(id)) then
             local offer = offersByID[id]
             measurement.id, measurement.title, measurement.level = id, offer.title, offer.level
             measurement.group = Integration.GetQuestTagID(id) == 1
+            measurement.special = addon.QuestLog.IsSpecialQuest(questAPI, id)
+            measurement.preparation = preparation
+            measurement.repeatable = measurement.preparation.repeatable
             local mapID, objective, travel = addon.QuestieRoutes.GetOfferTarget(
                 mapAPI, mapType, targetMaps, id, measurement.marker)
             local _, zoneName = addon.QuestLocation.GetZone(mapAPI, mapType, mapID)

@@ -826,7 +826,7 @@ test("German UI uses the client locale and preserves quest text", function()
         Show = noOp,
         IsOwned = function() return false end,
     }
-    local tracker = localized.CreateQuestTracker({ x = 0, y = 0, opacityPercent = 80 }, {}, "0.1.54")
+    local tracker = localized.CreateQuestTracker({ x = 0, y = 0, opacityPercent = 80, environmentExpanded = true }, {}, "0.1.54")
     local content = frames[5]
     tracker:Render({ id = 42, title = "Test der Lehre", level = 30 }, "Räuber getötet: 0/8", {},
         {}, false, nil, "Questziel", nil, nil, nil, { localized.L.QuestXPLevelUp:format(250, 31) })
@@ -956,7 +956,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 return ticker
             end,
         },
-        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false, introSeen = true,
+        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false, introSeen = true, navigatorLayout = "lists",
             sortByDistance = false, currentZoneOnly = true },
         MinimalSliderWithSteppersMixin = { Label = { Right = 3 } },
         Settings = {
@@ -969,6 +969,10 @@ test("TOC startup and quest events update the tracker with or without optional a
                 equal(owner, category)
                 equal(variable, ({
                     language = "FOREVERQUESTNAVIGATOR_LANGUAGE",
+                    repeatablePolicy = "FOREVERQUESTNAVIGATOR_REPEATABLES",
+                    theme = "FOREVERQUESTNAVIGATOR_THEME",
+                    reducedColors = "FOREVERQUESTNAVIGATOR_REDUCED_COLORS",
+                    navigatorLayout = "FOREVERQUESTNAVIGATOR_LAYOUT",
                     detailMode = "FOREVERQUESTNAVIGATOR_DETAIL_MODE",
                     navigatorView = "FOREVERQUESTNAVIGATOR_NAVIGATOR_VIEW",
                     trackerMaxHeight = "FOREVERQUESTNAVIGATOR_MAX_HEIGHT",
@@ -1000,10 +1004,12 @@ test("TOC startup and quest events update the tracker with or without optional a
                 })[key])
                 local expectedType = ({ opacityPercent = "number", questieOfferRadius = "number", language = "string",
                     fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string",
-                    navigatorView = "string", trackerMaxHeight = "number", trackerWidth = "number" })[key]
+                    navigatorView = "string", trackerMaxHeight = "number", trackerWidth = "number", theme = "string", navigatorLayout = "string", repeatablePolicy = "string" })[key]
                 equal(variableType, expectedType or "boolean")
                 equal(name, ({
                     language = "Language",
+                    repeatablePolicy = "Repeatable quests",
+                    theme = "Color design", reducedColors = "Reduce semantic colors", navigatorLayout = "Main window layout",
                     detailMode = "Tracker detail",
                     navigatorView = "Navigator view",
                     trackerMaxHeight = "Maximum navigator height",
@@ -1034,6 +1040,10 @@ test("TOC startup and quest events update the tracker with or without optional a
                     questieOfferRadius = "Quest offer search radius",
                 })[key])
                 local expectedDefault = true
+                if key == "repeatablePolicy" then expectedDefault = "show" end
+                if key == "theme" then expectedDefault = "graphite" end
+                if key == "navigatorLayout" then expectedDefault = "guided" end
+                if key == "reducedColors" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end
                 if key == "language" then expectedDefault = "auto" end
@@ -1049,6 +1059,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "trackerWidth" then expectedDefault = 352 end
                 equal(defaultValue, expectedDefault)
                 local setting = { key = key }
+                function setting:GetValue() return db[key] end
                 function setting:SetValue(value)
                     db[key] = value
                     if self.callback then self.callback(self, value) end
@@ -1067,8 +1078,17 @@ test("TOC startup and quest events update the tracker with or without optional a
             CreateDropdown = function(owner, setting, getOptions)
                 equal(owner, category)
                 local options = getOptions()
+                if setting == settingsByKey.repeatablePolicy then
+                    equal(#options, 3) equal(options[1].value, "level") equal(options[3].value, "hide") return
+                end
+                if setting == settingsByKey.theme then
+                    equal(#options, 3) equal(options[1].value, "graphite") equal(options[3].value, "midnight") return
+                end
+                if setting == settingsByKey.navigatorLayout then
+                    equal(#options, 2) equal(options[1].value, "guided") equal(options[2].value, "lists") return
+                end
                 if setting == settingsByKey.navigatorView then
-                    equal(#options, 3) equal(options[1].value, "goal") equal(options[3].value, "all") return
+                    equal(#options, 2) equal(options[1].value, "goal") equal(options[2].value, "all") return
                 end
                 if setting == settingsByKey.detailMode then
                     equal(#options, 2)
@@ -1468,6 +1488,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     local collapsedHeight = tracker:GetHeight()
     assert(collapsedHeight < expandedHeight)
     equal(env.ForeverQuestNavigatorDB.collapsed, true)
+    equal(settingsByKey.navigatorView:GetValue(), "goal")
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("")
 
     local firstNewFrame = #frames + 1
@@ -1958,7 +1979,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     local secondOffer = frames[firstNewFrame + 18]
     equal(firstOffer.label.text, "[10] Other nearby quest")
     equal(secondOffer.label.text, "[8] Near quest")
-    equal(firstOffer.distance.text, "~60 yd")
+    equal(firstOffer.distance.text, "Pickup ~60 yd")
     equal(firstOffer.checkbox, nil)
     equal(firstOffer.recommendation:IsShown(), false)
     local offersToggle = offer.point[2]
@@ -1985,7 +2006,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     settingsByKey.questieOfferRadius:SetValue(1000)
     flush()
     equal(firstOffer.label.text, "[10] Other nearby quest")
-    equal(firstOffer.details.text, "~2400 XP · Recommended")
+    equal(firstOffer.details.text, "Target: Westfall · ~2400 XP · Accept before leaving")
     assert(firstOffer.fullDetails:find("Target: Westfall", 1, true))
     assert(firstOffer.fullDetails:find("~10 yd", 1, true))
     equal(firstOffer.recommendation:IsShown(), true)
@@ -2014,8 +2035,9 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(selectedQuest, beforeSelected)
     equal(title.text, beforeOfferTitle)
     reloadedAddon.ShowQuestMapMarker = originalMarker
-    equal(secondOffer.recommendation:IsShown(), false)
-    equal(firstOffer.distance.text, "~60 yd")
+    equal(secondOffer.recommendation:IsShown(), true)
+    equal(secondOffer.measurement.beforeDeparture, true)
+    equal(firstOffer.distance.text, "Pickup ~60 yd")
     equal(frames[firstNewFrame + 20].label.text, "Distant quest")
     reloadedCollapse:Click()
     equal(firstOffer:IsShown(), false)
@@ -3021,14 +3043,14 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_LOG_UPDATE")
     flush()
     if not routeDetails:IsShown() then routeToggle:Click() end
-    local detailedHeight = updatedTracker:GetHeight()
+    local detailedHeight = updatedTracker.scrollBody:GetHeight()
     local selectedTitle = title.text
     settingsByKey.detailMode:SetValue("compact")
     equal(routeDetails:IsShown(), true)
     equal(rowOne.reward:IsShown(), false)
     assert(rowOne.actionBadge:IsShown()) equal(rowOne.actionBadge.text, "Turn in")
     equal(rowOne.routeButton:IsShown(), true)
-    assert(updatedTracker:GetHeight() < detailedHeight)
+    assert(updatedTracker.scrollBody:GetHeight() < detailedHeight)
     equal(title.text, selectedTitle)
     mainMapButton.scripts.OnEnter(mainMapButton)
     assert(tooltip.lines[1]:find("complete information", 1, true))
@@ -3347,8 +3369,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     local planning
     for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "Quest planning" then planning = frame end end
     assert(planning and planning:IsShown())
-    planning.modeSelector:Click() equal(#historyMenu.entries, 4)
-    historyMenu.entries[3].restore() equal(planning.mode, "items")
+    planning.modeSelector:Click() equal(#historyMenu.entries, 10)
+    historyMenu.entries[5].restore() equal(planning.mode, "items")
     planning:SelectMode("turnIns")
     planning.scripts.OnUpdate(planning, 1)
     assert(planning.summary.text:find("turn-ins", 1, true))
@@ -3357,6 +3379,23 @@ test("TOC startup and quest events update the tracker with or without optional a
     local previousCombat = env.InCombatLockdown
     updatedTracker:Show()
     if #timers > 0 then flush() end
+    do
+        equal(settingsByKey.navigatorLayout, nil)
+        settingsByKey.navigatorView:SetValue("all")
+        settingsByKey.theme:SetValue("midnight")
+        settingsByKey.reducedColors:SetValue(true)
+        flush()
+        equal(reloadedAddon.UI.Theme.design, "midnight") equal(reloadedAddon.UI.Theme.reducedColors, true)
+        assert(updatedTracker.nextBoard:IsShown())
+        equal(updatedTracker.nextBoard.parent, updatedTracker.scrollBody)
+        local previousEnvironment = updatedTracker.environmentExpanded
+        updatedTracker.nextBoard.environment:Click() equal(updatedTracker.environmentExpanded, not previousEnvironment)
+        updatedTracker.nextBoard.environment:Click() equal(updatedTracker.environmentExpanded, previousEnvironment)
+        settingsByKey.theme:SetValue("graphite") settingsByKey.reducedColors:SetValue(false)
+        settingsByKey.navigatorView:SetValue("goal") if #timers > 0 then flush() end
+        equal(updatedTracker.nextBoard:IsShown(), false)
+        settingsByKey.navigatorView:SetValue("all") if #timers > 0 then flush() end
+    end
     local selectedBeforeCombat = reloadedAddon.GetNavigationSnapshot().activeQuestID
     env.InCombatLockdown = function() return true end
     fire("PLAYER_REGEN_DISABLED")
@@ -3518,6 +3557,50 @@ test("TOC startup and quest events update the tracker with or without optional a
     end
     PinQuest(1002) flush()
     do (function()
+        local review = reloadedAddon.OpenExcursionFromArea()
+        local plan = {stops = {{quest = {id = 1002, title = "Other patrol"}, action = "objective",
+            target = {mapID = 10, x = .68, y = .5, objectiveIndex = 1}}}, index = 1, xp = 0, unknownXP = 1, missing = 0}
+        review.plan = plan review:Refresh()
+        equal(plan.running, nil)
+        review.start:Click() flush()
+        equal(plan.running, true) equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, 1002)
+        review.pause:Click() flush() equal(plan.running, false)
+        do (function()
+            local originalOffers = reloadedAddon.QuestieIntegration.GetNearbyOffers
+            local originalX, originalOffersSetting = playerX, env.ForeverQuestNavigatorDB.showQuestieOffers
+            local offer = {id = 5555, title = "Pickup for outing", level = 11, levelPenalty = 0,
+                marker = {mapID = 10, x = .5, y = .5}, objectiveMarker = {mapID = 10, x = .68, y = .5},
+                objectiveYards = 180, journeyYards = 190, yards = 10, east = 10, north = 0}
+            reloadedAddon.QuestieIntegration.GetNearbyOffers = function() return {offer} end
+            env.ForeverQuestNavigatorDB.showQuestieOffers = true
+            fire("QUEST_LOG_UPDATE") flush()
+            review.plan = {stops = {{quest = offer, action = "accept", target = offer.marker}, plan.stops[1]},
+                index = 1, xp = 0, unknownXP = 2, missing = 0}
+            review:Refresh() review.start:Click() flush()
+            assert(updatedTracker.detour and updatedTracker.detour.excursion)
+            playerX = .5 directionTicker.tick()
+            assert(updatedTracker.detour and updatedTracker.detour.excursion, "Arrival must wait for actual quest acceptance")
+            review.pause:Click() flush() equal(updatedTracker.detour, nil)
+            reloadedAddon.QuestieIntegration.GetNearbyOffers = originalOffers
+            env.ForeverQuestNavigatorDB.showQuestieOffers, playerX = originalOffersSetting, originalX
+            fire("QUEST_LOG_UPDATE") flush()
+        end)() end
+        review:Hide()
+        PinQuest(1002) flush()
+        do (function()
+            local previousNote = reloadedAddon.UndoHistory.Copy(env.ForeverQuestNavigatorCharacterDB.questNotes[1002])
+            local noteEditor = reloadedAddon.OpenQuestNote(1002, false)
+            noteEditor.edit:SetText("Eingang im Norden · persönliche Notiz") noteEditor.save:Click() flush()
+            equal(reloadedAddon.GetQuestNoteText(1002), "Eingang im Norden · persönliche Notiz")
+            assert(updatedTracker.questSummary:GetText():find("Eingang im Norden", 1, true))
+            assert(not reloadedAddon.GetNavigationSnapshot().view.reason:find("persönliche Notiz", 1, true))
+            noteEditor = reloadedAddon.OpenQuestNote(1002, false) noteEditor.clear:Click() flush()
+            equal(reloadedAddon.GetQuestNoteText(1002), nil)
+            env.ForeverQuestNavigatorCharacterDB.questNotes[1002] = previousNote
+            fire("QUEST_LOG_UPDATE") flush()
+        end)() end
+    end)() end
+    do (function()
         mainMapButton:Click("RightButton")
         MenuAction("Prioritize until objectives complete") flush()
         assert(tooltip ~= nil)
@@ -3574,9 +3657,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     env.GetQuestLogChoiceInfo = function(index, id) equal(id, 1002) return index == 2 and "Quest staff" or nil, nil, 1, 2, true, 10 + index end
     fire("QUEST_LOG_UPDATE") flush()
     mainMapButton.scripts.OnEnter(mainMapButton)
-    assert(updatedTracker.detailExplanation.text:find("1g 23s 45c", 1, true))
-    assert(updatedTracker.detailExplanation.text:find("Guaranteed items:", 1, true))
-    assert(updatedTracker.detailExplanation.text:find("Choose one reward:", 1, true))
+    assert(updatedTracker.rewardDetails.text:find("1g 23s 45c", 1, true))
+    assert(updatedTracker.rewardDetails.text:find("Guaranteed items:", 1, true))
+    assert(updatedTracker.rewardDetails.text:find("Choose one reward:", 1, true))
+    assert(not updatedTracker.detailExplanation.text:find("1g 23s 45c", 1, true))
     assert(tooltip.lines[1]:find("complete information", 1, true))
     equal(selectedQuest, rewardSelection)
     equal(reloadedAddon.QuestRewards.HasPending(), true)
@@ -3590,7 +3674,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("GET_ITEM_INFO_RECEIVED", 11, true) flush()
     equal(reloadedAddon.QuestRewards.HasPending(), false)
     mainMapButton.scripts.OnEnter(mainMapButton)
-    assert(updatedTracker.detailExplanation.text:find("Quest sword x1", 1, true))
+    assert(updatedTracker.rewardDetails.text:find("Quest sword x1", 1, true))
     fire("GET_ITEM_INFO_RECEIVED", 15, true)
     equal(#timers, 0)
     equal(selectedQuest, rewardSelection)
@@ -3788,4 +3872,7 @@ assert(loadfile("tests/stability_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/final_release_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/workspace_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/ux_features.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/pickup_planning.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/decision_brief.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/outing_improvements.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

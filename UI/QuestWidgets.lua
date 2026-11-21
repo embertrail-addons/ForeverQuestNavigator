@@ -21,6 +21,8 @@ function addon.UI.ExpandHitArea(button, padding, vertical)
 end
 
 function addon.UI.FormatDistance(measurement, compact)
+    if not measurement or type(measurement.yards) ~= "number" or measurement.yards ~= measurement.yards
+        or measurement.yards < 0 or measurement.yards == math.huge then return "—" end
     if compact and measurement and measurement.yards >= 1000 then return ("~%.1fk yd"):format(measurement.yards / 1000) end
     return measurement and ("~%.0f yd"):format(measurement.yards) or "—"
 end
@@ -132,15 +134,20 @@ function addon.UI.SetFontSize(percent)
     end
 end
 
-local function FormatQuestTitle(quest)
+local function FormatQuestTitle(quest, colored, playerLevel)
     local title = quest.title
     if not title or title == "" then
         title = L.QuestNumber:format(quest.id)
     end
     local level = addon.QuestPrioritizer.GetLevel(quest)
     local result = level and ("[%d] %s"):format(level, title) or title
-    if quest.elite or quest.group then result = result .. " |cffffc447+|r" end
-    if quest.progress and quest.progress.nearly then result = result .. " |cff80cc80(" .. L.NearlyDone .. ")|r" end
+    if colored and level then
+        local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, playerLevel or (UnitLevel and UnitLevel("player")))
+        local r, g, b = addon.UI.Theme.Color("difficulty_" .. (difficulty or "gray"))
+        result = ("|cff%02x%02x%02x[%d]|r %s"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), level, title)
+    end
+    if (quest.elite or quest.group) and not colored then result = result .. " |cffffc447+|r" end
+    if quest.progress and quest.progress.nearly then result = result .. " (" .. L.NearlyDone .. ")" end
     return result
 end
 

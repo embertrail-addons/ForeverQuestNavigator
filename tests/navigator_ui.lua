@@ -11,7 +11,7 @@ return function(test, equal, near, mockUI, loadAddon)
             SetOwner = function() end, SetText = function() end, AddLine = function() end, Show = function() end}
         local addon = loadAddon(env, false)
         local settings = {x = 0, y = 0, opacityPercent = 80, fontPercent = 100, showQuestRewards = false,
-            showScreenArrow = true, acceptedRows = 2, offerRows = 3}
+            showScreenArrow = true, acceptedRows = 2, offerRows = 3, environmentExpanded = true}
         local actions = {openQuestMap = function(id) maps[#maps + 1] = id end,
             openOfferMap = function(id) maps[#maps + 1] = id end,
             skip = function(quest) skipped[#skipped + 1] = quest.id end,
@@ -246,11 +246,11 @@ return function(test, equal, near, mockUI, loadAddon)
             end})
         end}
         tracker.header.scripts.OnMouseUp(tracker.header, "RightButton")
-        equal(#choices, 3) choices[1].action()
+        equal(#choices, 2) choices[1].action()
         equal(settings.navigatorView, "goal") equal(tracker.acceptedRows[1]:IsShown(), false)
         equal(tracker.navigation.title.text, "[10] Active quest")
-        choices[2].action() equal(settings.navigatorView, "quest") assert(tracker.goalRows[2]:IsShown())
-        choices[3].action() assert(tracker.acceptedRows[1]:IsShown())
+        choices[2].action() equal(settings.navigatorView, "all") assert(tracker.goalRows[2]:IsShown())
+        assert(tracker.acceptedRows[1]:IsShown()) equal(settings.collapsed, false)
     end)
     test("Empty and unmapped states explain a useful action without claiming a route", function()
         local _, tracker, _, maps = Fixture()
@@ -262,13 +262,14 @@ return function(test, equal, near, mockUI, loadAddon)
         assert(tracker.emptyMessage.text:find("No coordinates", 1, true))
         tracker.emptyAction:Click() equal(maps[2], 99)
     end)
-    test("Information lines have consistent ordering and nearby zones use the player's zone", function()
+    test("Information lines distinguish offer destinations even inside the player's current zone", function()
         local addon, tracker, _, _, _, _, _, _, _, env = Fixture()
         equal(addon.TrackerPresentation.Information("Elsewhere", "~100 XP", "Recommended"), "Elsewhere · ~100 XP · Recommended")
         equal(addon.TrackerPresentation.Information(nil, "~100 XP", nil), "~100 XP")
         env.GetRealZoneText = function() return "Here" end
         tracker:RenderNearbyOffers({{id = 10, title = "Offer", yards = 25, pickupZone = "Elsewhere", objectiveZone = "Here", xp = 100}}, true)
-        equal(tracker.offerRows[1].details.text, "~100 XP")
+        equal(tracker.offerRows[1].details.text, "Target: Here · ~100 XP")
+        equal(tracker.offerRows[1].distance.text, "Pickup ~25 yd")
         equal(addon.TrackerPresentation.Summary("One\nTwo\nThree\nFour", 2), "One\nTwo")
         assert(tracker.offerRows[1].fullDetails:find("Target: Here", 1, true))
     end)
@@ -419,6 +420,7 @@ return function(test, equal, near, mockUI, loadAddon)
                         for index = 1, 24 do targets[index] = {index = index, text = "Eine lange Zielbeschreibung\nmit zusätzlichem Fortschritt: 2/12", selectable = true} end
                         tracker:Render({id = 1, title = title, level = 34}, "", {}, {}, false, nil,
                             "Full route details", nil, nil, nil, nil, targets, true)
+                        tracker.moreGoals:Click()
                         assert(tracker:GetHeight() <= limit) assert(tracker.viewport.maximum > 0)
                         assert(tracker.scrollBody:GetWidth() <= width)
                         equal(tracker.questTitle.text, "[34] " .. title)
@@ -541,5 +543,216 @@ return function(test, equal, near, mockUI, loadAddon)
         equal(info.points.TOPRIGHT[2], -14)
         local bottom = -info.points.TOPLEFT[3] + info:GetStringHeight()
         assert(-tracker.routeMap.point[3] >= bottom + 4, "Quest actions overlap the information text")
+    end)
+    test("Pickup planning stays in the scroll body, opens the right view and respects collapsed navigation", function()
+        local addon, tracker, settings = Fixture("deDE")
+        local opened = 0
+        tracker.openPickupPlanning = function() opened = opened + 1 end
+        tracker:SetPickupPlanning({areas = {{}}, pickups = {{id = 2}}, outing = {}})
+        tracker:SetDecisionBrief({steps = {}, closing = {}})
+        local button = tracker.nextBoard.plan
+        equal(tracker.nextBoard.parent, tracker.scrollBody) assert(tracker.nextBoard:IsShown())
+        button:Click() equal(opened, 1)
+        tracker:SetNavigatorView("goal") equal(tracker.nextBoard:IsShown(), false)
+        settings.collapsed = false tracker:SetPickupPlanning({areas = {}, pickups = {}, outing = {}})
+        tracker:SetNavigatorView("all") assert(tracker.nextBoard:IsShown())
+        equal(tracker.departureButton, nil)
+    end)
+    test("Planning areas expand to quest actions and return without changing the active quest", function()
+        local addon = Fixture()
+        local quest = {id = 2, title = "Pickup", level = 10, yards = 50, pickupZone = "Town", objectiveZone = "Camp",
+            marker = {mapID = 1, x = .1, y = .2}, objectiveYards = 500}
+        local area = {target = {mapID = 1, x = .4, y = .2}, entries = {{quest = quest, pickup = true, target = {mapID = 1, x = .4, y = .2}}},
+            zone = "Camp", active = 0, pickups = 1, xp = 100, unknownXP = 0, followUps = {}}
+        local stops = {}
+        local window = addon.ShowPlanningOverview(function() return {pickupPlanning = {areas = {area}, outing = {}, budget = 1}} end,
+            function(stop) stops[#stops + 1] = stop end, "test")
+        window:SelectMode("areas")
+        window.rows[1]:Click() equal(window.areaKey, 2)
+        window.rows[2]:Click() equal(stops[1].action, "accept") equal(stops[1].target, quest.marker)
+        window.rows[1]:Click() equal(window.areaKey, nil)
+        window:SelectMode("outing") equal(window.page, 1)
+    end)
+    test("Guided navigation discloses full lists without changing map clicks or quest priority", function()
+        local addon, tracker, settings, maps, skipped, render, b = Fixture("deDE")
+        settings.navigatorLayout = "guided"
+        tracker.environmentExpanded = false
+        tracker:SetDecisionBrief({steps = {{quest = b, kind = "objective", action = "objective", yards = 100,
+            target = {mapID = 1, x = .2, y = .3}}}, closing = {}, phaseText = addon.L.BriefPhase_travel, playerLevel = 10})
+        assert(tracker.nextBoard:IsShown()) equal(tracker.acceptedRows[1]:IsShown(), false)
+        tracker.nextBoard.rows[1].map:Click() equal(maps[1], b.id) equal(#skipped, 0)
+        tracker.nextBoard.environment:Click() assert(tracker.acceptedRows[1]:IsShown())
+        tracker.nextBoard.environment:Click() equal(tracker.acceptedRows[1]:IsShown(), false)
+        tracker:SetNavigatorView("goal") equal(tracker.nextBoard:IsShown(), false)
+        tracker:SetNavigatorView("all") assert(tracker.nextBoard:IsShown())
+        equal(tracker.acceptedRows[1]:IsShown(), false)
+    end)
+    test("Guided board respects collapse, focus, flight and combat without changing presentation preferences", function()
+        local _, tracker, settings = Fixture()
+        settings.navigatorLayout = "guided"
+        tracker:SetDecisionBrief({steps = {}, closing = {}})
+        assert(tracker.nextBoard:IsShown())
+        settings.collapsed = true tracker:UpdateNavigatorLayout() equal(tracker.nextBoard:IsShown(), false)
+        settings.collapsed = false tracker:SetFlightView(true, "Flying") equal(tracker.nextBoard:IsShown(), false)
+        tracker:SetFlightView(false) assert(tracker.nextBoard:IsShown())
+        tracker:SetCombatView(true) equal(tracker.nextBoard:IsShown(), false)
+        tracker:SetCombatView(false) assert(tracker.nextBoard:IsShown())
+        tracker:SetNavigatorView("goal") equal(tracker.nextBoard:IsShown(), false)
+        equal(settings.navigatorLayout, "guided")
+    end)
+    test("Guided board stress matrix reserves distance and action space with long text", function()
+        for _, locale in ipairs({"enUS", "deDE"}) do
+            for _, width in ipairs({330, 440, 640}) do
+                for _, size in ipairs({80, 140}) do
+                    local _, tracker, settings, _, _, _, b = Fixture(locale)
+                    settings.navigatorLayout, settings.fontPercent = "guided", size
+                    tracker:SetWidth(width) tracker:UpdateFontSize()
+                    b.title = string.rep("Long quest title with words ", 8)
+                    tracker:SetDecisionBrief({steps = {{quest = b, kind = "objective", yards = 12345, detail = string.rep("Reason ", 15)}}, closing = {}, playerLevel = 10})
+                    local board, row = tracker.nextBoard, tracker.nextBoard.rows[1]
+                    row.label.GetStringHeight = function() return 44 end
+                    board.plan.textLabel.GetStringHeight = function() return 40 end
+                    tracker:UpdateNavigatorLayout()
+                    assert(row:GetHeight() >= 44 + 24 + 10)
+                    assert(board.plan:GetHeight() >= 48)
+                    assert(-row.detail.points.TOPRIGHT[2] >= 86 * size / 100 + row.distance:GetStringWidth() + 8)
+                    equal(row.parent, board) equal(board.parent, tracker.scrollBody)
+                    assert(tracker:GetHeight() <= (settings.trackerMaxHeight or 600))
+                end
+            end
+        end
+    end)
+    test("Guided phase updates keep explicit priority and leave the next-step board unchanged", function()
+        local addon, tracker, settings, _, _, render = Fixture()
+        settings.navigatorLayout = "guided" render(nil, true)
+        tracker:SetDecisionBrief({steps = {}, closing = {}, phase = "travel", phaseText = addon.L.BriefPhase_travel})
+        tracker:SetJourneyPhase("work")
+        assert(tracker.statusLine:GetText():find(addon.L.BriefPhase_work, 1, true))
+        assert(tracker.resumeAuto:IsShown())
+        tracker:SetJourneyPhase("flight")
+        equal(tracker.decisionBrief.phase, "flight")
+    end)
+    test("Decision views use independent expansion and keep closing hand-in map identities", function()
+        local addon = Fixture()
+        local quest = {id = 2, title = "Ready", level = 10, readyToTurnIn = true}
+        local target = {mapID = 8, x = .4, y = .2}
+        local stop = {quest = quest, target = target, xp = 100, action = "turnIn"}
+        local model = {measurements = {[2] = {yards = 100, marker = target}}, turnInTour = {stops = {stop}}}
+        model.brief = addon.DecisionBrief.Build(model)
+        local opened = {}
+        local window = addon.ShowPlanningOverview(function() return model end, function(value) opened[#opened + 1] = value end, "test")
+        window:SelectMode("handIns") window.rows[1]:Click() equal(window.handInMap, 8)
+        window.rows[2]:Click() equal(opened[1].target, target)
+        window.rows[1]:Click() equal(window.handInMap, nil)
+        window:SelectMode("closing") window.rows[1]:Click() equal(opened[2].quest.id, 2)
+        window:SelectMode("progress") equal(window.rows[1]:IsShown(), false)
+    end)
+    test("Quest details keep rewards in their own section and reopen without a priority change", function()
+        local addon, tracker, settings, maps = Fixture()
+        settings.navigatorLayout = "guided"
+        local quest = {id = 1, title = "Main quest", level = 10}
+        local snapshot = {playerLevel = 10, view = {quest = quest, objectives = "Collect supplies", alternatives = {},
+            hasMap = true, reason = "Distance and level fit", routeDetails = "Walk to the camp", rewardDetails = "Quest sword", rewards = {"~100 XP"}}}
+        snapshot.brief = addon.DecisionBrief.Build(snapshot)
+        tracker:RenderSnapshot(snapshot, {}) tracker:OpenDetails()
+        assert(tracker.rewardDetails:IsShown()) equal(tracker.rewardDetails:GetText(), "Quest sword")
+        equal(tracker.rewardDetails.sectionTitle, addon.L.DetailReward)
+        assert(not tracker.detailExplanation:GetText():find("Quest sword", 1, true))
+        tracker.detailPanel:Hide() tracker:OpenDetails()
+        assert(tracker.rewardDetails:IsShown()) tracker.detailPanel.map:Click()
+        equal(maps[1], 1) equal(#maps, 1)
+    end)
+    test("Settings are opaque on first open even with an invisible navigator, before any palette switch", function()
+        local addon, tracker, settings = Fixture()
+        settings.opacityPercent = 0 tracker:UpdateOpacity()
+        equal(tracker.backdropAlpha, 0)
+        local panel
+        addon.UI.ToolHub.Configure({settings = function()
+            panel = addon.ShowQuickSettings({}, settings, function() end)
+        end})
+        local hub = addon.UI.ToolHub
+        hub.Open("settings")
+        assert(panel:IsShown()) equal(hub.root.backdropAlpha, 1)
+        equal(panel.backdropAlpha, 0) -- Embedded pages use the opaque parent.
+        addon.UI.Theme.Apply(false, "midnight", false)
+        equal(hub.root.backdropAlpha, 1) equal(panel.backdropAlpha, 0)
+        hub.root:Hide() settings.opacityPercent = 35 tracker:UpdateOpacity()
+        hub.Open("settings") equal(hub.root.backdropAlpha, 1)
+        near(tracker.backdropAlpha, .35)
+    end)
+    test("Collapse button and settings use the same two views while extra focused objectives remain accessible", function()
+        local addon, tracker, settings, maps = Fixture()
+        local calls = 0
+        local control = {}
+        function control:GetValue() return settings.navigatorView or "all" end
+        function control:SetValue(value)
+            calls = calls + 1 settings.navigatorView = value tracker:SetNavigatorView(value)
+        end
+        addon.SettingsController.settings = settings
+        addon.SettingsController.catalog = {{key = "navigatorView", control = control}}
+        tracker.collapseButton:Click()
+        equal(settings.navigatorView, "goal") equal(settings.collapsed, true) equal(calls, 1)
+        equal(tracker.goalRows[2]:IsShown(), false)
+        tracker.moreGoals:Click() assert(tracker.goalRows[2]:IsShown())
+        tracker.collapseButton:Click()
+        equal(settings.navigatorView, "all") equal(settings.collapsed, false) equal(calls, 2)
+        equal(#maps, 0)
+    end)
+    test("A separate demo tracker cannot change the live navigator view setting", function()
+        local addon, tracker, settings = Fixture()
+        local live = {navigatorView = "all"}
+        addon.SettingsController.settings = live
+        addon.SettingsController.catalog = {{key = "navigatorView", control = {
+            GetValue = function() return live.navigatorView end,
+            SetValue = function() error("Live settings must not be changed") end}}}
+        tracker:SetNavigatorView("quest")
+        equal(settings.navigatorView, "goal") equal(live.navigatorView, "all")
+    end)
+    test("The map legend clear action invokes FQN's marker removal callback", function()
+        local addon, _, _, _, _, _, _, _, map = Fixture()
+        local removed = 0
+        addon.ClearFQNMapMarkers = function() removed = removed + 1 addon.UpdateMapLegend(map, nil) end
+        addon.UpdateMapLegend(map, {mapID = 1, x = .2, y = .3})
+        assert(map.FQNLegend:IsShown()) map.FQNLegend.clear:Click()
+        equal(removed, 1) equal(map.FQNLegend:IsShown(), false)
+    end)
+    test("Personal note editing saves only on an explicit save or clear action", function()
+        local addon = Fixture()
+        local saved = {}
+        local editor = addon.ShowQuestNoteEditor(1, "Quest", "North entrance", function(text) saved[#saved + 1] = text end)
+        equal(#saved, 0) equal(editor.edit:GetText(), "North entrance")
+        editor.edit:SetText("Use the northern entrance") editor.save:Click()
+        equal(saved[1], "Use the northern entrance") equal(editor:IsShown(), false)
+        addon.ShowQuestNoteEditor(1, "Quest", saved[1], function(text) saved[#saved + 1] = text end)
+        editor.clear:Click() equal(saved[2], "")
+    end)
+    test("Camp map inspection and explicit selection are distinct actions", function()
+        local addon = Fixture()
+        local choice = {quest = {id = 1}, target = {mapID = 1, x = .2, y = .3}, yards = 100, shared = 2}
+        local mapped, selected = 0, 0
+        local window = addon.ShowCampChoices(function() return {choice} end,
+            function(value) equal(value, choice) mapped = mapped + 1 end,
+            function(value) equal(value, choice) selected = selected + 1 end)
+        window.rows[1].map:Click() equal(mapped, 1) equal(selected, 0)
+        window.rows[1].select:Click() equal(selected, 1)
+    end)
+    test("Outing review does not start navigation through map inspection", function()
+        local addon = Fixture()
+        local plan = addon.ExcursionPlan.Build({entries = {{quest = {id = 1, title = "Quest"}, target = {mapID = 1, x = .2, y = .3}}}})
+        local mapped, started = 0, 0
+        local window = addon.ShowExcursion(plan, {map = function() mapped = mapped + 1 end,
+            start = function() started = started + 1 return true end, pause = function() end})
+        equal(started, 0) window.rows[1]:Click() equal(mapped, 1) equal(started, 0)
+        window.start:Click() equal(started, 1)
+    end)
+    test("Quick settings can filter recommendation controls and expose a separate example preview", function()
+        local addon, _, settings = Fixture()
+        local entries = {{key = "theme", name = "Theme", help = "Colors", basic = true, effect = "view", choices = {"graphite"}},
+            {key = "repeatablePolicy", name = "Repeatable", help = "Ranking", basic = true, effect = "logic", choices = {"show"}}}
+        settings.theme, settings.repeatablePolicy = "graphite", "show"
+        local window = addon.ShowQuickSettings(entries, settings, function() end)
+        window.filterScope = "logic" window:Refresh()
+        equal(window.rows[1].entry.key, "repeatablePolicy") equal(window.rows[2]:IsShown(), false)
+        assert(window.examples:IsShown())
     end)
 end

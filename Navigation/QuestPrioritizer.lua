@@ -82,6 +82,10 @@ function QuestPrioritizer.Rank(quests, skippedQuestIDs, localQuestIDs)
     return ranked
 end
 
+function QuestPrioritizer.TravelDistance(measured)
+    local value = measured and measured.travelYards
+    return type(value) == "number" and value >= 0 and value < math.huge and value or measured and measured.yards
+end
 function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrder, playerLevel, journeys, trivialRange, adjustments)
     local remaining, unknownQuests, levelOrder, scores, tiers = {}, {}, {}, {}, {}
     for index, quest in ipairs(levelRanked) do
@@ -90,8 +94,9 @@ function QuestPrioritizer.RankByDistance(levelRanked, measurements, previousOrde
         if measurements[quest.id] then
             remaining[#remaining + 1] = quest
             levelOrder[quest.id] = index
-            scores[quest.id] = measurements[quest.id].yards + LevelPenalty(quest, playerLevel, difficulty)
-                + addon.TravelSupport.PlanningPenalty(quest, journeys and journeys[quest.id], journeys ~= nil)
+            local distance = QuestPrioritizer.TravelDistance(measurements[quest.id])
+            scores[quest.id] = distance + LevelPenalty(quest, playerLevel, difficulty)
+                + addon.TravelSupport.PlanningPenalty(quest, journeys and journeys[quest.id], journeys ~= nil, distance - measurements[quest.id].yards)
                 - QuestPrioritizer.GetProgressBonus(quest, playerLevel, trivialRange)
                 + (adjustments and adjustments[quest.id] or 0)
         else

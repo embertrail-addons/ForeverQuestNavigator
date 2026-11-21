@@ -13,7 +13,10 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
         window.comparison:SetPoint("TOPRIGHT", -18, -48)
         window.comparison:SetJustifyH("LEFT")
         window.comparison:SetMaxLines(5)
-        addon.UI.BindTooltip(window, function() return L.RouteComparison, window.model and window.model.comparison end)
+        addon.UI.BindTooltip(window, function()
+            return L.PlanningView, (window.model and window.model.comparison or L.ComparisonUnavailable)
+                .. "\n" .. (window.summary and window.summary:GetText() or "")
+        end)
         function window:SelectMode(mode)
             self.modePages = self.modePages or {}
             if self.mode then self.modePages[self.mode] = self.page end
@@ -23,7 +26,9 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
             MenuUtil.CreateContextMenu(window.modeSelector, function(_, menu)
                 menu:CreateTitle(L.PlanningView)
-                for _, entry in ipairs({{"bundles", L.SharedQuestStops}, {"turnIns", L.TurnInTour}, {"items", L.SharedItems}, {"chains", L.QuestChains}}) do
+                menu:SetScrollMode(260)
+                for _, entry in ipairs({{"outing", L.PickupRound}, {"areas", L.PickupAreas}, {"bundles", L.SharedQuestStops}, {"turnIns", L.TurnInTour}, {"items", L.SharedItems}, {"chains", L.QuestChains},
+                    {"closing", L.BriefClosing}, {"handIns", L.BriefHandInAreas}, {"comparison", L.BriefComparison}, {"progress", L.BriefProgressTitle}}) do
                     local mode = entry[1]
                     menu:CreateButton((window.mode == mode and "[x] " or "") .. entry[2], function() window:SelectMode(mode) end)
                 end
@@ -46,7 +51,16 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             row.textLabel:SetPoint("RIGHT", -8, 0)
             row.textLabel:SetJustifyH("LEFT")
             row.textLabel:SetMaxLines(2)
-            row:SetScript("OnClick", function(self) if self.stop then window.openStop(self.stop) end end)
+            row:SetScript("OnClick", function(self)
+                if self.areaKey or self.back then
+                    window.areaKey, window.page = self.areaKey, 1
+                    window:Refresh()
+                elseif self.handInKey or self.handInBack then
+                    window.handInMap, window.page = self.handInKey, 1 window:Refresh()
+                elseif self.inspect then
+                    addon.ShowTextWindow("comparison", self.detail, L.BriefComparison, L.BriefNoScore)
+                elseif self.stop then window.openStop(self.stop) end
+            end)
             addon.UI.BindTooltip(row, function(self) return self:GetText(), self.detail end)
             window.rows[index] = row
         end
@@ -56,6 +70,24 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
         window.next:SetPoint("BOTTOMRIGHT", -18, 16)
         window.pageLabel = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.pageLabel:SetPoint("BOTTOM", 0, 21)
+        window.remember = addon.UI.CreateUtilityButton(window, L.BriefRemember, 270, function()
+            if addon.RememberAdvisoryRound then addon.RememberAdvisoryRound() end
+        end)
+        window.remember:SetPoint("BOTTOMLEFT", 18, 52)
+        window.forget = addon.UI.CreateUtilityButton(window, L.BriefForget, 270, function()
+            if addon.ForgetAdvisoryRound then addon.ForgetAdvisoryRound() end
+        end)
+        window.forget:SetPoint("BOTTOMRIGHT", -18, 52)
+        window.export = addon.UI.CreateUtilityButton(window, L.BriefReportAction, 564, function()
+            if addon.ExportDecisionExplanation then addon.ExportDecisionExplanation() end
+        end)
+        window.export:SetPoint("BOTTOMLEFT", 18, 52)
+        window.buildOuting = addon.UI.CreateUtilityButton(window, L.ExcursionBuild, 564, function()
+            if addon.OpenExcursionFromArea then addon.OpenExcursionFromArea(window.mode == "areas" and window.areaKey or nil) end
+        end)
+        window.buildOuting:SetPoint("BOTTOMLEFT", 18, 52)
+        addon.UI.BindTooltip(window.buildOuting, function() return L.ExcursionBuild, L.ExcursionHelp end)
+        addon.UI.BindTooltip(window.remember, function() return L.BriefRemember, L.BriefRoundHelp end)
         function window:Refresh()
             local model = self.getModel() or {}
             self.model = model
@@ -64,7 +96,18 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             local entries = self.mode == "bundles" and (model.bundles or {}) or tour.stops
             if self.mode == "items" then entries = model.sharedItems or {} end
             if self.mode == "chains" then entries = model.chains or {} end
-            local names = {bundles = L.SharedQuestStops, turnIns = L.TurnInTour, items = L.SharedItems, chains = L.QuestChains}
+            local pickupRows, pickupSummary
+            if self.mode == "areas" or self.mode == "outing" then
+                pickupRows, pickupSummary = addon.PickupPlanView.Rows(model.pickupPlanning, self.mode, self.areaKey)
+                entries = pickupRows
+            end
+            if self.mode == "closing" or self.mode == "handIns" or self.mode == "comparison" or self.mode == "progress" then
+                pickupRows, pickupSummary = addon.DecisionPlanView.Rows(model, self.mode, self.handInMap)
+                entries = pickupRows
+            end
+            local names = {bundles = L.SharedQuestStops, turnIns = L.TurnInTour, items = L.SharedItems, chains = L.QuestChains,
+                areas = L.PickupAreas, outing = L.PickupRound, closing = L.BriefClosing, handIns = L.BriefHandInAreas,
+                comparison = L.BriefComparison, progress = L.BriefProgressTitle}
             self.modeSelector:SetText(L.PlanningView .. ": " .. (names[self.mode] or L.SharedQuestStops) .. " (" .. #entries .. ") v")
             local pages = math.max(1, math.ceil(#entries / 4))
             self.page = math.min(self.page, pages)
@@ -76,16 +119,29 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             end
             if self.mode == "items" then summary = L.SharedItemsHelp end
             if self.mode == "chains" then summary = L.ChainForecast end
+            if pickupSummary then summary = pickupSummary end
             self.summary:SetText(summary)
             if model.capacity and model.capacity.full then self.summary:SetText(L.QuestLogFull .. "\n" .. summary) end
             if model.capacity and model.capacity.reserveNeeded and not model.capacity.full then
                 self.summary:SetText(L.ReserveQuestSlot .. "\n" .. summary)
             end
+            self.remember:SetShown(slot == "live" and self.mode == "progress")
+            self.forget:SetShown(slot == "live" and self.mode == "progress")
+            self.export:SetShown(slot == "live" and self.mode == "comparison")
+            self.buildOuting:SetShown(slot == "live" and (self.mode == "outing" or self.mode == "areas" and self.areaKey ~= nil))
+            self.buildOuting:SetEnabled(model.pickupPlanning and #(model.pickupPlanning.areas or {}) > 0 or false)
+            self.remember:SetEnabled(model.pickupPlanning and #(model.pickupPlanning.outing or {}) > 0 or false)
             for index, row in ipairs(self.rows) do
                 local entry = entries[(self.page - 1) * 4 + index]
                 row:SetShown(entry ~= nil)
-                row.stop, row.detail = nil, nil
-                if entry and self.mode == "bundles" then
+                row.stop, row.detail, row.areaKey, row.back, row.handInKey, row.handInBack = nil, nil, nil, nil, nil, nil
+                row.inspect = nil
+                if entry and pickupRows then
+                    row.stop, row.detail, row.areaKey, row.back = entry.stop, entry.detail, entry.areaKey, entry.back
+                    row.handInKey, row.handInBack = entry.handInKey, entry.handInBack
+                    row.inspect = entry.inspect
+                    row:SetText(entry.text)
+                elseif entry and self.mode == "bundles" then
                     local names = {}
                     for _, item in ipairs(entry.entries) do names[#names + 1] = addon.UI.FormatQuestTitle(item.quest) end
                     row.stop = {quest = entry.entries[1].quest, target = entry.target, action = "objective"}

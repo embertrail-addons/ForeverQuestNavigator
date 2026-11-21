@@ -92,7 +92,9 @@ function Insights.AnnotateOffers(mapAPI, offers, quests, measurements, active, c
                 local measured = measurements[quest.id]
                 local target = measured and (measured.objectiveMarker or measured.marker)
                 local gap = target and metric(objective, target)
-                if gap and gap <= 100 then offer.overlapCount = offer.overlapCount + 1 end
+                if not quest.readyToTurnIn and measured and not measured.objectiveMarker and gap and gap <= 100 then
+                    offer.overlapCount = offer.overlapCount + 1
+                end
             end
             local pickupGap = pickup and activeTarget and metric(pickup, activeTarget)
             local goalGap = activeTarget and metric(objective, activeTarget)

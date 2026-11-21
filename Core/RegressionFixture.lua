@@ -18,7 +18,7 @@ function Fixture.Capture(quests, snapshot)
     for _, quest in ipairs(quests or {}) do
         local entry = Pick(quest, { "id", "level", "readyToTurnIn", "elite", "group" })
         entry.progress = Pick(quest.progress, { "nearly", "bonus" })
-        entry.measurement = Pick(snapshot.measurements[quest.id], { "yards" })
+        entry.measurement = Pick(snapshot.measurements[quest.id], { "yards", "travelYards" })
         entry.adjustment = snapshot.adjustments and snapshot.adjustments[quest.id]
         entry.journey = Pick(snapshot.journeys and snapshot.journeys[quest.id], { "totalYards", "returnYards", "extraYards" })
         result.quests[#result.quests + 1] = entry

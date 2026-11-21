@@ -7,7 +7,7 @@ end
 local function Value(value) return Number(value) and tostring(value) or "unknown" end
 function Report.Build(state)
     local quest, marker = state.quest or {}, state.marker or {}
-    local decision = ({ranking=true, outing=true, followUp=true, levelUp=true, tour=true})[state.decision] and state.decision or "unknown"
+    local decision = ({ranking=true, outing=true, followUp=true, levelUp=true, tour=true, excursion=true})[state.decision] and state.decision or "unknown"
     local version = type(state.version) == "string" and state.version:match("^%d+%.%d+%.%d+$") or "unknown"
     local lines = {"FQN problem report", "version=" .. version, "questID=" .. Value(quest.id),
         "playerLevel=" .. Value(state.level), "manual=" .. tostring(state.manual == true), "decision=" .. decision,

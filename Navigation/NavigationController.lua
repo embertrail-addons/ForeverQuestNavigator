@@ -36,6 +36,21 @@ function addon.NavigationController.Compute(input)
     local measurements, objectiveDistances
     measurements, objectiveDistances = addon.QuestLocation.MeasureQuests(input.mapAPI, questMarkers, measurableQuestIDs,
         distanceMaps, previousObjectives, objectiveLock, avoidedObjectives)
+    local camps, previousCamps = {}, {}
+    for _, quest in ipairs(eligibleQuests) do
+        local previous = input.previousCamps and input.previousCamps[quest.id]
+        local choices = addon.CampChoices.Build(input.mapAPI, quest, measurements[quest.id], questMarkers[quest.id],
+            eligibleQuests, measurements, distanceMaps, previous, input.playerLevel, input.feedback)
+        local selected = choices[1]
+        if selected then
+            local m = selected.measurement
+            measurements[quest.id] = m
+            objectiveDistances[quest.id][m.marker.objectiveIndex] = {marker = m.marker, squared = m.yards ^ 2, east = m.east, north = m.north}
+            previousCamps[quest.id] = {mapID = m.marker.mapID, x = m.marker.x, y = m.marker.y,
+                objectiveIndex = m.marker.objectiveIndex, manual = selected.previous and previous.manual or nil}
+            if #choices > 1 then camps[quest.id] = choices end
+        end
+    end
     addon.TravelSupport.ApplyAccess(input.mapAPI, eligibleQuests, measurements, distanceMaps, savedAccessPoints, passedAccessPoints, input.onTaxi or input.detour)
     if objectiveLock then
         local targets = objectiveDistances[objectiveLock.questID]
@@ -98,6 +113,7 @@ function addon.NavigationController.Compute(input)
         xpNeeded = input.xpNeeded,
         bundles = bundles, feedback = feedback, adjustments = adjustments, planningRanked = planningRanked,
         capacity = capacity,
+        camps = camps, previousCamps = previousCamps, finishers = turnInLocations,
         turnInTour = addon.PlanningInsights.TurnIns(input.mapAPI, eligibleQuests, measurements, input.xpNeeded, feedback),
     }
 end

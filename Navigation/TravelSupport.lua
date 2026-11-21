@@ -203,12 +203,12 @@ function Travel.BuildJourney(mapAPI, quest, measured, objectives, distances, fin
         exit = measured.accessExit, exitSteps = measured.accessExitSteps, goals = open }
 end
 
-function Travel.PlanningPenalty(quest, journey, enabled)
+function Travel.PlanningPenalty(quest, journey, enabled, countedAccess)
     if quest.readyToTurnIn or not enabled then return 0 end
     -- A bounded travel preference keeps distance, difficulty and follow-up
     -- planning relevant; unknown return routes receive an uncertainty allowance.
     if not journey then return 200 end
-    return math.min(1000, journey.extraYards * 0.35)
+    return math.min(1000, math.max(0, journey.extraYards - math.max(0, countedAccess or 0)) * 0.35)
 end
 
 function Travel.ListAccess(saved, mapAPI, titleForQuest)

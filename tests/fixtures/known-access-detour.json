@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "playerLevel": 30,
+  "trivialRange": 6,
+  "hasJourneys": false,
+  "quests": [
+    {"id": 1, "level": 30, "measurement": {"yards": 10, "travelYards": 1010}},
+    {"id": 2, "level": 30, "measurement": {"yards": 500}}
+  ],
+  "previous": [],
+  "expected": [2, 1]
+}

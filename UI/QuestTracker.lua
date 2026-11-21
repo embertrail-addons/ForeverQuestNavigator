@@ -131,6 +131,7 @@ end
 function addon.CreateQuestTracker(settings, actions, version)
     addon.UI.SetFontSize(settings.fontPercent or 100)
     local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    frame.environmentExpanded = settings.environmentExpanded == true
     settings.trackerWidth = ClampTrackerWidth(settings.trackerWidth)
     frame:SetSize(settings.trackerWidth, 170)
     local navigation, navigationStatus, undoSkip, routeStopPreview, restoreAvoided, areaOverview
@@ -166,6 +167,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     })
     function frame:UpdateOpacity()
         local opacity = settings.opacityPercent / 100
+        addon.UI.Theme.SetOpacity(opacity)
         addon.UI.Theme.Frame(self, opacity)
         navigation:UpdateOpacity()
         if detailPanel then detailPanel:UpdateOpacity() end
@@ -237,15 +239,6 @@ function addon.CreateQuestTracker(settings, actions, version)
     local content = CreateFrame("Frame", nil, frame)
     content:SetAllPoints()
     local body, viewport, pinnedBackdrop, detailExplanation = content
-    local function CurrentZone()
-        local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-        if mapID and C_Map.GetMapInfo then
-            local _, zone = addon.QuestLocation.GetZone(C_Map, Enum and Enum.UIMapType, mapID)
-            if zone then return zone end
-        end
-        local info = mapID and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
-        return info and info.name or (GetRealZoneText and GetRealZoneText())
-    end
 
     local card = addon.CreateActiveQuestCard(content)
     local activeBackdrop, title, objective, activeDistance = card.backdrop, card.title, card.objective, card.distance
@@ -406,6 +399,7 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     local function LayoutSection(toggle, label, caption, collapsed, list, count, y)
         local shown = not settings.collapsed and not IsQuiet() and (settings.navigatorView or "all") == "all" and count > 0
+            and frame.environmentExpanded == true
         local expanded = shown and not collapsed
         toggle:SetShown(shown)
         label:SetShown(shown)
@@ -450,16 +444,24 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     local function UpdateHeight()
         local scale = (settings.fontPercent or 100) / 100
+        if settings.navigatorLayout == "guided" and frame.decisionBrief and activeCheckbox.quest then
+            statusLine:SetText(addon.DecisionBrief.Status(activeCheckbox.quest, manualSelection, frame.decisionBrief.phaseText))
+            statusLine:SetTextColor(addon.UI.Theme.Color(activeCheckbox.quest.readyToTurnIn and "success"
+                or (activeCheckbox.quest.group or activeCheckbox.quest.elite) and "warning" or "muted"))
+        end
         if activeReward and lastRender then
             local rewards, zones = lastRender[11], lastRender[8]
-            activeReward:SetText(addon.TrackerPresentation.Information(zones and zones[1], rewards and rewards[1]))
+            local reward = rewards and rewards[1]
+            if settings.navigatorLayout == "guided" then reward = addon.UI.Theme.Text("xp", reward) end
+            activeReward:SetText(addon.TrackerPresentation.Information(zones and zones[1], reward))
             activeReward:SetShown(activeReward:GetText() ~= "" and not IsCompact() and not settings.collapsed and settings.navigatorView ~= "goal")
             activeZone:Hide()
             routeNote:Hide()
         end
         resetObjective:SetSize(134 * scale, math.max(16, 16 * scale))
         routeMap:SetSize(42 * scale, math.max(16, 16 * scale))
-        routeToggle:SetSize(60 * scale, math.max(18, 18 * scale))
+        routeToggle:SetSize((settings.navigatorLayout == "guided" and 120 or 60) * scale, math.max(24, 22 * scale))
+        disclosure:SetText(settings.navigatorLayout == "guided" and L.BriefWhy or L.DetailsShort)
         undoSkip:SetHeight(math.max(22, undoSkip:GetFontString():GetStringHeight() + 6))
         history:SetSize(116 * scale, math.max(22, 22 * scale))
         auto:SetSize(144 * scale, math.max(20, 20 * scale))
@@ -494,7 +496,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             objective:SetPoint("TOPRIGHT", -14, -detailsBottom)
             detailsBottom = detailsBottom + objective:GetStringHeight() + 3
         end
-        local compactGoals = (settings.navigatorView ~= "quest" and IsCompact()) or settings.collapsed or settings.navigatorView == "goal"
+        local compactGoals = IsCompact() or settings.collapsed or settings.navigatorView == "goal"
         local hiddenGoals = 0
         finishedToggle:SetShown(finishedCount > 0 and not IsQuiet())
         if finishedCount > 0 then
@@ -576,8 +578,10 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         if navigationStatus then navigationStatus:Hide() end
         local metaY = detailsBottom + 4
+        if holdButton then holdButton:SetShown(activeCheckbox.quest ~= nil and settings.navigatorLayout ~= "guided") end
         local pinWidth = holdButton and holdButton:IsShown() and 23 * scale or 0
-        local actionsWidth = (routeMap:IsShown() and 47 * scale or 0) + (routeToggle:IsShown() and 62 * scale or 0) + pinWidth
+        local actionsWidth = (routeMap:IsShown() and 47 * scale or 0)
+            + (routeToggle:IsShown() and (settings.navigatorLayout == "guided" and 124 or 62) * scale or 0) + pinWidth
         routeNote:ClearAllPoints()
         routeNote:SetPoint("TOPLEFT", 14, -metaY)
         routeNote:SetPoint("TOPRIGHT", -14, -metaY)
@@ -596,7 +600,12 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         routeMap:ClearAllPoints()
         routeMap:SetPoint("TOPRIGHT", -14, -metaY + 1)
-        local previewY = metaY + (actionsWidth > 0 and math.max(16, 18 * scale) or 0) + 2
+        if frame.activeMenu then
+            frame.activeMenu:SetShown(settings.navigatorLayout == "guided" and activeCheckbox.quest ~= nil)
+            frame.activeMenu:ClearAllPoints() frame.activeMenu:SetPoint("TOPLEFT", 14, -metaY)
+            frame.activeMenu:SetSize(28 * scale, math.max(24, 24 * scale))
+        end
+        local previewY = metaY + (actionsWidth > 0 and math.max(24, 24 * scale) or 0) + 2
         local activeBottom = math.max(viewport and 0 or 68, previewY + 2)
         if nearbyStopsButton:IsShown() then
             nearbyStopsButton:ClearAllPoints()
@@ -616,12 +625,20 @@ function addon.CreateQuestTracker(settings, actions, version)
         history:SetShown(showLists and skippedCount > 0)
         auto:SetShown(activeCheckbox.quest ~= nil and manualSelection and not IsQuiet())
         local listTop = activeBottom
+        if frame.nextBoard then
+            frame.nextBoard:SetShown(showLists)
+            if frame.nextBoard:IsShown() then
+                frame.nextBoard:ClearAllPoints() frame.nextBoard:SetPoint("TOPLEFT", 14, -listTop - 14)
+                frame.nextBoard:SetPoint("TOPRIGHT", -14, -listTop - 14)
+                listTop = listTop + frame.nextBoard:Layout(math.max(280, frame:GetWidth() - 28), scale) + 24
+            end
+        end
         local y = LayoutSection(alternativesToggle, alternativesLabel, L.Alternatives,
             settings.alternativesCollapsed, rows, otherCount, listTop)
         y = LayoutSection(offersToggle, offersLabel, L.NearbyQuests,
             settings.offersCollapsed, offerRows, offerCount, y)
         if areaOverview then areaOverview:Layout() end
-        if areaOverview and not showLists then areaOverview:Hide() end
+        if areaOverview and (not showLists or not frame.environmentExpanded) then areaOverview:Hide() end
         if areaOverview and areaOverview:IsShown() then
             areaOverview:ClearAllPoints()
             areaOverview:SetPoint("TOPLEFT", 14, -y - 9)
@@ -654,18 +671,21 @@ function addon.CreateQuestTracker(settings, actions, version)
         if detailPanel then
             if detailPanel:IsShown() then detailPanel:Layout() end
             detailPanel:RefreshSelection()
-            disclosure:SetText(detailPanel:IsShown() and detailPanel.key == "active:" .. tostring(routeQuestID) and L.NavigatorCloseDetails or L.DetailsShort)
+            disclosure:SetText(settings.navigatorLayout == "guided" and L.BriefWhy
+                or detailPanel:IsShown() and detailPanel.key == "active:" .. tostring(routeQuestID) and L.NavigatorCloseDetails or L.DetailsShort)
         end
         if frame.RefreshNotice then frame:RefreshNotice() end
     end
 
     local function ShowRouteDetails(show)
         local visible = show and not IsQuiet()
-        disclosure:SetText(L.DetailsShort)
+        disclosure:SetText(settings.navigatorLayout == "guided" and L.BriefWhy or L.DetailsShort)
         if not detailPanel then return end
         if visible then
             local widgets = {routeDetails}
+            if frame.questSummary and frame.questSummary:GetText() ~= "" then table.insert(widgets, 1, frame.questSummary) end
             if detailExplanation and detailExplanation:GetText() ~= "" then widgets[#widgets + 1] = detailExplanation end
+            if frame.rewardDetails and frame.rewardDetails:GetText() ~= "" then widgets[#widgets + 1] = frame.rewardDetails end
             if routeStopPreview and routeStopPreview.hasStops then widgets[#widgets + 1] = routeStopPreview end
             if approachRows[1] and approachRows[1].questID then
                 widgets[#widgets + 1] = approachLabel
@@ -697,6 +717,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         row.routeButton:Hide()
         row.routeDetails:Hide()
         row.actionBadge = addon.UI.CreateLabel(row, "GameFontNormalSmall")
+        addon.UI.Theme.Bind(row.actionBadge, "success", nil, "text")
         row.actionBadge:SetText(L.NavigatorTurnIn) row.actionBadge:Hide()
         row.badgeBackground = row:CreateTexture(nil, "BACKGROUND")
         row.badgeBackground:SetPoint("TOPLEFT", row.actionBadge, "TOPLEFT", -3, 2)
@@ -829,7 +850,6 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     function frame:RenderNearbyOffers(offers, showXP)
         lastOffers, lastOfferXP = offers, showXP
-        local playerZone = CurrentZone()
         local order
         order, offerIDs = addon.TrackerPresentation.VisualOrder(offerIDs, offers,
             frame:IsMouseOver() or (detailPanel and detailPanel:IsShown()) or (viewport and viewport.offset > 0))
@@ -849,14 +869,15 @@ function addon.CreateQuestTracker(settings, actions, version)
                     and (not row.noticeDeadline or GetTime() < row.noticeDeadline))
                 row.label:SetText(FormatQuestTitle(offer))
                 row.stateGlyph:SetText("") row.stateGlyph:Hide()
-                row.distance:SetText(FormatDistance(offer))
+                row.distance:SetText(L.PickupDistanceShort:format(FormatDistance(offer)))
                 row.recommendation:SetShown(offer.recommended == true)
                 row.fullDetails = select(2, row:Describe())
                 if row.detailText then row.detailText:SetText(row.fullDetails or "") end
                 row.details:SetText(addon.TrackerPresentation.Information(
-                    offer.objectiveZone ~= (playerZone or offer.pickupZone) and offer.objectiveZone or nil,
+                    offer.objectiveZone and L.PickupTargetShort:format(offer.objectiveZone) or L.OfferTargetUnknown,
                     showXP and (offer.xp and L.QuestXPReward:format(offer.xp) or L.UnknownXP) or nil,
-                    offer.capacityFull and L.QuestLogFull or offer.recommended and L.RecommendedOffer or nil))
+                    offer.capacityFull and L.QuestLogFull or offer.beforeDeparture and L.PickupBeforeDeparture
+                        or offer.planClass and addon.PickupPlanning.ClassLabel(offer) or offer.recommended and L.RecommendedOffer or nil))
                 local hasDetails = row.details:GetText() ~= "" and not IsCompact()
                 row.details:SetShown(hasDetails)
                 local lineHeight = addon.UI.GetRowLineHeight(row)
@@ -959,11 +980,16 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     function frame:RenderSnapshot(snapshot, skippedQuests)
         local view = snapshot.view
+        self.noteRevision = snapshot.noteRevision or 0
+        self.presentationLevel = snapshot.playerLevel
+        self.questSummary:SetText(addon.DecisionBrief.ObjectiveText(view))
+        self.rewardDetails:SetText(view.rewardDetails or "")
         self.changeNotice = view.changeNotice
         self.summaryImportant = view.summaryImportant
         self:Render(view.quest, view.objectives, skippedQuests, view.alternatives, view.manual,
             view.routeNote, view.routeDetails, view.zones, view.alternativeRoutes, view.nearbyStops,
             view.rewards, view.targets, view.hasMap, view.approachStops, view.reason, view.preview, view.area)
+        if snapshot.brief then self:SetDecisionBrief(snapshot.brief) end
         addon.QuestHover.Refresh()
     end
 
@@ -1104,7 +1130,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             title:SetText(objectiveText)
             objective:SetText("")
         else
-            title:SetText(FormatQuestTitle(quest))
+            title:SetText(FormatQuestTitle(quest, settings.navigatorLayout == "guided", self.presentationLevel))
             objective:SetText(objectiveText)
         end
         ShowRouteDetails(routeExpanded == true)
@@ -1167,7 +1193,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         local separate = settings.showDirectionArrow ~= false and (settings.displayMode == "arrow" or (frame:IsVisible() and settings.showScreenArrow))
         local hasQuest = activeCheckbox.quest ~= nil or self.detour ~= nil
         if self.detour then
-            navigation.title:SetText(self.detour.tourReturn and L.ReturnPoint or L.TemporaryDetour)
+            navigation.title:SetText(self.detour.excursion and L.ExcursionTitle or self.detour.tourReturn and L.ReturnPoint or L.TemporaryDetour)
             navigation.goal:SetText(self.detour.name)
             navigation.distance:SetText(FormatDistance(self.detourMeasurement))
         elseif quest then navigation.title:SetText(FormatQuestTitle(quest))
@@ -1257,6 +1283,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end
 
     local collapse = MakeButton(frame)
+    frame.collapseButton = collapse
     collapse:SetSize(20, 20)
     collapse:SetPoint("TOPRIGHT", -40, -6)
     addon.UI.ExpandHitArea(collapse, 4)
@@ -1271,9 +1298,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     collapse:SetScript("OnEnter", ShowCollapseTooltip)
     collapse:SetScript("OnLeave", function() GameTooltip:Hide() end)
     collapse:SetScript("OnClick", function(self)
-        settings.collapsed = not settings.collapsed
-        UpdateHeight()
-        UpdateCollapseButton()
+        frame:SetNavigatorView(settings.collapsed and "all" or "goal")
         if self:IsMouseOver() then ShowCollapseTooltip(self) end
     end)
     UpdateCollapseButton()
@@ -1376,6 +1401,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     function frame:ResetAppearance()
         settings.trackerWidth = 352
         settings.collapsed, settings.alternativesCollapsed, settings.offersCollapsed = false, false, false
+        settings.navigatorView = "all"
         settings.areaOverviewExpanded, settings.targetGroupsExpanded = false, {}
         listLimits.accepted, listLimits.offers = settings.acceptedRows or 2, settings.offerRows or 3
         finishedExpanded, routeExpanded = false, false
@@ -1467,7 +1493,9 @@ function addon.CreateQuestTracker(settings, actions, version)
     detailExplanation = addon.UI.CreateLabel(detailPanel.body, "GameFontHighlightSmall")
     detailExplanation:SetJustifyH("LEFT") detailExplanation:Hide()
     frame.detailExplanation = detailExplanation
-    detailPanel.onClose = function() routeExpanded = false disclosure:SetText(L.DetailsShort) end
+    detailPanel.onClose = function()
+        routeExpanded = false disclosure:SetText(settings.navigatorLayout == "guided" and L.BriefWhy or L.DetailsShort)
+    end
     frame.detailPanel = detailPanel
     function frame:OpenDetails()
         if not activeCheckbox.quest then return end
@@ -1507,7 +1535,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     frame.questTitle, frame.header, frame.questMap = title, header, questMap
     content.scrollBody = body
     pinnedBackdrop = content:CreateTexture(nil, "BACKGROUND")
-    addon.UI.Theme.Bind(pinnedBackdrop, "active", .55)
+    addon.UI.Theme.Bind(pinnedBackdrop, "active", .32)
     for _, widget in ipairs({activeBackdrop, card.accent, objective, alternativesToggle, offersToggle, routeNote,
         routeToggle, activeZone, activeReward, routeMap, nearbyStopsButton, resetObjective, finishedToggle,
         approachLabel, undoSkip, restoreAvoided, areaOverview, navigationStatus, holdButton, moreGoals,
@@ -1540,8 +1568,15 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
     end
     function frame:SetNavigatorView(view)
-        if view ~= "goal" and view ~= "quest" and view ~= "all" then return end
-        settings.navigatorView, settings.collapsed, expandedGoals = view, false, false
+        if view ~= "goal" and view ~= "quest" and view ~= "all" and view ~= "focus" and view ~= "overview" then return end
+        view = addon.TrackerPresentation.NavigatorView(view)
+        for _, entry in ipairs(addon.SettingsController.settings == settings and addon.SettingsController.catalog or {}) do
+            if entry.key == "navigatorView" and entry.control.GetValue and entry.control:GetValue() ~= view then
+                entry.control:SetValue(view)
+            end
+        end
+        settings.navigatorView, settings.collapsed, expandedGoals = view, view == "goal", false
+        finishedExpanded = false
         UpdateCollapseButton() UpdateHeight()
     end
     frame.UpdateNavigatorLayout = UpdateHeight
@@ -1554,7 +1589,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         if button ~= "RightButton" or not (MenuUtil and MenuUtil.CreateContextMenu) then return end
         MenuUtil.CreateContextMenu(self, function(_, menu)
             menu:CreateTitle(L.NavigatorView)
-            for _, value in ipairs({"goal", "quest", "all"}) do
+            for _, value in ipairs({"goal", "all"}) do
                 local key = value
                 menu:CreateRadio(L["NavigatorView_" .. key], function() return (settings.navigatorView or "all") == key end,
                     function() frame:SetNavigatorView(key) end)
@@ -1567,6 +1602,42 @@ function addon.CreateQuestTracker(settings, actions, version)
     card.stateGlyph:SetPoint("TOPLEFT", 40, -37)
     addon.UI.Theme.Bind(card.stateGlyph, "heading", nil, "text")
     frame:UpdateOpacity()
+
+    frame.questSummary = addon.UI.CreateLabel(detailPanel.body, "GameFontHighlightSmall")
+    frame.questSummary:SetJustifyH("LEFT") frame.questSummary:Hide()
+    frame.questSummary.sectionTitle = L.DetailQuest
+    frame.rewardDetails = addon.UI.CreateLabel(detailPanel.body, "GameFontHighlightSmall")
+    frame.rewardDetails:SetJustifyH("LEFT") frame.rewardDetails:Hide()
+    frame.rewardDetails.sectionTitle = L.DetailReward
+    routeDetails.sectionTitle, detailExplanation.sectionTitle = L.DetailRoute, L.DetailWhy
+
+    function frame:SetJourneyPhase(phase)
+        local model = self.decisionBrief
+        if not model or model.phase == phase then return end
+        model.phase, model.phaseText = phase, L["BriefPhase_" .. phase]
+        if settings.navigatorLayout == "guided" and activeCheckbox.quest then
+            UpdateHeight()
+        end
+    end
+
+    function frame:SetDecisionBrief(model)
+        self.decisionBrief = model
+        if not self.nextBoard then self.nextBoard = addon.CreateNextSteps(self, self.scrollBody or content, settings, actions) end
+        self.nextBoard:Render(model)
+        if not self.activeMenu then
+            self.activeMenu = MakeButton(self.scrollBody or content) self.activeMenu:SetText("...")
+            self.activeMenu:SetScript("OnClick", function(button)
+                if activeCheckbox.quest and actions.openQuestMenu then actions.openQuestMenu(button, activeCheckbox.quest.id) end
+            end)
+            addon.UI.BindTooltip(self.activeMenu, function() return L.MoreActions, L.QuestMenuHint end)
+        end
+        UpdateHeight()
+    end
+
+    function frame:SetPickupPlanning(plan)
+        self.pickupPlanning = plan
+        UpdateHeight()
+    end
 
     return frame
 end
