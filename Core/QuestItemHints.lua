@@ -28,3 +28,11 @@ function addon.QuestItemHints.Cooldown(hint, read, now)
         or start < 0 or duration < 0 or start == math.huge or duration == math.huge then return 0, 0, 0 end
     return start, duration, math.max(0, start + duration - (now or 0))
 end
+
+function addon.QuestItemHints.Describe(hint, remaining)
+    if not hint then return end
+    local L = addon.L
+    return L.JourneyUseItem:format(hint.name, hint.count) .. " · "
+        .. ((remaining or 0) > 0 and L.JourneyItemCooldown:format(math.ceil(remaining))
+            or hint.inRange == true and L.JourneyItemReady or hint.inRange == false and L.QuestItemOutOfRange or L.JourneyItemRangeUnknown)
+end

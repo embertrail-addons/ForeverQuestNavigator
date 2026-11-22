@@ -64,6 +64,7 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         local offer = self.measurement
         if not offer then return end
         local lines = {}
+        if offer.routePickup then lines[#lines + 1] = L.MixedOfferAtDestination end
         local _, state = addon.QuestState.Read(offer, true)
         lines[#lines + 1] = state
         local note = addon.GetQuestNoteText and addon.GetQuestNoteText(offer.id)
@@ -71,7 +72,6 @@ function addon.CreateOfferQuestRow(parent, actions, settings, index)
         if offer.capacityFull then lines[#lines + 1] = L.QuestLogFull end
         lines[#lines + 1] = addon.QuestPreparation.Describe(offer.preparation, offer.group)
         if offer.planClass then lines[#lines + 1] = addon.PickupPlanning.ClassLabel(offer) end
-        if offer.planReason then lines[#lines + 1] = offer.planReason end
         if offer.beforeDeparture then lines[#lines + 1] = L.PickupBeforeDeparture end
         if offer.slotLimited then lines[#lines + 1] = L.PickupSlotLimited end
         local contextual = addon.PlanningInsights.OfferReason(offer)

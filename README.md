@@ -2,13 +2,23 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current version: 0.1.79.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current version: 0.1.83.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline. [Release notes and pending in-game checks](release/curseforge-changelog-0.1.83.md) · [Publication authorization](release/acceptance-0.1.83.md).
+
+0.1.83 plans mixed pickups, objectives and hand-ins rather than placing every pickup first. Known ready hand-ins may free a slot before a later pickup. Available Questie starter pins near the destination and up to three pending outing pickups are considered alongside nearby offers. Pickups with a known insertion detour over 400 coordinate yards are omitted. This bounded heuristic compares coordinate travel, level and potential quest XP; it is not a proven fastest walking route. Actual acceptance pauses the outing: open the review, inspect refreshed active-quest targets and explicitly Start to resume.
+
+Use **Skip step** on a suggested pickup or in the outing preview. The menu adds **Remind me later** and **Don't recommend again**. Skipping removes its unaccepted dependent steps while keeping active quests; unchanged choices can be undone. Hidden pickups persist per character under Tour assistant -> Remember & review -> **Hidden pickups**, separate from skipped active quests. Manual acceptance still makes the quest eligible as an active quest. [0.1.83 changes and checks](release/curseforge-changelog-0.1.83.md).
+
+0.1.82 groups Tour assistant into **Plan / On the way / Remember & review**, with a view selector, explicit Details, empty-state guidance and panels sized to their content. Compare two distinct objective areas, expand known quest chains, review along-route hand-ins and save reminders from quest menus (after round / visit / group). Hand-in additions always open an independent preview. Low bag capacity is highlighted for collecting quests; merchant suggestions use only manually saved visits while the merchant window is open. Quest-item actions display count, range status and cooldown. Optional **Simple navigator** keeps the current objective and one Next action; tools and important contextual hints remain accessible. [0.1.82 changes, limits and manual checks](release/curseforge-changelog-0.1.82.md).
+
+Open **Tour assistant** from Overview or `/fqn assist`: check pickups before leaving, review alternatives, opt into native group quest checks, inspect quests improved by your level-up, review additions to your running outing or reset personal target corrections. A level-up briefly retains your target (up to 60 seconds); explicit priorities and running plans take precedence. The revised-tour preview keeps pending pickups and changes navigation only after Start. Outing previews can cycle 0 / 15 / 30 / 60 minute budgets, with visible heuristic assumptions; unknown returns/routes are omitted from timed subsets. Personal correction coordinates are character-local and do not modify Questie. **Show difficulty as words** is enabled by default; group checks are opt-in. [0.1.81 changes and manual checks](release/curseforge-changelog-0.1.81.md).
+
+0.1.80 makes the guided window quieter: one Next action, a reviewable area tour, contextual return advice and expandable Surroundings. XP and route explanations stay in Details. Nearby pickups alone no longer earn a strong recommendation; objective fit and detours matter. Return advice groups finishers within 600 yards, with an approach of at most 2,500 yards, rather than grouping an entire zone. These are coordinate estimates, not verified walking paths. An explicitly started outing offers a dismissible recap with actual `QUEST_TURNED_IN` reward XP (unknown rewards shown separately). The recap is session-local and never includes kill/exploration XP. [Local changes and checks](release/curseforge-changelog-0.1.80.md).
 
 The navigator has two views: **Focus** (active quest, current objective and expandable further objectives) and **Overview** (adds Next and expandable Surroundings). The collapse button, title menu and settings select the same views. Three color designs, high contrast, reduced colors and example preview remain available. Background opacity does not fade text; settings dialogs stay opaque.
 
 Open **Plan outing** or `/fqn plan` -> **Quest areas** (expand one) / **Next round** -> **Build outing from area**. Review pickups, objectives and known hand-ins before explicit Start. Pause/resume preserves progress; quests are accepted and handed in manually. Arrival alone cannot complete a pickup. **Round progress** still offers advisory tracking without navigation.
 
-Quest menus add **Compare objective areas** and **Edit personal note**. Repeatables default to informational display in finder/offers, with levelling/hide options in settings. Starter items and prerequisites are shown where known. Settings can be filtered by display versus recommendations and opened with example preview. Map legend includes clear-FQN-markers. Saved access-route lengths affect ranking; unknown terrain and XP remain explicit. [Release notes](release/curseforge-changelog-0.1.79.md) · [Pending in-game checks](release/ui-smoketest-0.1.79.md) · [Publication authorization](release/acceptance-0.1.79.md).
+Quest menus add **Compare objective areas** and **Edit personal note**. Repeatables default to informational display in finder/offers, with levelling/hide options in settings. Starter items and prerequisites are shown where known. Settings can be filtered by display versus recommendations and opened with example preview. Map legend includes clear-FQN-markers. Saved access-route lengths affect ranking; unknown terrain and XP remain explicit.
 
 [CurseForge](https://www.curseforge.com/wow/addons/forever-quest-navigator) · [Source and issues](https://github.com/embertrail-addons/ForeverQuestNavigator)
 
@@ -44,7 +54,7 @@ The navigator and external direction display distinguish a quest giver, entrance
 
 Use **Arrange interface** in settings or `/fqn arrange` to position both displays together. Center and 16-pixel edge guides assist dragging, with snapping near those guides. Done and lock saves and locks both positions; Cancel or Escape restores the positions from when editing started. The direction display can also be centered from the editor.
 
-See the [0.1.79 release notes](release/curseforge-changelog-0.1.79.md) and [pending in-game checks](release/ui-smoketest-0.1.79.md). Restart WoW after updating from 0.1.76 or earlier to load the new modules.
+See the [0.1.83 release notes and pending in-game checks](release/curseforge-changelog-0.1.83.md). Restart WoW after updating from 0.1.79 or earlier to load the new modules.
 
 - See the active quest, all known objective progress, distance and optional approximate XP.
 - Navigate toward the nearest usable unfinished objective with the movable direction arrow.
@@ -118,7 +128,7 @@ Run Lua 5.1 `tests/run.lua`, the JSON fixtures through `scripts/replay.py`, and 
 
 Planning state, search, report generation and tracker presentation have separate modules. UI tests exercise actual controls with game API mocks; they do not replace in-game visual verification.
 
-Matching version tags trigger the existing tested GitHub Actions upload to CurseForge. Ordinary main pushes perform a read-only configuration check. The local 0.1.67–0.1.69 changes are not tagged or published.
+Matching regular version tags trigger the tested GitHub Actions upload to CurseForge. Ordinary main pushes perform a read-only configuration check. Development snapshots may be combined into a later public release rather than published individually.
 
 See [current changelog](release/curseforge-changelog-0.1.69.md), [UX changes](release/curseforge-changelog-0.1.68.md), [0.1.66 release evidence](release/acceptance-0.1.66.md) and [historical development notes](release/development-notes-through-0.1.66.md).
 

@@ -144,7 +144,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     local combatMode = false
     local function IsQuiet() return flightMode or combatMode end
     local function IsNarrow() return settings.adaptiveLayout ~= false and frame:GetWidth() / ((settings.fontPercent or 100) / 100) < 340 end
-    local function IsCompact() return settings.detailMode == "compact" or IsQuiet() or IsNarrow() end
+    local function IsCompact() return settings.simpleNavigator or settings.detailMode == "compact" or IsQuiet() or IsNarrow() end
     local function FormatDistance(value) return addon.UI.FormatDistance(value, IsNarrow()) end
     local function AnchorTracker()
         frame:ClearAllPoints()
@@ -309,6 +309,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     local routeExpanded, routeQuestID
     local otherCount = 0
     local offerCount = 0
+    local routeOfferCount = 0
     local listLimits = {accepted = settings.acceptedRows or 2, offers = settings.offerRows or 3}
     local lastRender, lastOffers, lastOfferXP
     local skippedCount = 0
@@ -322,7 +323,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end)
     questMap:SetScript("OnEnter", function(self)
         local _, state = addon.QuestState.Read(activeCheckbox.quest, false, manualSelection)
-        local detail = state .. "\n" .. addon.TrackerPresentation.Summary(recommendationReason, 2)
+        local detail = state .. "\n" .. addon.TrackerPresentation.Summary(recommendationReason, 3)
         local summary = lastRender and addon.TrackerPresentation.Information(lastRender[8] and lastRender[8][1],
             lastRender[11] and lastRender[11][1])
         if summary and summary ~= "" then detail = detail .. "\n" .. summary end
@@ -399,7 +400,7 @@ function addon.CreateQuestTracker(settings, actions, version)
 
     local function LayoutSection(toggle, label, caption, collapsed, list, count, y)
         local shown = not settings.collapsed and not IsQuiet() and (settings.navigatorView or "all") == "all" and count > 0
-            and frame.environmentExpanded == true
+            and frame.environmentExpanded == true and not settings.simpleNavigator
         local expanded = shown and not collapsed
         toggle:SetShown(shown)
         label:SetShown(shown)
@@ -454,7 +455,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             local reward = rewards and rewards[1]
             if settings.navigatorLayout == "guided" then reward = addon.UI.Theme.Text("xp", reward) end
             activeReward:SetText(addon.TrackerPresentation.Information(zones and zones[1], reward))
-            activeReward:SetShown(activeReward:GetText() ~= "" and not IsCompact() and not settings.collapsed and settings.navigatorView ~= "goal")
+            activeReward:SetShown(settings.navigatorLayout ~= "guided" and activeReward:GetText() ~= "" and not IsCompact() and not settings.collapsed and settings.navigatorView ~= "goal")
             activeZone:Hide()
             routeNote:Hide()
         end
@@ -635,10 +636,10 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         local y = LayoutSection(alternativesToggle, alternativesLabel, L.Alternatives,
             settings.alternativesCollapsed, rows, otherCount, listTop)
-        y = LayoutSection(offersToggle, offersLabel, L.NearbyQuests,
+        y = LayoutSection(offersToggle, offersLabel, routeOfferCount > 0 and L.MixedOffersTitle or L.NearbyQuests,
             settings.offersCollapsed, offerRows, offerCount, y)
         if areaOverview then areaOverview:Layout() end
-        if areaOverview and (not showLists or not frame.environmentExpanded) then areaOverview:Hide() end
+        if areaOverview and (not showLists or not frame.environmentExpanded or settings.simpleNavigator) then areaOverview:Hide() end
         if areaOverview and areaOverview:IsShown() then
             areaOverview:ClearAllPoints()
             areaOverview:SetPoint("TOPLEFT", 14, -y - 9)
@@ -854,6 +855,8 @@ function addon.CreateQuestTracker(settings, actions, version)
         order, offerIDs = addon.TrackerPresentation.VisualOrder(offerIDs, offers,
             frame:IsMouseOver() or (detailPanel and detailPanel:IsShown()) or (viewport and viewport.offset > 0))
         offerCount = offers and #offers or 0
+        routeOfferCount = 0
+        for _, offer in ipairs(offers or {}) do if offer.routePickup then routeOfferCount = routeOfferCount + 1 end end
         for index, row in ipairs(offerRows) do
             local offer = offers and offers[order[index]]
             if detailPanel and detailPanel.key == "offer:" .. tostring(row.measurement and row.measurement.id)
@@ -1174,8 +1177,9 @@ function addon.CreateQuestTracker(settings, actions, version)
                     .. (measured.marker.accessNote and (" · " .. measured.marker.accessNote) or ""))
             else
                 for _, row in ipairs(goalRows) do
-                    if row.active and row.goal then navigation.goal:SetText(row.goal.text) break end
+                    if row.active and row.goal then navigation.goal:SetText(addon.NavigationHints.Instruction(quest, measured and measured.marker, row.goal)) break end
                 end
+                if quest.readyToTurnIn then navigation.goal:SetText(addon.NavigationHints.Instruction(quest, measured and measured.marker)) end
             end
             local distance = arrived and (quest.readyToTurnIn and L.TurnInAction or L.ArrivedShort)
                 or FormatDistance(latestMeasurements[quest.id])

@@ -113,15 +113,16 @@ function Insights.AnnotateOffers(mapAPI, offers, quests, measurements, active, c
         if not offer.capacityFull and not offer.lowPriority and addon.QuestPrioritizer.GetLevel(offer) and offer.objectiveMarker and offer.journeyYards then
             offer.recommended = (offer.overlapCount >= 2 and offer.journeyYards <= 1000)
                 or (offer.onApproach and offer.journeyYards <= 750)
-                or (offer == offers[1] and offer.journeyYards <= 500)
         end
     end
 end
 
 function Insights.OfferReason(offer)
+    if offer.planReason then return offer.planReason end
     if offer.overlapCount == 1 then return addon.L.OfferOverlapOne end
     if (offer.overlapCount or 0) > 1 then return addon.L.OfferOverlap:format(offer.overlapCount) end
     if offer.onApproach then return addon.L.OfferOnApproach end
+    return addon.L.PickupUsefulOnly
 end
 
 function Insights.Compare(snapshot, selected, manual)

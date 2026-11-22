@@ -22,7 +22,7 @@ end
 
 -- Advice only: these stops never accept, abandon or change the active quest.
 -- Distances describe coordinate proximity, not a verified walkable path.
-function Planning.Build(api, offers, quests, measurements, active, capacity, level, feedback, chains, mapType, getXP)
+function Planning.Build(api, offers, quests, measurements, active, capacity, level, feedback, chains, mapType, getXP, finishers)
     getXP = getXP or addon.QuestLog.GetTurnInXP
     local result = {areas = {}, pickups = {}, outing = {}, unknown = 0, capacity = capacity}
     local measured = active and measurements[active.id]
@@ -30,7 +30,7 @@ function Planning.Build(api, offers, quests, measurements, active, capacity, lev
     local entries, activeEntries, offerAreas = {}, {}, {}
     for _, quest in ipairs(quests or {}) do
         local m = measurements[quest.id]
-        if Eligible(quest, level, feedback) and m and m.marker and not m.objectiveMarker then
+        if Eligible(quest, level, feedback) and m and m.marker and m.yards and not m.objectiveMarker then
             local _, zone = addon.QuestLocation.GetZone(api, mapType, m.marker.mapID)
             local entry = {quest = quest, target = m.marker, yards = m.yards, zone = zone or m.marker.zoneName}
             entries[#entries + 1], activeEntries[#activeEntries + 1] = entry, entry
@@ -48,13 +48,14 @@ function Planning.Build(api, offers, quests, measurements, active, capacity, lev
             end
             local leg = Gap(api, offer.marker, anchor)
             local goalGap = Gap(api, target, anchor)
-            local extra = leg and measured.yards and offer.yards + leg - measured.yards
+            local extra = leg and measured.yards and offer.yards and offer.yards + leg - measured.yards
             offer.planClass = shared > 0 and "combination" or "independent"
             offer.planReason = shared > 0 and addon.L.PickupSharedArea:format(shared) or nil
             if extra and goalGap and extra <= 100 and goalGap <= 400 then
                 offer.planClass, offer.planReason = "route", addon.L.PickupOnRoute
-            elseif extra and extra > 300 and shared == 0 then
+            elseif extra and extra > 300 then
                 offer.planClass, offer.planReason = "detour", addon.L.PickupDetourHelp
+                offer.recommended = nil
             end
             entries[#entries + 1] = {quest = offer, target = target, yards = offer.journeyYards,
                 zone = offer.objectiveZone, pickup = true}
@@ -109,6 +110,16 @@ function Planning.Build(api, offers, quests, measurements, active, capacity, lev
                 offer.planClass, offer.planReason = "combination", addon.L.PickupCombinedArea
             end
         end
+        area.handIns, area.missingReturns = 0, 0
+        local counted = {}
+        for _, entry in ipairs(area.entries) do
+            if not counted[entry.quest.id] then
+                counted[entry.quest.id] = true
+                if finishers and addon.TravelSupport.ValidPoint(finishers[entry.quest.id]) then
+                    area.handIns = area.handIns + 1
+                else area.missingReturns = area.missingReturns + 1 end
+            end
+        end
     end
     table.sort(result.areas, function(a, b)
         if a.score ~= b.score then return a.score < b.score end
@@ -121,7 +132,7 @@ function Planning.Build(api, offers, quests, measurements, active, capacity, lev
     result.budget = budget
     local candidates = {}
     for _, offer in ipairs(offers or {}) do
-        if offer.yards <= 750 and (offer.planClass == "route" or offer.planClass == "combination") then
+        if offer.yards and offer.yards <= 750 and (offer.planClass == "route" or offer.planClass == "combination") then
             candidates[#candidates + 1] = offer
         end
     end
@@ -193,6 +204,12 @@ function Planning.Build(api, offers, quests, measurements, active, capacity, lev
         end
     end
     return result
+end
+
+function Planning.AreaSummary(area)
+    local xp = (area.unknownXP or 0) > 0 and (area.xp or 0) == 0 and addon.L.UnknownXP
+        or addon.L.QuestXPReward:format(area.xp or 0) .. ((area.unknownXP or 0) > 0 and " + ?" or "")
+    return addon.L.TourCard:format(area.active or 0, area.pickups or 0, area.handIns or 0, xp)
 end
 
 function Planning.ClassLabel(offer)

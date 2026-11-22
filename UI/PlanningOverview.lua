@@ -61,6 +61,15 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
                     addon.ShowTextWindow("comparison", self.detail, L.BriefComparison, L.BriefNoScore)
                 elseif self.stop then window.openStop(self.stop) end
             end)
+            row.map = addon.UI.CreateUtilityButton(row, L.Map, 48, function()
+                if row.stop then window.openStop(row.stop) end
+            end)
+            row.map:SetPoint("RIGHT", -6, 0)
+            row.info = addon.UI.CreateUtilityButton(row, L.DetailsShort, 60, function()
+                addon.ShowTextWindow("planningDetail", row.detail or L.BriefXPHelp, L.PlanningOverview, L.AdventureReadOnly)
+            end)
+            row.info:SetPoint("RIGHT", -60, 0)
+            row.textLabel:SetPoint("RIGHT", -128, 0)
             addon.UI.BindTooltip(row, function(self) return self:GetText(), self.detail end)
             window.rows[index] = row
         end
@@ -162,6 +171,7 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
                     row:SetText(((self.page - 1) * 4 + index) .. ". " .. addon.UI.FormatQuestTitle(entry.quest) .. "\n"
                         .. L.TourLeg:format(entry.leg or 0) .. " · " .. (entry.xp and L.QuestXPReward:format(entry.xp) or L.UnknownXP))
                 end
+                row.map:SetShown(entry ~= nil and row.stop ~= nil and row.stop.target ~= nil)
             end
             self.previous:SetEnabled(self.page > 1)
             self.next:SetEnabled(self.page < pages)

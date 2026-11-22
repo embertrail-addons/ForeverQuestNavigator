@@ -29,6 +29,7 @@ local function Panel(width, height, title)
     close:SetPoint("TOPRIGHT", -8, -8)
     close:SetText("X")
     close:SetScript("OnClick", function() frame:Hide() end)
+    addon.UI.ExpandHitArea(close, 3)
     frame.closeButton = close
     frame:Hide()
     if addon.UI.ToolHub then addon.UI.ToolHub.Attach(frame, title) end
@@ -40,6 +41,7 @@ local function Button(parent, text, width, action)
     button:SetSize(width, 24)
     button:SetText(text)
     button:SetScript("OnClick", action)
+    addon.UI.ExpandHitArea(button, 2)
     return button
 end
 

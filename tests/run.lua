@@ -956,7 +956,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 return ticker
             end,
         },
-        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false, introSeen = true, navigatorLayout = "lists",
+        ForeverQuestNavigatorDB = { x = "invalid offset", hidden = true, includeElite = false, introSeen = true, navigatorLayout = "lists", difficultyWords = false,
             sortByDistance = false, currentZoneOnly = true },
         MinimalSliderWithSteppersMixin = { Label = { Right = 3 } },
         Settings = {
@@ -968,6 +968,9 @@ test("TOC startup and quest events update the tracker with or without optional a
             RegisterAddOnSetting = function(owner, variable, key, db, variableType, name, defaultValue)
                 equal(owner, category)
                 equal(variable, ({
+                    simpleNavigator = "FOREVERQUESTNAVIGATOR_SIMPLE",
+                    groupQuestHints = "FOREVERQUESTNAVIGATOR_GROUP_HINTS",
+                    difficultyWords = "FOREVERQUESTNAVIGATOR_DIFFICULTY_WORDS",
                     language = "FOREVERQUESTNAVIGATOR_LANGUAGE",
                     repeatablePolicy = "FOREVERQUESTNAVIGATOR_REPEATABLES",
                     theme = "FOREVERQUESTNAVIGATOR_THEME",
@@ -1007,6 +1010,9 @@ test("TOC startup and quest events update the tracker with or without optional a
                     navigatorView = "string", trackerMaxHeight = "number", trackerWidth = "number", theme = "string", navigatorLayout = "string", repeatablePolicy = "string" })[key]
                 equal(variableType, expectedType or "boolean")
                 equal(name, ({
+                    simpleNavigator = "Simple navigator",
+                    groupQuestHints = "Show shared group quests",
+                    difficultyWords = "Show difficulty as words",
                     language = "Language",
                     repeatablePolicy = "Repeatable quests",
                     theme = "Color design", reducedColors = "Reduce semantic colors", navigatorLayout = "Main window layout",
@@ -1044,6 +1050,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "theme" then expectedDefault = "graphite" end
                 if key == "navigatorLayout" then expectedDefault = "guided" end
                 if key == "reducedColors" then expectedDefault = false end
+                if key == "groupQuestHints" then expectedDefault = false end
+                if key == "simpleNavigator" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end
                 if key == "language" then expectedDefault = "auto" end
@@ -1973,7 +1981,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(offer:IsShown(), false)
     settingsByKey.showQuestieOffers:SetValue(true)
     flush()
-    equal(offer.text, "−  To accept (2)")
+    equal(offer.text, "−  Pickups nearby / near destination (3)")
     equal(offer:IsShown(), true)
     local firstOffer = frames[firstNewFrame + 16]
     local secondOffer = frames[firstNewFrame + 18]
@@ -1984,7 +1992,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(firstOffer.recommendation:IsShown(), false)
     local offersToggle = offer.point[2]
     offersToggle:Click()
-    equal(offer.text, "+  To accept (2)")
+    equal(offer.text, "+  Pickups nearby / near destination (3)")
     equal(firstOffer:IsShown(), false)
     equal(env.ForeverQuestNavigatorDB.offersCollapsed, true)
     offersToggle:Click()
@@ -2035,6 +2043,41 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(selectedQuest, beforeSelected)
     equal(title.text, beforeOfferTitle)
     reloadedAddon.ShowQuestMapMarker = originalMarker
+    do
+    local hiddenID = firstOffer.measurement.id
+    assert(reloadedAddon.SkipCurrentOffer(hiddenID, "hide"))
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.hiddenOffers[hiddenID].id, hiddenID)
+    equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[hiddenID], nil)
+    local hiddenPickups = reloadedAddon.OpenAdventure("hiddenOffers")
+    equal(hiddenPickups.rows[1].entry.quest.id, hiddenID)
+    hiddenPickups.rows[1].choose:Click() hiddenPickups.closeButton:Click()
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.hiddenOffers[hiddenID], nil)
+    equal(firstOffer.measurement.id, hiddenID)
+    assert(reloadedAddon.SkipCurrentOffer(hiddenID, "later"))
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[hiddenID].when, "round")
+    assert(reloadedAddon.Undo:Undo()) flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[hiddenID], nil)
+    equal(firstOffer.measurement.id, hiddenID)
+    local previewWindow = reloadedAddon.OpenExcursionFromArea()
+    local previewPlan, pickupID = previewWindow.plan
+    for _, stop in ipairs(previewPlan.stops) do if stop.action == "accept" then pickupID = stop.quest.id break end end
+    assert(pickupID)
+    local previousCount = #previewPlan.stops
+    local oldOnQuest = api.IsOnQuest
+    api.IsOnQuest = function(id) return id == pickupID or oldOnQuest(id) end
+    equal(reloadedAddon.SkipOfferStep(previewPlan, pickupID, "once"), false)
+    equal(#previewPlan.stops, previousCount)
+    api.IsOnQuest = oldOnQuest
+    assert(reloadedAddon.SkipOfferStep(previewPlan, pickupID, "once"))
+    equal(reloadedAddon.OfferUndoAvailable(previewPlan), true)
+    for _, stop in ipairs(previewPlan.stops) do assert(stop.quest.id ~= pickupID) end
+    assert(reloadedAddon.Undo:Undo()) equal(#previewPlan.stops, previousCount)
+    previewWindow.closeButton:Click()
+    flush()
+    end
     equal(secondOffer.recommendation:IsShown(), true)
     equal(secondOffer.measurement.beforeDeparture, true)
     equal(firstOffer.distance.text, "Pickup ~60 yd")
@@ -2055,7 +2098,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     playerX = 0.25
     questieTicker.tick()
     flush()
-    equal(offer:IsShown(), false)
+    equal(offer:IsShown(), true)
+    equal(firstOffer.measurement.routePickup, true)
     complete[7] = true
     pinsByMap[10] = { { questID = 7, x = 0.1, y = 0.5 } }
     fire("QUEST_LOG_UPDATE")
@@ -2707,6 +2751,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("PLAYER_LEVEL_UP", 11)
     fire("QUEST_TURNED_IN", 702)
     flush()
+    equal(title.text, "[10] Regular objective")
+    local levelReview = reloadedAddon.OpenAdventure("level")
+    levelReview.primary:Click()
+    flush()
     equal(title.text, "[13] Hard quest")
     assert(not routeDetails.text:find("XP to level", 1, true))
 
@@ -2967,6 +3015,25 @@ test("TOC startup and quest events update the tracker with or without optional a
         if action then action() return end
         error("Missing menu entry: " .. label)
     end
+    mainMapButton:Click("RightButton")
+    MenuAction("When visiting this area")
+    flush()
+    equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[1002].when, "visit")
+    local laterPanel = reloadedAddon.OpenAdventure("later")
+    equal(laterPanel.rows[1].entry.quest.id, 1002)
+    laterPanel.rows[1].choose:Click()
+    equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[1002], nil)
+    laterPanel.closeButton:Click()
+    env.MerchantFrame = {IsShown = function() return true end}
+    env.GetMerchantNumItems = function() return 2 end
+    env.UnitName = function(unit) equal(unit, "npc") return "Visited seller" end
+    local merchantPanel = reloadedAddon.OpenAdventure("bags")
+    merchantPanel.primary:Click()
+    equal(#env.ForeverQuestNavigatorCharacterDB.knownVendors, 1)
+    equal(env.ForeverQuestNavigatorCharacterDB.knownVendors[1].name, "Visited seller")
+    near(env.ForeverQuestNavigatorCharacterDB.knownVendors[1].point.x, playerX)
+    merchantPanel.closeButton:Click()
+    env.MerchantFrame, env.GetMerchantNumItems, env.UnitName = nil, nil, nil
     mainMapButton:Click("RightButton")
     MenuAction("Save my position as this objective's access point")
     flush()
@@ -3875,4 +3942,8 @@ assert(loadfile("tests/ux_features.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/pickup_planning.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/decision_brief.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/outing_improvements.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/tour_experience.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/adventure_support.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/journey_planning.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/mixed_quest_plan.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

@@ -9,6 +9,10 @@ function View.Rows(model, mode, mapID)
     local rows, summary = {}, L.BriefFactors
     if mode == "closing" then
         summary = L.BriefClosingSummary:format(#brief.closing, brief.xp) .. "\n" .. L.BriefXPHelp
+        if brief.returnAdvice then
+            summary = L.ReturnToArea:format(brief.returnAdvice.zone, #brief.closing) .. "\n"
+                .. L.ReturnFollowUps:format(brief.returnAdvice.followUps) .. " · " .. summary
+        end
         if brief.unknownXP > 0 then summary = summary .. "\n" .. L.PickupUnknownXP:format(brief.unknownXP) end
         if (brief.unknownHandIns or 0) > 0 then summary = summary .. "\n" .. L.BriefMissingTargets:format(brief.unknownHandIns) end
         for _, stop in ipairs(brief.closing) do

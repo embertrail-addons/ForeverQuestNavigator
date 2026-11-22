@@ -21,7 +21,7 @@ function addon.SettingsController.Register(context)
     local currentSection
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
-        theme = true, navigatorView = true, repeatablePolicy = true }
+        theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
@@ -60,6 +60,18 @@ function addon.SettingsController.Register(context)
         Settings.RegisterInitializer(category, CreateSettingsListSectionHeaderInitializer(name))
     end
     Section(L.SettingsGeneral)
+    local simple = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_SIMPLE", "simpleNavigator", settings,
+        Settings.VarType.Boolean, L.JourneySimple, false)
+    simple:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, simple, L.JourneySimpleHelp)
+    local groupHints = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_GROUP_HINTS", "groupQuestHints", settings,
+        Settings.VarType.Boolean, L.AdventureGroupOn, false)
+    groupHints:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, groupHints, L.AdventureGroupHelp)
+    local difficultyWords = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_DIFFICULTY_WORDS", "difficultyWords", settings,
+        Settings.VarType.Boolean, L.AdventureDifficultyWords, true)
+    difficultyWords:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, difficultyWords, L.AdventureDifficultyHelp)
     local repeatables = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_REPEATABLES", "repeatablePolicy", settings,
         Settings.VarType.String, L.RepeatablePolicy, "show")
     local repeatOptions = Settings.CreateControlTextContainer()

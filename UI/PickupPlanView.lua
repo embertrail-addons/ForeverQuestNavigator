@@ -4,7 +4,8 @@ local View = {}
 addon.PickupPlanView = View
 
 local function AreaDetail(area)
-    local lines = {L.PickupAreaCounts:format(area.active, area.pickups, area.xp)}
+    local lines = {addon.PickupPlanning.AreaSummary(area)}
+    if (area.missingReturns or 0) > 0 then lines[#lines + 1] = L.TourMissingReturns:format(area.missingReturns) end
     if area.unknownXP > 0 then lines[#lines + 1] = L.PickupUnknownXP:format(area.unknownXP) end
     if #area.followUps > 0 then lines[#lines + 1] = L.PickupFollowUpCount:format(#area.followUps) end
     for _, chain in ipairs(area.followUps) do lines[#lines + 1] = chain.detail end
@@ -44,7 +45,7 @@ function View.Rows(plan, mode, areaKey)
                     .. "\n" .. L.BriefAreaDistance:format(candidate.yards, plan.destination.yards)
             end
             rows[#rows + 1] = {text = L.PickupAreaTitle:format(candidate.zone, candidate.target.x * 100, candidate.target.y * 100)
-                .. "\n" .. L.PickupAreaCounts:format(candidate.active, candidate.pickups, candidate.xp),
+                .. "\n" .. addon.PickupPlanning.AreaSummary(candidate),
                 detail = comparison, areaKey = candidate.entries[1].quest.id}
         end
     else

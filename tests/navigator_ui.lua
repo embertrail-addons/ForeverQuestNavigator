@@ -549,7 +549,7 @@ return function(test, equal, near, mockUI, loadAddon)
         local opened = 0
         tracker.openPickupPlanning = function() opened = opened + 1 end
         tracker:SetPickupPlanning({areas = {{}}, pickups = {{id = 2}}, outing = {}})
-        tracker:SetDecisionBrief({steps = {}, closing = {}})
+        tracker:SetDecisionBrief({steps = {}, closing = {}, area = {zone = "Camp", entries = {{quest = {id = 2}}}}})
         local button = tracker.nextBoard.plan
         equal(tracker.nextBoard.parent, tracker.scrollBody) assert(tracker.nextBoard:IsShown())
         button:Click() equal(opened, 1)
@@ -744,6 +744,147 @@ return function(test, equal, near, mockUI, loadAddon)
             start = function() started = started + 1 return true end, pause = function() end})
         equal(started, 0) window.rows[1]:Click() equal(mapped, 1) equal(started, 0)
         window.start:Click() equal(started, 1)
+    end)
+    test("Tour previews and recaps stay explicit and empty actions disappear across fonts and languages", function()
+        for _, language in ipairs({"enUS", "deDE"}) do
+            for _, font in ipairs({80, 140}) do
+                local addon, tracker, settings, maps, skipped, render, quest = Fixture(language)
+                settings.fontPercent = font settings.navigatorLayout = "guided"
+                local area = {zone = "Camp", active = 1, pickups = 2, xp = 100, unknownXP = 1, entries = {{quest = quest}}}
+                local preview, recap
+                addon.OpenExcursionFromArea = function(key) preview = key end
+                addon.OpenOutingReview = function() recap = true end
+                tracker:SetDecisionBrief({steps = {{quest = quest, kind = "objective"}, {quest = quest, kind = "objective"}},
+                    closing = {}, area = area, review = {completed = 1}, phaseText = addon.L.BriefPhase_travel})
+                local board = tracker.nextBoard
+                equal(board.rows[2]:IsShown(), false) equal(board.closing:IsShown(), false)
+                board.tour:Click() equal(preview, quest.id) equal(#skipped, 0)
+                board.review:Click() equal(recap, true)
+                assert(board.tour:GetHeight() > 20)
+                tracker:SetDecisionBrief({steps = {}, closing = {}})
+                equal(board.tour:IsShown(), false) equal(board.plan:IsShown(), false)
+                equal(board.caption:IsShown(), false) equal(board.review:IsShown(), false)
+            end
+        end
+    end)
+    test("A completed outing recap is dismissible and shows received rather than potential XP", function()
+        local addon = Fixture()
+        local dismissed
+        local p = {stops = {}, index = 1, started = true, running = false, xp = 9999, unknownXP = 0, missing = 0,
+            receipts = {[1] = {xp = 250}}}
+        local window = addon.ShowExcursion(p, {dismiss = function() dismissed = true end})
+        equal(window.summary:GetText(), addon.L.RoundSummary:format(1, 250, 0))
+        window.dismiss:Click() equal(dismissed, true) equal(window:IsShown(), false)
+    end)
+    test("Adventure tabs preserve pages and require explicit selection, while maps only open destinations", function()
+        for _, locale in ipairs({"enUS", "deDE"}) do
+            local addon = Fixture(locale)
+            local chosen, mapped, toggled, reviewed = 0, 0, 0, 0
+            local rows = {}
+            for i = 1, 6 do rows[i] = {quest = {id = i, title = "Quest " .. i}, target = {mapID = 1, x = .2, y = .2}, detail = "Known details"} end
+            local actions = {map = function() mapped = mapped + 1 end, select = function() chosen = chosen + 1 end,
+                toggleGroup = function() toggled = toggled + 1 end, releaseLevel = function() end,
+                reviewChanges = function() reviewed = reviewed + 1 end, clearCorrection = function() end}
+            local window = addon.ShowAdventure(function() return {rows = rows, summary = "Help"} end, actions, "departure")
+            equal(chosen, 0) window.rows[1].map:Click() equal(mapped, 1) equal(chosen, 0)
+            window.next:Click() equal(window.page, 2)
+            window:SelectMode("blocked") equal(window.page, 1) window.rows[1].choose:Click() equal(chosen, 1)
+            window:SelectMode("departure") equal(window.page, 2)
+            window:SelectMode("group") window.primary:Click() equal(toggled, 1)
+            window:SelectMode("changes") window.primary:Click() equal(reviewed, 1) equal(chosen, 1)
+            window.closeButton:Click() equal(window:IsShown(), false)
+            local again = addon.ShowAdventure(function() return {rows = rows} end, actions)
+            equal(again, window) equal(window.mode, "changes")
+        end
+    end)
+    test("Time budgeting only rebuilds an explicit preview and is hidden on a started outing", function()
+        local addon = Fixture()
+        local budget, starts = 0, 0
+        local p = {stops = {}, index = 1, running = false, xp = 0, missing = 0, unknownXP = 0}
+        local actions = {budget = function(value) budget = value end, start = function() starts = starts + 1 end}
+        local window = addon.ShowExcursion(p, actions)
+        window.budget:Click() equal(budget, 15) equal(starts, 0)
+        p.started = true window:Refresh() equal(window.budget:IsShown(), false) equal(window.timeHelp:IsShown(), false)
+    end)
+    test("Difficulty words use compact text and survive color reduction", function()
+        local addon = Fixture("deDE")
+        addon.SettingsController.settings = {difficultyWords = true}
+        local title = addon.UI.FormatQuestTitle({id = 1, title = "Test", level = 30}, true, 30)
+        assert(title:find(addon.L.DifficultyShort_yellow, 1, true))
+        assert(not title:find(addon.L.Difficulty_yellow, 1, true))
+        addon.SettingsController.settings.difficultyWords = false
+        assert(not addon.UI.FormatQuestTitle({id = 1, title = "Test", level = 30}, true, 30):find(addon.L.DifficultyShort_yellow, 1, true))
+    end)
+    test("Simple navigator reduces cards and lists while contextual warnings remain actionable", function()
+        local addon, tracker, settings, maps, skipped, render, quest = Fixture("deDE")
+        settings.simpleNavigator = true settings.navigatorLayout = "guided"
+        local section
+        addon.OpenAdventure = function(mode) section = mode or "tools" end
+        tracker:SetDecisionBrief({steps = {{quest = quest, kind = "objective"}}, closing = {},
+            area = {zone = "Camp", entries = {{quest = quest}}}, bagsWarning = "Low bags", laterCount = 2})
+        equal(tracker.nextBoard.tour:IsShown(), false) equal(tracker.nextBoard.plan:IsShown(), false)
+        equal(tracker.acceptedRows[1]:IsShown(), false)
+        assert(tracker.nextBoard.assist:IsShown()) tracker.nextBoard.assist:Click() equal(section, "bags")
+        tracker.nextBoard.environment:Click() equal(section, "tools") equal(#skipped, 0)
+        settings.simpleNavigator = false tracker:UpdateNavigatorLayout() assert(tracker.nextBoard.tour:IsShown())
+    end)
+    test("Grouped adventure navigation separates descriptions from rows across fonts and themes", function()
+        for _, locale in ipairs({"enUS", "deDE"}) do for _, font in ipairs({80, 140}) do
+            local addon = Fixture(locale) addon.UI.SetFontSize(font)
+            local entries = {}
+            for i = 1, 6 do entries[i] = {quest = {id = i, title = "A longer quest title"}, target = {mapID = 1, x = .2, y = .3}, short = "Known destination"} end
+            local actions = {map = function() end, select = function() end, rowAction = function() end,
+                clearCorrection = function() end, toggleGroup = function() end, releaseLevel = function() end, reviewChanges = function() end}
+            local window = addon.ShowAdventure(function() return {rows = entries, summary = "A description\nwith a second line\nand a third line"} end, actions)
+            for _, theme in ipairs({"graphite", "parchment", "midnight"}) do
+                addon.UI.Theme.Apply(false, theme, false)
+                for _, mode in ipairs({"departure", "compare", "chains", "along", "blocked", "bags", "group", "later", "hiddenOffers", "changes", "level", "corrections"}) do
+                    window:SelectMode(mode)
+                    local rowTop = -window.rows[1].point[3]
+                    local summaryBottom = -window.summary.points.TOPLEFT[3] + window.summary:GetStringHeight()
+                    assert(rowTop >= summaryBottom + 10, "Description overlaps rows")
+                    assert(-window.rows[4].point[3] + window.rows[4]:GetHeight() <= window:GetHeight() - 90, "Rows overlap footer")
+                    local count = 0 for _ in pairs(window.tabs) do count = count + 1 end equal(count, 3)
+                end
+            end
+        end end
+    end)
+    test("Along-route and comparison actions open explicit previews rather than selecting quests", function()
+        local addon = Fixture()
+        local selected, reviewed, opened = 0, 0, 0
+        local entry = {quest = {id = 1, title = "Ready"}, target = {mapID = 1, x = .2, y = .2}}
+        local window = addon.ShowAdventure(function() return {rows = {entry}} end, {
+            map = function() opened = opened + 1 end, select = function() selected = selected + 1 end,
+            rowAction = function(e, mode) equal(e, entry) assert(mode == "along" or mode == "compare") reviewed = reviewed + 1 end}, "along")
+        window.rows[1].map:Click() equal(opened, 1) equal(reviewed, 0)
+        window.rows[1].choose:Click() equal(reviewed, 1) equal(selected, 0)
+        window:SelectMode("compare") window.rows[1].choose:Click() equal(reviewed, 2) equal(selected, 0)
+    end)
+    test("Pickup rows expose Skip and all three choices without turning map clicks into skip actions", function()
+        local addon, tracker, settings, maps, skipped, render, quest, c, parent, env = Fixture("deDE")
+        local choices, mapped, undid = {}, 0, false
+        local p = {stops = {{quest = quest, target = {mapID = 1, x = .2, y = .2}, action = "accept"},
+            {quest = c, target = {mapID = 1, x = .3, y = .3}, action = "objective"}}, index = 1, xp = 0, missing = 0, unknownXP = 0}
+        local window = addon.ShowExcursion(p, {map = function() mapped = mapped + 1 end,
+            skip = function(id, mode) equal(id, quest.id) choices[#choices + 1] = mode return true, addon.L.OfferSkipped end,
+            canUndo = function() return true end, undo = function() undid = true return true end})
+        window.rows[1]:Click() equal(mapped, 1) equal(#choices, 0)
+        assert(window.rows[1].skip:IsShown()) equal(window.rows[2].skip:IsShown(), false)
+        window.rows[1].skip:Click() equal(choices[1], "once")
+        local choiceWindow = addon.UI.ShowOfferChoices(window.rows[1], function(mode) choices[#choices + 1] = mode end)
+        choiceWindow.rows[2]:Click() equal(choices[2], "later")
+        addon.UI.ShowOfferChoices(window.rows[1], function(mode) choices[#choices + 1] = mode end).rows[3]:Click()
+        equal(choices[3], "hide") window.undo:Click() equal(undid, true)
+    end)
+    test("Current acceptance keeps Skip and review accessible in the simple navigator", function()
+        local addon, tracker, settings, maps, skipped, render, quest = Fixture()
+        local id, reviewed
+        addon.SkipCurrentOffer = function(value) id = value end addon.OpenOutingReview = function() reviewed = true end
+        settings.simpleNavigator = true
+        tracker:SetDecisionBrief({steps = {{quest = quest, kind = "accept", offer = true}}, closing = {}})
+        tracker.nextBoard.rows[1].skip:Click() equal(id, quest.id) equal(#skipped, 0)
+        tracker:SetDecisionBrief({steps = {}, closing = {}, acceptanceReview = true})
+        tracker.nextBoard.assist:Click() equal(reviewed, true)
     end)
     test("Quick settings can filter recommendation controls and expose a separate example preview", function()
         local addon, _, settings = Fixture()

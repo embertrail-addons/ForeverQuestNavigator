@@ -29,6 +29,7 @@ function addon.CreateQuestItemButton(owner, parent)
         self.button = button
         button:SetSize(32, 32) button:RegisterForClicks("LeftButtonUp")
         button:SetAttribute("useOnKeyDown", false)
+        button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
         button:SetFrameStrata("MEDIUM") button:SetFrameLevel(owner:GetFrameLevel() + 8)
         button:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -50,8 +51,7 @@ function addon.CreateQuestItemButton(owner, parent)
             host.count:SetText(hint.count > 1 and tostring(hint.count) or "")
             local start, duration, remaining = addon.QuestItemHints.Cooldown(hint, GetQuestLogSpecialItemCooldown, GetTime and GetTime() or 0)
             if host.cooldown.SetCooldown then host.cooldown:SetCooldown(start, duration) end
-            host.label:SetText(L.QuestItemAction .. ": " .. hint.name .. (remaining > 0 and (" · %ds"):format(math.ceil(remaining)) or "")
-                .. (Combat() and (" · " .. L.QuestItemCombat) or hint.inRange == false and (" · " .. L.QuestItemOutOfRange) or ""))
+            host.label:SetText(addon.QuestItemHints.Describe(hint, remaining) .. (Combat() and (" · " .. L.QuestItemCombat) or ""))
             host:SetHeight(math.max(36, host.label:GetStringHeight() + 6))
         end
         if not Combat() then

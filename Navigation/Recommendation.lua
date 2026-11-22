@@ -33,6 +33,20 @@ function Recommendation.ScoreOffer(offer)
     return offer.yards + objective + offer.levelPenalty - bonus - xpBonus - shared - approach
 end
 
+-- One shared explanation for the navigator, planning rows and diagnostics.
+function Recommendation.Short(snapshot, quest, manual)
+    if not quest then return addon.L.ComparisonUnavailable end
+    local parts = {addon.NavigationHints.Why(snapshot, quest, manual)}
+    local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, snapshot.playerLevel)
+    if difficulty then parts[#parts + 1] = addon.L["Difficulty_" .. difficulty] end
+    for _, chain in ipairs(snapshot.chains or {}) do
+        if chain.known and chain.quest and chain.quest.id == quest.id then
+            parts[#parts + 1] = addon.L.KnownFollowUps:format(#(chain.followUps or chain.targets or {})) break
+        end
+    end
+    return table.concat(parts, " · ")
+end
+
 local function Number(value)
     return type(value) == "number" and value == value and math.abs(value) < math.huge
         and ("%.1f"):format(value) or "unknown"

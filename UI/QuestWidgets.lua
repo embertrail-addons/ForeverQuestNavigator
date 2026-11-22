@@ -1,4 +1,13 @@
 local _, addon = ...
+-- Shared sizing for compact multi-line actions in planning/navigation panels.
+-- Reset anchors before reuse so theme and font changes cannot accumulate them.
+function addon.UI.LayoutActionRow(button, y, width, scale, lines)
+    button:ClearAllPoints() button:SetPoint("TOPLEFT", 0, -y) button:SetWidth(width)
+    local label = button.textLabel or button:GetFontString()
+    label:ClearAllPoints() label:SetPoint("LEFT", 7, 0) label:SetPoint("RIGHT", -7, 0)
+    label:SetMaxLines(lines or 2) label:SetJustifyH("LEFT")
+    button:SetHeight(math.max(26 * scale, label:GetStringHeight() + 10))
+end
 local L = addon.L
 local ShowTextTooltip = addon.UI.ShowTextTooltip
 local HideTextTooltip = addon.UI.HideTextTooltip
@@ -141,12 +150,15 @@ local function FormatQuestTitle(quest, colored, playerLevel)
     end
     local level = addon.QuestPrioritizer.GetLevel(quest)
     local result = level and ("[%d] %s"):format(level, title) or title
+    local settings = addon.SettingsController and addon.SettingsController.settings
+    local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, playerLevel or (UnitLevel and UnitLevel("player")))
     if colored and level then
         local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, playerLevel or (UnitLevel and UnitLevel("player")))
         local r, g, b = addon.UI.Theme.Color("difficulty_" .. (difficulty or "gray"))
         result = ("|cff%02x%02x%02x[%d]|r %s"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), level, title)
     end
     if (quest.elite or quest.group) and not colored then result = result .. " |cffffc447+|r" end
+    if settings and settings.difficultyWords and difficulty then result = result .. " · " .. (quest.readyToTurnIn and L.TurnInAction or L["DifficultyShort_" .. difficulty]) end
     if quest.progress and quest.progress.nearly then result = result .. " (" .. L.NearlyDone .. ")" end
     return result
 end

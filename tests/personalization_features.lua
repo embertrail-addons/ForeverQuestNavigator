@@ -58,7 +58,7 @@ return function(test, addon, equal, near)
         addon.PlanningInsights.AnnotateOffers(mapAPI, offers, {}, {}, nil, {full = true})
         equal(#offers, 1) equal(offers[1].capacityFull, true) assert(not offers[1].recommended)
         addon.PlanningInsights.AnnotateOffers(mapAPI, offers, {}, {}, nil, {full = false})
-        equal(offers[1].recommended, true)
+        assert(not offers[1].recommended) -- A close pickup alone is not a useful combination.
     end)
 
     test("A full log gently favors a nearby unblocked turn-in and exports that allowance", function()

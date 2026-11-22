@@ -100,7 +100,7 @@ local function GetOfferXP(id)
     return xp and xp:GetQuestLogRewardXP(id, false)
 end
 
-local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType, playerLevel, radius, anchor)
+local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType, playerLevel, radius, anchor, includeRoute, routeAnchors)
     local questieMap = QuestieLoader:ImportModule("QuestieMap")
     local markersByQuest, offersByID, ids = {}, {}, {}
     for id, frames in pairs(questieMap.questIdFrames) do
@@ -127,16 +127,29 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
     local offers = {}
     local priority = addon.QuestPrioritizer
     local anchorDistance = anchor and addon.QuestLocation.GetDistanceMetric(mapAPI, anchor)
+    local routeMetrics = {}
+    for index, point in ipairs(routeAnchors or {}) do
+        if index > 3 then break end
+        local metric = addon.QuestLocation.GetDistanceMetric(mapAPI, point)
+        if metric then routeMetrics[#routeMetrics + 1] = {point = point, metric = metric} end
+    end
     local canEarnXP = addon.QuestLog.GetXPToNextLevel() ~= nil
     for id, measurement in pairs(addon.QuestLocation.MeasureQuests(mapAPI, markersByQuest, ids, localMaps)) do
         local distance = measurement.yards
-        local preparation = distance <= radius and Integration.GetPreparation(questAPI, id) or {}
-        if distance <= radius
+        local pickupGap = includeRoute and anchorDistance and anchorDistance(anchor, measurement.marker)
+        if includeRoute then for _, entry in ipairs(routeMetrics) do
+            local gap = entry.metric(entry.point, measurement.marker)
+            if gap and (not pickupGap or gap < pickupGap) then pickupGap = gap end
+        end end
+        local nearby = distance <= radius or pickupGap and pickupGap <= radius
+        local preparation = nearby and Integration.GetPreparation(questAPI, id) or {}
+        if nearby
             and not questAPI.IsOnQuest(id)
             and (preparation.repeatable or not (questAPI.IsQuestFlaggedCompleted and questAPI.IsQuestFlaggedCompleted(id)))
             and not (questAPI.IsQuestDisabledForSession and questAPI.IsQuestDisabledForSession(id)) then
             local offer = offersByID[id]
             measurement.id, measurement.title, measurement.level = id, offer.title, offer.level
+            measurement.routePickup = distance > radius and true or nil
             measurement.group = Integration.GetQuestTagID(id) == 1
             measurement.special = addon.QuestLog.IsSpecialQuest(questAPI, id)
             measurement.preparation = preparation

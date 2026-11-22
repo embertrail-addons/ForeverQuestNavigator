@@ -19,7 +19,9 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 
 ## Plan your outing
 
-Version 0.1.79 adds reviewed outings with explicit start/pause/resume, stable objective-area comparisons, repeatable filters, starter requirements, personal quest-note text, clearer recommendation-change notices, FQN map legend/removal and settings categories with example preview. The Focus/Overview navigator, themes, capacity-aware pickups, shared areas and known follow-ups remain available. Coordinate proximity does not guarantee shared enemies or walkable paths.
+Version 0.1.83 plans mixed pickups, objectives and hand-ins using known coordinate travel, level suitability, potential XP and quest-log capacity. Skip a recommended pickup, save it for later or hide it per character; hidden pickups have their own restoration list. Actual acceptance pauses the outing for target review before explicit resume. Coordinate proximity does not guarantee shared enemies or walkable paths.
+
+Tour assistant groups departure checks, tour comparisons, hand-ins on the way, optional native group quest checks, level-up review, expandable chains, personal corrections and contextual reminders. Optional time budgets show their heuristic assumptions. Simple navigator reduces permanent displays; Details keeps information accessible. Bag warnings and explicitly saved merchant visits help with preparation; FQN never sells items automatically. Real-client acceptance checks for the latest changes remain open.
 
 - Build and review a personal tour of up to 20 accepted quests, reorder stops and start navigation explicitly.
 - Preview a closing hand-in round with a saved outdoor return point. Order suggestions use known straight-line distances and require confirmation before changing the tour.

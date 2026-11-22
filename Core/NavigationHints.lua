@@ -9,17 +9,27 @@ function Hints.TargetKind(marker)
     if marker.targetKind == "object" then return "object" end
     return "approximate"
 end
-function Hints.TargetText(marker) return addon.L["TargetQuality_" .. Hints.TargetKind(marker)] end
+function Hints.TargetText(marker)
+    if marker and marker.personalCorrection then return addon.L.AdventurePersonalTarget end
+    return addon.L["TargetQuality_" .. Hints.TargetKind(marker)]
+end
 function Hints.Short(marker) return addon.L["TargetShort_" .. Hints.TargetKind(marker)] end
 function Hints.NextAction(quest, marker, item)
-    if quest and quest.readyToTurnIn then return addon.L.ArrivalTurnIn end
+    if quest and quest.readyToTurnIn then return marker and marker.turnInName and addon.L.AdventureTalkTo:format(marker.turnInName) or addon.L.ArrivalTurnIn end
     local kind = Hints.TargetKind(marker)
     if kind == "access" then return addon.L.ArrivalAccess end
     if item and item.inRange == true then return addon.L.ArrivalUseItem:format(item.name) end
     return kind == "access" and addon.L.ArrivalAccess or kind == "area" and addon.L.ArrivalArea or addon.L.ArrivalObjective
 end
+
+function Hints.Instruction(quest, marker, goal)
+    if quest and quest.readyToTurnIn then return marker and marker.turnInName and addon.L.AdventureTalkTo:format(marker.turnInName) or addon.L.TurnInAction end
+    if marker and marker.accessPoint then return addon.L.AccessGoal:format(marker.accessName or addon.L.SavedAccess) end
+    return goal and goal.text or nil
+end
 function Hints.Why(snapshot, quest, manual)
     if manual then return addon.L.WhyManual end
+    if snapshot.decision == "levelReview" then return addon.L.AdventureLevelShort end
     if snapshot.decision == "levelUp" then return addon.L.WhyLevelUp end
     if (snapshot.decision == "followUp" or snapshot.decision == "outing") and (snapshot.decisionSaving or 0) > 0 then
         return addon.L.WhySaving:format(math.floor(snapshot.decisionSaving + .5))

@@ -7,7 +7,8 @@ local function XP(snapshot, quest)
     return quest.xp or addon.QuestLog.GetTurnInXP(quest)
 end
 function Brief.Status(quest, manual, phase)
-    local parts = {L.BriefNow, phase or L.BriefPhase_travel, manual and L.NavigatorManual or L.NavigatorAutomatic}
+    local parts = {phase or L.BriefPhase_travel}
+    if manual then parts[#parts + 1] = L.NavigatorManual end
     if quest and (quest.group or quest.elite) then parts[#parts + 1] = L.GroupQuest end
     return table.concat(parts, " · ")
 end
@@ -42,12 +43,17 @@ function Brief.Compare(snapshot, selected, alternative)
         local difficulty = addon.QuestPrioritizer.GetDifficulty(quest, snapshot.playerLevel)
         local xp = XP(snapshot, quest)
         return (quest.title or L.QuestNumber:format(quest.id)) .. ": "
-            .. (measured and L.ReasonDistance:format(measured.yards) or L.UnknownCoordinates) .. " · "
+            .. (measured and type(measured.yards) == "number" and L.ReasonDistance:format(measured.yards) or L.UnknownCoordinates) .. " · "
             .. (difficulty and L["Difficulty_" .. difficulty] or L.UnknownLevel) .. "\n"
             .. (xp and L.QuestXPReward:format(xp) or L.UnknownXP) .. " · " .. evidence
     end
     lines[#lines + 1] = Facts(selected)
     if alternative then lines[#lines + 1] = Facts(alternative) end
+    lines[#lines + 1] = addon.Recommendation.Short(snapshot, selected, snapshot.view and snapshot.view.manual)
+    if alternative then
+        local a, b = snapshot.measurements and snapshot.measurements[selected.id], snapshot.measurements and snapshot.measurements[alternative.id]
+        if a and b and a.yards and b.yards and b.yards < a.yards then lines[#lines + 1] = L.BriefCloserAlternative end
+    end
     lines[#lines + 1] = snapshot.comparison or L.ComparisonFactors
     lines[#lines + 1] = L.BriefNoScore
     return table.concat(lines, "\n")
@@ -127,11 +133,43 @@ function Brief.Build(snapshot, ledger, mapAPI, mapType)
     for _, stop in ipairs(result.closing) do
         if stop.xp then result.xp = result.xp + stop.xp else result.unknownXP = result.unknownXP + 1 end
     end
+    -- A map can contain several distant towns. Recommend a bounded hand-in
+    -- cluster, never every finisher merely sharing a map ID.
+    local best
+    for _, anchor in ipairs(stops) do
+        local measured = measurements[anchor.quest.id]
+        local metric = mapAPI and addon.QuestLocation.GetDistanceMetric(mapAPI, anchor.target)
+        if metric and measured and measured.yards and measured.yards <= 2500 then
+            local group = {stops = {}, xp = 0, unknownXP = 0, followUps = 0, target = anchor.target, yards = measured.yards}
+            local ids = {}
+            for _, stop in ipairs(stops) do
+                local gap = metric(anchor.target, stop.target)
+                if gap and gap <= 600 and not ids[stop.quest.id] then
+                    ids[stop.quest.id] = true group.stops[#group.stops + 1] = stop
+                    if stop.xp then group.xp = group.xp + stop.xp else group.unknownXP = group.unknownXP + 1 end
+                end
+            end
+            for _, chain in ipairs(snapshot.chains or {}) do
+                if chain.known and chain.quest and ids[chain.quest.id] then group.followUps = group.followUps + 1 end
+            end
+            if #group.stops >= 2 and (not best or #group.stops > #best.stops or #group.stops == #best.stops and group.yards < best.yards) then best = group end
+        end
+    end
+    if best then
+        local _, zone = addon.QuestLocation.GetZone(mapAPI, mapType, best.target.mapID)
+        best.zone = zone or best.target.zoneName or L.UnknownZone
+        result.returnAdvice = best
+        result.closing, result.xp, result.unknownXP = best.stops, best.xp, best.unknownXP
+    end
     if active then
+        result.why = addon.Recommendation.Short(snapshot, active, view.manual)
         result.evidence, result.evidenceText = Brief.Evidence(active, measurements[active.id], snapshot.playerLevel)
         local alternative
         for _, quest in ipairs(snapshot.ranked or {}) do
-            if quest.id ~= active.id and not (snapshot.feedback and snapshot.feedback[quest.id]) then alternative = quest break end
+            if quest.id ~= active.id and not (snapshot.feedback and snapshot.feedback[quest.id]) then
+                local m, old = measurements[quest.id], alternative and measurements[alternative.id]
+                if not alternative or m and m.yards and (not old or not old.yards or m.yards < old.yards) then alternative = quest end
+            end
         end
         result.comparison = Brief.Compare(snapshot, active, alternative)
         result.group = active.group or active.elite
@@ -139,6 +177,13 @@ function Brief.Build(snapshot, ledger, mapAPI, mapType)
     result.phase = snapshot.flying and "flight" or active and active.readyToTurnIn and "turnIn"
         or snapshot.arrived and "work" or "travel"
     result.phaseText = L["BriefPhase_" .. result.phase]
+    result.review = addon.ExcursionPlan and addon.ExcursionPlan.Review(snapshot.excursionPlan)
+    result.acceptanceReview = snapshot.excursionPlan and snapshot.excursionPlan.needsReview
+    result.offerUndo = snapshot.offerUndo
+    result.departureCount = #(plan.pickups or {})
+    result.laterCount = snapshot.laterCount or 0
+    result.bagsWarning = snapshot.collecting and snapshot.bags and snapshot.bags.low and L.JourneyCollectBags:format(snapshot.bags.free) or nil
+    result.changes = addon.AdventureSupport and addon.AdventureSupport.Changes(snapshot.excursionPlan, snapshot, mapAPI) or {}
     return result
 end
 

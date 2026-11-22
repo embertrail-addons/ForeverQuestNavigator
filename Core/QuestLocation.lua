@@ -172,6 +172,7 @@ function QuestLocation.ProjectMarker(mapAPI, marker, mapID)
 end
 
 function QuestLocation.GetDistanceMetric(mapAPI, reference)
+    if not (mapAPI and type(reference) == "table" and reference.mapID and IsMapPosition(reference.x, reference.y)) then return end
     local world = QuestLocation.GetMarkerWorldPosition(mapAPI, reference)
     if world then
         return function(a, b)
@@ -182,11 +183,13 @@ function QuestLocation.GetDistanceMetric(mapAPI, reference)
             end
         end
     end
+    if not mapAPI.GetMapWorldSize then return end
     local width, height = mapAPI.GetMapWorldSize(reference.mapID)
     if not (IsReadableNumber(width) and width > 0 and width < math.huge
         and IsReadableNumber(height) and height > 0 and height < math.huge) then return end
     return function(a, b)
-        if a.mapID == reference.mapID and b.mapID == reference.mapID then
+        if a and b and a.mapID == reference.mapID and b.mapID == reference.mapID
+            and IsMapPosition(a.x, a.y) and IsMapPosition(b.x, b.y) then
             return math.sqrt(((a.x - b.x) * width) ^ 2 + ((a.y - b.y) * height) ^ 2)
         end
     end
