@@ -173,79 +173,21 @@ local function UpdateMapMarker()
     addon.ShowQuestMapMarker(destination and destination.target, ClearMapMarker, CurrentMapRoute(markedQuestID))
 end
 
-local function MeasureFlightPath(points, origin, landing, slot, distance)
-    local count = GetNumRoutes(slot)
-    if type(count) ~= "number" or count < 1 or count > 50 then return end
-    local length, previous = 0, origin
-    for index = 1, count do
-        local source = points[TaxiGetNodeSlot(slot, index, true)]
-        local target = points[TaxiGetNodeSlot(slot, index, false)]
-        local yards = source == previous and target and distance(source, target)
-        if not yards or yards <= 0 then return end
-        length, previous = length + yards, target
-    end
-    if previous == landing then return length end
+local function FlightAPI()
+    return {Enum = Enum, GetTaxiMapID = GetTaxiMapID, C_TaxiMap = C_TaxiMap, C_Map = C_Map,
+        GetNumRoutes = GetNumRoutes, TaxiGetNodeSlot = TaxiGetNodeSlot}
 end
 
 local function ConfirmFlightPoints()
-    local states = Enum and Enum.FlightPathState
-    if not (flight.confirmedPoints and states and GetTaxiMapID and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes) then return end
-    local mapID = GetTaxiMapID()
-    if type(mapID) ~= "number" or mapID <= 0 then return end
-    local ok, nodes = pcall(C_TaxiMap.GetAllTaxiNodes, mapID)
-    if not ok then return end
-    local origin, points, reachable = nil, {}, {}
-    for _, node in ipairs(nodes or {}) do
-        if type(node.nodeID) == "number" and node.nodeID > 0 and not node.isMapLayerTransition then
-            if node.state == states.Current or node.state == states.Reachable then
-                flight.confirmedPoints[node.nodeID] = true
-            end
-            local slot = node.slotIndex
-            if type(slot) == "number" and slot > 0 then
-                local point = addon.QuestLocation.GetFlightMarker(mapID, node)
-                points[slot] = point
-                if node.state == states.Current then origin = point end
-                if point and node.state == states.Reachable then reachable[#reachable + 1] = slot end
-            end
-        end
-    end
-    if not origin then return end
-    local stops = {}
-    local distance = GetNumRoutes and TaxiGetNodeSlot and addon.QuestLocation.GetDistanceMetric(C_Map, origin)
-    if distance then
-        for _, slot in ipairs(reachable) do
-            local landing = points[slot]
-            local ok, length = pcall(MeasureFlightPath, points, origin, landing, slot, distance)
-            if ok and length then
-                landing.flightYards = length
-                stops[#stops + 1] = landing
-            end
-        end
-    end
-    flight.routes[origin.id] = { origin = origin, stops = stops }
+    addon.FlightPoints.Confirm(flight, FlightAPI())
 end
 
 local function GetFlightHint(questID, destination, flightContext)
-    local measurement = questMeasurements and questMeasurements[questID]
-    if not measurement or measurement.yards < LIMITS.MINIMUM_FLIGHT_HINT_DISTANCE then return end
-
-    local plan = addon.QuestLocation.GetFlightPlan(C_Map, destination.target, flightContext)
-    if plan then
-        return L.FlightRoute:format(
-            plan.origin.name, plan.landing.name, plan.approach, plan.finish)
-    end
-    if not destination.zoneID or destination.zoneID == playerZoneID then return end
-    if not destination.flightChecked then
-        destination.flightChecked = true
-        local faction = UnitFactionGroup and UnitFactionGroup("player")
-        destination.flight, destination.flightDistance = addon.QuestLocation.GetNearbyFlightPoint(
-            C_Map, C_TaxiMap, Enum and Enum.UIMapType, Enum and Enum.FlightPathFaction,
-            faction, destination.zoneID, destination.target, flight.confirmedPoints)
-    end
-    if destination.flight then
-        return L.UnlockedFlightPoint:format(
-            destination.flight, destination.flightDistance)
-    end
+    return addon.FlightPoints.Hint(destination, {
+        measurement = questMeasurements and questMeasurements[questID], minimum = LIMITS.MINIMUM_FLIGHT_HINT_DISTANCE,
+        playerZoneID = playerZoneID, flightContext = flightContext, confirmedPoints = flight.confirmedPoints,
+        faction = UnitFactionGroup and UnitFactionGroup("player"),
+    }, FlightAPI())
 end
 
 local function DescribeDestination(quest, destination)
@@ -857,14 +799,7 @@ local function UpdateOuting(ranked, measurements, playerLevel, followUp)
 end
 
 local function FlightStep(quest)
-    if not quest then return L.FlightGeneric end
-    if quest.readyToTurnIn then return L.FlightTurnIn end
-    local goals = C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(quest.id)
-    local measured = questMeasurements and questMeasurements[quest.id]
-    local selected = measured and measured.marker.objectiveIndex
-    local goal = selected and goals and goals[selected]
-    if not goal then goal = addon.QuestLog.GetNextObjective(C_QuestLog, quest.id) end
-    return goal and L.FlightObjective:format(goal.text) or L.FlightGeneric
+    return addon.FlightPoints.Step(quest, quest and questMeasurements and questMeasurements[quest.id], C_QuestLog)
 end
 
 local function UpdateFlightState()
@@ -2512,6 +2447,88 @@ local function InitializeWorkspace(character)
     })
 end
 
+local function AddonVersion()
+    return C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
+end
+
+local function RegisterCommands()
+    local C = addon.Commands
+    C.Reset()
+    local function Add(key, group, label, run, options)
+        local entry = {key = key, group = group, label = label, run = run}
+        for name, value in pairs(options or {}) do entry[name] = value end
+        C.Register(entry)
+    end
+    local function Print(text) print("FQN | " .. text) end
+    Add("", "navigation", nil, function() ToggleTracker() end, {hidden = true})
+    Add("settings", "settings", "CmdSettings", function() OpenSettings() end)
+    Add("arrange", "settings", "CmdArrange", function() tracker:ArrangeUI() end)
+    Add("tools", "navigation", "CmdTools", function() addon.UI.ToolHub.Open(addon.UI.ToolHub.key or "finder") end)
+    Add("find", "quests", "CmdFind", function(text)
+        local panel = addon.OpenWorkspace("finder")
+        if panel then panel.search:SetText(text or "") end
+    end, {args = true})
+    Add("tour", "quests", "CmdTour", function() addon.OpenWorkspace("tour") end, {advanced = true})
+    Add("resume", "quests", "CmdResume", function() addon.ResumePlan() end, {advanced = true})
+    Add("plan", "quests", "CmdPlan", function() ShowPlanning() end, {advanced = true})
+    Add("assist", "quests", "CmdAssist", function() addon.OpenAdventure() end, {advanced = true})
+    Add("zones", "quests", "CmdZones", function() ShowZones() end)
+    Add("notes", "quests", "CmdNotes", function() ShowNotepad() end)
+    Add("detour", "quests", "CmdDetour", function() addon.OpenDetourTools() end, {advanced = true})
+    Add("report", "quests", "CmdReport", function()
+        local quest = shownQuests and shownQuests[1]
+        if quest then ShowTargetReport(quest.id) end
+    end, {advanced = true})
+    Add("session", "history", "CmdSession", function() ShowSession() end)
+    Add("session reset", "history", "CmdSessionReset", function()
+        session = addon.Session.New(nil, SessionTime())
+        ForeverQuestNavigatorCharacterDB.session = session.data
+        CaptureSessionXP()
+        ShowSession()
+    end, {advanced = true})
+    Add("undo", "history", "CmdUndo", function() addon.UndoLastChange() end)
+    Add("history", "history", "CmdHistory", function() addon.ShowUndoHistory(addon.Undo) end, {advanced = true})
+    Add("levels", "history", "CmdLevels", function() ShowLevelChanges() end, {advanced = true})
+    Add("feedback", "history", "CmdFeedback", function() ShowFeedback() end, {advanced = true})
+    Add("profiles", "settings", "CmdProfiles", function() ShowProfiles() end)
+    Add("share", "settings", "CmdShare", function()
+        addon.ShowDisplayTransfer(settings, addon.SettingsController.catalog)
+    end, {advanced = true})
+    Add("access", "settings", "CmdAccess", function() ShowAccessManager() end, {advanced = true})
+    Add("help", "help", "CmdHelp", function() addon.ShowIntroduction(settings) end)
+    Add("whatsnew", "help", "CmdWhatsNew", function() addon.ShowReleaseNotes(settings, AddonVersion()) end)
+    Add("demo", "help", "CmdDemo", function(text)
+        addon.DemoMode.Command((text or ""):lower(), settings, tracker, function() UpdateMapMarker() ScheduleRefresh() end)
+    end, {args = true})
+    Add("status", "debug", "CmdStatus", function() Print("Questie: " .. addon.ReadQuestieStatus(C_AddOns)) end, {advanced = true})
+    Add("debug", "debug", "CmdDebug", function() ShowDiagnostics() end, {advanced = true})
+    Add("problem", "debug", "CmdProblem", function() addon.OpenProblemReport() end)
+    Add("fixture", "debug", "CmdFixture", function() ShowFixture() end, {advanced = true})
+    Add("markers", "debug", "CmdMarkers", function()
+        local marker = addon.GetMapMarkerStatus()
+        Print(("mapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget)))
+        Print(marker.detail)
+    end, {advanced = true})
+    Add("activity", "debug", "CmdActivity", function()
+        local active = shownQuests and shownQuests[1]
+        local area = active and navigationSnapshot and navigationSnapshot.presence and navigationSnapshot.presence[active.id]
+        local fight, body = insights.engagement, addon.RecoveryState
+        Print(("activity: combatMatch=%s objective=%s area=%s recovery=%s corpse=%s"):format(
+            tostring(fight and fight.questID or "none"), tostring(fight and fight.objectiveIndex or "none"),
+            tostring(area and area.objectiveIndex or "none"), tostring(body and body.active == true),
+            body and body.active and (body.exact and "native" or body.target and "last-death-position" or "unknown") or "none"))
+    end, {advanced = true})
+    Add("perf", "debug", "CmdPerf", function()
+        addon.ShowTextWindow("performance", addon.Performance:Report(), L.PerformanceTitle, L.PerformanceHelp)
+    end, {advanced = true})
+    Add("perf on", "debug", "CmdPerfOn", function()
+        Print(addon.Performance:Start() and L.PerformanceEnabled or L.PerformanceUnavailable)
+    end, {advanced = true, menu = false})
+    Add("perf off", "debug", "CmdPerfOff", function()
+        addon.Performance.enabled = false Print(L.PerformanceDisabled)
+    end, {advanced = true, menu = false})
+end
+
 local function AddonLoaded(name)
     if name == addonName and not tracker then
         settings = ForeverQuestNavigatorDB
@@ -2520,87 +2537,19 @@ local function AddonLoaded(name)
             settings = {}
             ForeverQuestNavigatorDB = settings
         end
-        if settings.language ~= "deDE" and settings.language ~= "enUS" then settings.language = "auto" end
+        addon.SettingsDefaults.Normalize(settings, LIMITS, not insights.hadSettings)
         addon.SetLanguage(settings.language)
-        settings.showUpdateNotes = settings.showUpdateNotes ~= false
-        settings.x = type(settings.x) == "number" and math.abs(settings.x) < math.huge and settings.x or 0
-        settings.y = type(settings.y) == "number" and math.abs(settings.y) < math.huge and settings.y or 140
-        if settings.displayMode ~= "full" and settings.displayMode ~= "arrow" and settings.displayMode ~= "off" then
-            settings.displayMode = settings.hidden == true and "off" or "full"
-        end
-        addon.TrackerPresentation.MigrateNavigatorView(settings)
-        settings.detailMode = settings.detailMode == "compact" and "compact" or "detailed"
-        settings.highContrast = settings.highContrast == true
-        settings.theme = ({graphite = true, parchment = true, midnight = true})[settings.theme] and settings.theme or "graphite"
-        settings.reducedColors = settings.reducedColors == true
-        settings.repeatablePolicy = addon.RepeatablePolicy.Mode(settings.repeatablePolicy)
-        settings.navigatorLayout = settings.navigatorLayout == "lists" and "lists" or "guided"
-        settings.showTravelPreparation = settings.showTravelPreparation ~= false
-        settings.quietNavigation = settings.quietNavigation ~= false
-        settings.showRouteMarkers = settings.showRouteMarkers ~= false
-        settings.showQuestRewards = settings.showQuestRewards ~= false
-        settings.showRewardComparison = settings.showRewardComparison ~= false
-        settings.showTravelTime = settings.showTravelTime ~= false
-        settings.adaptiveLayout = settings.adaptiveLayout ~= false
-        settings.showLevelHints = settings.showLevelHints ~= false
         insights.lastLevel = UnitLevel and UnitLevel("player")
         addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)
-        settings.areaOverviewExpanded = settings.areaOverviewExpanded == true
-        settings.allowTrackerResize = settings.allowTrackerResize == true
-        settings.lockTrackerPosition = settings.lockTrackerPosition == true
-        settings.lockNavigationPosition = settings.lockNavigationPosition == true
-        local font = settings.fontPercent
-        settings.fontPercent = type(font) == "number" and font >= 80 and font <= 140 and font or 100
-        local function RowCount(value, default)
-            if type(value) ~= "number" or not (value >= 2 and value <= 5) then return default end
-            return math.floor(value)
-        end
-        settings.acceptedRows = RowCount(settings.acceptedRows, 2)
-        settings.offerRows = RowCount(settings.offerRows, 3)
-        settings.trackerMaxHeight = addon.TrackerPresentation.HeightLimit(settings.trackerMaxHeight)
-        settings.includeElite = nil
-        settings.currentZoneOnly = nil
-        settings.useQuestieKillLocations = settings.useQuestieKillLocations ~= false
-        settings.showQuestieOffers = settings.showQuestieOffers ~= false
-        settings.showTurnInStar = nil
-        local radius = settings.questieOfferRadius
-        settings.questieOfferRadius = type(radius) == "number" and radius >= 50
-            and radius <= LIMITS.MAX_OFFER_RADIUS and radius or LIMITS.DEFAULT_OFFER_RADIUS
-        settings.showDirectionArrow = settings.showDirectionArrow ~= false
-        if settings.displayMode == "arrow" and not settings.showDirectionArrow then settings.displayMode = "full" end
-        settings.hidden = settings.displayMode ~= "full"
-        settings.showScreenArrow = settings.showScreenArrow ~= false
-        local arrowX, arrowY = settings.screenArrowX, settings.screenArrowY
-        if type(arrowX) ~= "number" or not (math.abs(arrowX) < math.huge)
-            or type(arrowY) ~= "number" or not (math.abs(arrowY) < math.huge) then
-            settings.screenArrowX, settings.screenArrowY = nil, nil
-        end
-        settings.showQuestXP = settings.showQuestXP ~= false
-        settings.difficultyWords = settings.difficultyWords ~= false
-        settings.sortByDistance = nil
-        local opacity = settings.opacityPercent
-        settings.opacityPercent = type(opacity) == "number" and opacity >= 0 and opacity <= 100 and opacity or LIMITS.DEFAULT_OPACITY
         LoadSkippedQuests()
-        local character = ForeverQuestNavigatorCharacterDB
-        settings.rememberNavigation = settings.rememberNavigation ~= false
+        local character = addon.SettingsDefaults.NormalizeCharacter(ForeverQuestNavigatorCharacterDB)
         InitializeWorkspace(character)
-        questNotes = type(character.questNotes) == "table" and character.questNotes or {}
-        character.questNotes = questNotes
-        targetCorrections = type(character.targetCorrections) == "table" and character.targetCorrections or {}
-        character.targetCorrections = targetCorrections
-        insights.laterQuests = type(character.laterQuests) == "table" and character.laterQuests or {}
-        insights.knownVendors = type(character.knownVendors) == "table" and character.knownVendors or {}
-        character.laterQuests, character.knownVendors = insights.laterQuests, insights.knownVendors
-        insights.hiddenOffers = type(character.hiddenOffers) == "table" and character.hiddenOffers or {}
-        character.hiddenOffers = insights.hiddenOffers
-        savedAccessPoints = type(character.accessPoints) == "table" and character.accessPoints or {}
-        character.accessPoints = savedAccessPoints
+        questNotes, targetCorrections = character.questNotes, character.targetCorrections
+        insights.laterQuests, insights.knownVendors = character.laterQuests, character.knownVendors
+        insights.hiddenOffers, savedAccessPoints = character.hiddenOffers, character.accessPoints
         session = addon.Session.New(character.session, SessionTime())
         character.session = session.data
-        if type(character.confirmedFlightPoints) ~= "table" then character.confirmedFlightPoints = {} end
-        flight.confirmedPoints = character.confirmedFlightPoints
-        if type(character.flightRoutes) ~= "table" then character.flightRoutes = {} end
-        flight.routes = character.flightRoutes
+        flight.confirmedPoints, flight.routes = character.confirmedFlightPoints, character.flightRoutes
 
         settingsCategory = RegisterSettings()
         local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
@@ -2652,89 +2601,10 @@ local function AddonLoaded(name)
 
         addon.EventController.RegisterRuntime(events)
 
+        RegisterCommands()
         SLASH_FOREVERQUESTNAVIGATOR1 = "/fqn"
         SlashCmdList.FOREVERQUESTNAVIGATOR = function(message)
-            local command = message:match("^%s*(.-)%s*$"):lower()
-            if command == "demo" or command:match("^demo%s") then
-                addon.DemoMode.Command(command:match("^demo%s*(.-)%s*$"), settings, tracker, function()
-                    UpdateMapMarker() ScheduleRefresh()
-                end)
-            elseif command == "whatsnew" then
-                addon.ShowReleaseNotes(settings, C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version"))
-            elseif command == "markers" then
-                local marker = addon.GetMapMarkerStatus()
-                print(("FQN | mapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget)))
-                print("FQN | " .. marker.detail)
-            elseif command == "perf on" then
-                print("FQN | " .. (addon.Performance:Start() and L.PerformanceEnabled or L.PerformanceUnavailable))
-            elseif command == "perf off" then addon.Performance.enabled = false print("FQN | " .. L.PerformanceDisabled)
-            elseif command == "perf" then
-                addon.ShowTextWindow("performance", addon.Performance:Report(), L.PerformanceTitle, L.PerformanceHelp)
-            elseif command == "status" then
-                print("FQN | Questie: " .. addon.ReadQuestieStatus(C_AddOns))
-            elseif command == "activity" then
-                local active = shownQuests and shownQuests[1]
-                local area = active and navigationSnapshot and navigationSnapshot.presence and navigationSnapshot.presence[active.id]
-                local fight, body = insights.engagement, addon.RecoveryState
-                print(("FQN | activity: combatMatch=%s objective=%s area=%s recovery=%s corpse=%s"):format(
-                    tostring(fight and fight.questID or "none"), tostring(fight and fight.objectiveIndex or "none"),
-                    tostring(area and area.objectiveIndex or "none"), tostring(body and body.active == true),
-                    body and body.active and (body.exact and "native" or body.target and "last-death-position" or "unknown") or "none"))
-            elseif command == "debug" then
-                ShowDiagnostics()
-            elseif command == "problem" then
-                addon.OpenProblemReport()
-            elseif command == "find" or command:match("^find%s") then
-                local panel = addon.OpenWorkspace("finder")
-                if panel then panel.search:SetText(message:match("^%s*%S+%s+(.-)%s*$") or "") end
-            elseif command == "tour" then
-                addon.OpenWorkspace("tour")
-            elseif command == "resume" then
-                addon.ResumePlan()
-            elseif command == "session" then
-                ShowSession()
-            elseif command == "access" then
-                ShowAccessManager()
-            elseif command == "notes" then
-                ShowNotepad()
-            elseif command == "zones" then
-                ShowZones()
-            elseif command == "plan" then
-                ShowPlanning()
-            elseif command == "feedback" then
-                ShowFeedback()
-            elseif command == "share" then
-                addon.ShowDisplayTransfer(settings, addon.SettingsController.catalog)
-            elseif command == "detour" then
-                addon.OpenDetourTools()
-            elseif command == "profiles" then
-                ShowProfiles()
-            elseif command == "undo" then addon.UndoLastChange()
-            elseif command == "history" then addon.ShowUndoHistory(addon.Undo)
-            elseif command == "levels" then ShowLevelChanges()
-            elseif command == "assist" then addon.OpenAdventure()
-            elseif command == "fixture" then
-                ShowFixture()
-            elseif command == "help" then
-                addon.ShowIntroduction(settings)
-            elseif command == "session reset" then
-                session = addon.Session.New(nil, SessionTime())
-                ForeverQuestNavigatorCharacterDB.session = session.data
-                CaptureSessionXP()
-                ShowSession()
-            elseif command == "report" then
-                local quest = shownQuests and shownQuests[1]
-                if quest then ShowTargetReport(quest.id) end
-            elseif command == "settings" then
-                OpenSettings()
-            elseif command == "tools" then
-                addon.UI.ToolHub.Open(addon.UI.ToolHub.key or "finder")
-            elseif command == "arrange" then tracker:ArrangeUI()
-            elseif command == "" then
-                ToggleTracker()
-            else
-                print(L.SlashHelp)
-            end
+            addon.Commands.Dispatch(message, settings.simpleNavigator)
         end
 
         ConnectQuestie()

@@ -3988,6 +3988,7 @@ assert(loadfile("tests/adventure_support.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/journey_planning.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/mixed_quest_plan.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/presence_recovery.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/foundation.lua"))()(test, addon, equal, near)
 test("Every addon file keeps headroom below Lua 5.1's 200 locals per main chunk", function()
     -- The WoW client refuses a file that exceeds the limit, which disables the whole addon.
     local minimum = 30
