@@ -54,12 +54,14 @@ Share display settings through a copyable code with a preview before applying. Q
 
 ## Getting started
 
-Install FQN for the Forever client and restart WoW. The gold **FQN minimap button** switches display modes; right-click it for settings and drag it with the left mouse button to reposition it.
+Install FQN for the Forever client and restart WoW. The gold **FQN minimap button** switches display modes; right-click it for common commands and settings, and drag it with the left mouse button to reposition it. New installations start with a short setup.
 
 Useful commands:
 
 - `/fqn` — toggle the tracker
 - `/fqn settings` — common settings and tools
+- `/fqn menu` — searchable list of all commands
+- `/fqn setup` — run the first-start setup again
 - `/fqn arrange` — position the navigator and direction display
 - `/fqn plan` — quest planning, turn-ins, shared items and supported chains
 - `/fqn detour` — temporary stop

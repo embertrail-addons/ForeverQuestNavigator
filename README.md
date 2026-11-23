@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.1.84.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Next release: 0.2.0** (prepared, not yet published). **Current release: 0.1.84.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.0 adds a three-step setup on first start, **Simple mode** (default for new installs; existing players keep their view), one tool window that also holds Outing and Tour assistant, a searchable command menu (`/fqn menu`, minimap right-click), quest symbols, a route line on the world map, a level forecast across several turn-ins, a session recap with XP per hour and optional **group sync** via addon messages (off by default). [0.2.0 changes and manual checks](release/curseforge-changelog-0.2.0.md).
 
 0.1.84 recognizes local spawn neighborhoods around unfinished Questie objectives and publicly identifiable enemies you are actually fighting. It does not infer a specific quest from a generic quest-unit flag or a secret GUID. While dead/ghost, a dedicated recovery display takes priority over quest and detour arrows. Native corpse coordinates are pinned for the run; a captured death position is labelled approximate. Missing corpse coordinates/direction never reactivate quest routing. Resurrection restores ordinary navigation. `/fqn activity` reports the current match, spawn-area and recovery state without raw unit GUIDs. [Changes and manual checks](release/curseforge-changelog-0.1.84.md).
 
@@ -103,6 +105,8 @@ Other tools include a zone overview, shared quest/item targets, ready turn-in pl
 | `/fqn` | Toggle tracker |
 | `/fqn settings` | Settings |
 | `/fqn tools` | Last tool view in the shared window |
+| `/fqn menu` | Searchable list of all commands |
+| `/fqn setup` | Run the first-start setup again |
 | `/fqn find [text]` | Search accepted quests, nearby offers and skips |
 | `/fqn tour` | Edit/review a quest tour and return point |
 | `/fqn resume` | Explicitly resume a saved priority or tour |
@@ -118,7 +122,7 @@ Other tools include a zone overview, shared quest/item targets, ready turn-in pl
 
 ## Problems and screenshots
 
-Use `/fqn problem` for a copyable report with version, quest ID, target position and selected technical state. The report uses an allowlist and excludes character names, personal notes and saved access-route names. Review it before sharing. FQN sends nothing automatically. Include reproduction steps and a Lua error, if available, in a [GitHub issue](https://github.com/embertrail-addons/ForeverQuestNavigator/issues).
+Use `/fqn problem` for a copyable report with version, quest ID, target position and selected technical state. The report uses an allowlist and excludes character names, personal notes and saved access-route names. Review it before sharing. FQN sends nothing automatically; only the optional group sync (off by default) sends quest IDs and objective counts to your own party or raid. Include reproduction steps and a Lua error, if available, in a [GitHub issue](https://github.com/embertrail-addons/ForeverQuestNavigator/issues).
 
 If Questie is not loaded, check its entry in the game's addon list and `/fqn status`. A missing UI, disabled addon, load error and a missing installation are different conditions.
 
