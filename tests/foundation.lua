@@ -43,6 +43,22 @@ return function(test, addon, equal)
         C.list, C.byKey = saved, savedKeys
     end)
 
+    test("Bag, gear and mount events take the light refresh path; quest log events still rebuild", function()
+        local calls = {}
+        local function count(name) return function() calls[name] = (calls[name] or 0) + 1 end end
+        local context = {refresh = count("refresh"), refreshItems = count("items"), updateQuestLog = count("log"),
+            taxi = function() end, captureXP = function() end, visible = function() return false end}
+        for event in pairs(addon.EventController.itemEvents) do addon.EventController.Handle(context, event) end
+        equal(calls.items, 4) equal(calls.refresh, nil) equal(calls.log, nil)
+        addon.EventController.Handle(context, "QUEST_LOG_UPDATE")
+        equal(calls.refresh, 1) equal(calls.log, 1)
+        addon.EventController.Handle(context, "GROUP_ROSTER_UPDATE")
+        equal(calls.refresh, 2)
+        context.refreshGroup = count("group")
+        addon.EventController.Handle(context, "GROUP_ROSTER_UPDATE")
+        equal(calls.group, 1) equal(calls.refresh, 2)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

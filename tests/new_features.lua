@@ -96,7 +96,7 @@ return function(test, addon, equal, near)
         equal(table.concat(calls, ","), "saveSession")
         calls = {}
         addon.EventController.Handle(context, "BAG_UPDATE_DELAYED")
-        equal(table.concat(calls, ","), "taxi,updateQuestLog,refresh")
+        equal(table.concat(calls, ","), "refreshItems")
     end)
 
     test("Theme toggles preserve texture alpha and opaque text", function()

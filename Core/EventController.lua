@@ -37,6 +37,16 @@ local runtimeEvents = {
     "GET_ITEM_INFO_RECEIVED",
 }
 
+-- Events that only change bags, gear or mount state: the quest log and markers are
+-- unchanged, so a light refresh (items, preparation, distances) is enough.
+local itemEvents = {
+    BAG_UPDATE_DELAYED = true,
+    UPDATE_INVENTORY_DURABILITY = true,
+    PLAYER_EQUIPMENT_CHANGED = true,
+    PLAYER_MOUNT_DISPLAY_CHANGED = true,
+}
+addon.EventController.itemEvents = itemEvents
+
 function addon.EventController.RegisterRuntime(frame)
     for _, event in ipairs(runtimeEvents) do frame:RegisterEvent(event) end
 end
@@ -60,6 +70,8 @@ function addon.EventController.Handle(context, event, arg, rewardXP)
     if event == "QUEST_TURNED_IN" then context.turnIn(arg, rewardXP) end
     if event == "PLAYER_LOGOUT" then context.saveSession() return end
     if event == "ADDON_LOADED" then context.loaded(arg) return end
+    if itemEvents[event] and context.refreshItems then context.refreshItems() return end
+    if event == "GROUP_ROSTER_UPDATE" and context.refreshGroup then context.refreshGroup() return end
     if event == "PLAYER_XP_UPDATE" and context.hasMeasurements() then
         if context.visible() then context.measure() end
         return

@@ -1179,6 +1179,12 @@ function addon.SyncExcursion(quests)
     end
 end
 
+local function UpdateSharedItems()
+    insights.sharedItems = addon.QuestInsights.SharedItems(eligibleQuests,
+        function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
+        integration.GetObjectiveItemID, C_Item and C_Item.GetItemCount or GetItemCount, GetItemInfo)
+end
+
 local function Refresh()
     refreshPending = false
     addon.UpdateRecovery()
@@ -1271,9 +1277,7 @@ local function Refresh()
     local excursionStop = addon.ExcursionPlan.Current(insights.excursion)
     eligibleQuests = addon.RepeatablePolicy.Quests(eligibleQuests, settings.repeatablePolicy,
         manualQuestID or workspace and workspace:Current() or excursionStop and excursionStop.quest.id)
-    insights.sharedItems = addon.QuestInsights.SharedItems(eligibleQuests,
-        function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
-        integration.GetObjectiveItemID, C_Item and C_Item.GetItemCount or GetItemCount, GetItemInfo)
+    UpdateSharedItems()
     if insights.pendingLevel then
         insights.levelReport = {entries = addon.QuestInsights.LevelChanges(eligibleQuests, insights.pendingLevel.before, insights.pendingLevel.after),
             deadline = SessionTime() + 60}
@@ -1332,8 +1336,18 @@ end
 ScheduleRefresh = function()
     if not refreshPending then
         refreshPending = true
-        C_Timer.After(0.1, Refresh)
+        -- In combat, coalesce bursts of quest-log events into fewer full rebuilds.
+        C_Timer.After(InCombatLockdown and InCombatLockdown() and 1 or 0.1, Refresh)
     end
+end
+
+-- Light path for bag, gear and mount changes: quest log and markers are unchanged.
+local function RefreshItems()
+    if refreshPending then return end
+    if not (eligibleQuests and measurableQuestIDs and TrackingVisible()) then return ScheduleRefresh() end
+    UpdateSharedItems()
+    UpdateDistances()
+    if RefreshNearbyOffers then RefreshNearbyOffers(distanceMaps, questTargetMaps, Enum and Enum.UIMapType) end
 end
 
 local function CanPinQuest(id)
@@ -2679,6 +2693,7 @@ addon.EventController.Bind(events, {
     end,
     updateQuestLog = UpdateQuestLogButton,
     refresh = ScheduleRefresh,
+    refreshItems = RefreshItems,
     itemRewardsUpdated = function()
         if addon.QuestRewards.HasPending() then addon.QuestRewards.Clear() return true end
     end,
