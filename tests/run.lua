@@ -1005,6 +1005,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     acceptedRows = "FOREVERQUESTNAVIGATOR_ACCEPTED_ROWS",
                     offerRows = "FOREVERQUESTNAVIGATOR_OFFER_ROWS",
                     iconLabels = "FOREVERQUESTNAVIGATOR_ICON_LABELS",
+                    showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                 })[key])
                 local expectedType = ({ opacityPercent = "number", questieOfferRadius = "number", language = "string",
                     fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string",
@@ -1046,6 +1047,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showQuestieOffers = "Show nearby quest offers",
                     questieOfferRadius = "Quest offer search radius",
                     iconLabels = "Symbols instead of action words",
+                    showRouteLine = "Connect route stops with a line",
                 })[key])
                 local expectedDefault = true
                 if key == "repeatablePolicy" then expectedDefault = "show" end

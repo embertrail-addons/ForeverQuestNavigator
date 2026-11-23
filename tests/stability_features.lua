@@ -78,6 +78,30 @@ return function(test, addon, equal, near)
         equal(render.watcher.shown, false)
         render.watcher.scripts.OnShow() equal(render.count, 0)
     end)
+    test("Route line connects consecutive numbered stops and can be switched off", function()
+        local render, _, canvas = CanvasFixture()
+        local lines = {}
+        function canvas:CreateLine()
+            local line = {shown = true}
+            function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
+            function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
+            function line:Show() self.shown = true end
+            function line:Hide() self.shown = false end
+            lines[#lines + 1] = line
+            return line
+        end
+        local a, b, c = {mapID = 10, x = .1, y = .2}, {mapID = 10, x = .4, y = .6}, {mapID = 10, x = .8, y = .2}
+        render:Set(a, nil, {{target = a, quest = {id = 1}}, {target = b, quest = {id = 2}}, {target = b, quest = {id = 3}},
+            {target = c, quest = {id = 4}}})
+        equal(render.lineCount, 2) near(lines[1].x1, 100) near(lines[1].y1, -100) near(lines[1].x2, 400) near(lines[2].x2, 800)
+        render:Set(a, nil, {{target = a, quest = {id = 1}, single = true}})
+        equal(render.lineCount, 0) equal(lines[1].shown, false)
+        addon.CanvasMarkers.showLine = false
+        render:Set(a, nil, {{target = a, quest = {id = 1}}, {target = c, quest = {id = 4}}})
+        equal(render.lineCount, 0)
+        addon.CanvasMarkers.showLine = true
+        render:Refresh() equal(render.lineCount, 1)
+    end)
     test("Canvas marker strata follows fullscreen maps instead of staying below them", function()
         local render, map = CanvasFixture()
         map.GetFrameStrata = function() return "FULLSCREEN" end

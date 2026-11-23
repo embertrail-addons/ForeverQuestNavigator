@@ -1,13 +1,13 @@
 local _, addon = ...
 -- Own canvas children survive native pin-pool refreshes by other map providers.
 -- Parenting and anchoring to the canvas preserves the map's pan/zoom transform.
-local Canvas = {}
+local Canvas = {showLine = true}
 addon.CanvasMarkers = Canvas
 function Canvas.New(map, api, create)
     if not (map and map.GetCanvas and map.GetMapID and map.IsShown) then return end
     local canvas = map:GetCanvas()
     if not canvas or not canvas.GetWidth or not canvas.GetHeight then return end
-    local self = {map = map, api = api, pins = {}, revision = 0, count = 0}
+    local self = {map = map, api = api, pins = {}, lines = {}, revision = 0, count = 0, lineCount = 0}
     self.watcher = create("Frame", nil, map)
     self.watcher:Hide()
     local function Remove()
@@ -48,10 +48,44 @@ function Canvas.New(map, api, create)
         pin:SetScript("OnHide", function(owner) if not self.refreshing then addon.QuestHover.Clear(owner) end end)
         return pin
     end
+    -- Connects consecutive numbered route stops on the canvas. Line coordinates are
+    -- canvas units; thickness is corrected so it stays constant on screen.
+    function self:DrawRoute(mapID, width, height, scale)
+        self.lineCount = 0
+        if not (Canvas.showLine and canvas.CreateLine and self.route) then return end
+        local points = {}
+        for _, stop in ipairs(self.route) do
+            if stop.target and not stop.single then
+                local projected = addon.QuestLocation.ProjectMarker(self.api, stop.target, mapID)
+                local last = points[#points]
+                if projected and not (last and math.abs(last.x - projected.x) < .000001 and math.abs(last.y - projected.y) < .000001) then
+                    points[#points + 1] = projected
+                end
+            end
+        end
+        for index = 2, #points do
+            local from, to = points[index - 1], points[index]
+            local line = self.lines[index - 1]
+            if not line then
+                line = canvas:CreateLine(nil, "OVERLAY", nil, 7)
+                self.lines[index - 1] = line
+            end
+            if line.SetThickness then line:SetThickness(4 * scale) end
+            if line.SetColorTexture then
+                if index == 2 then line:SetColorTexture(1, .82, .34, .9) else line:SetColorTexture(.55, .8, 1, .75) end
+            end
+            line:SetStartPoint("TOPLEFT", canvas, width * from.x, -height * from.y)
+            line:SetEndPoint("TOPLEFT", canvas, width * to.x, -height * to.y)
+            line:Show()
+            self.lineCount = self.lineCount + 1
+        end
+    end
     function self:Refresh()
         local started = addon.Performance:Begin()
         self.refreshing = true
         for _, pin in ipairs(self.pins) do pin:Hide() end
+        for _, line in ipairs(self.lines) do line:Hide() end
+        self.lineCount = 0
         self.refreshing = false
         self.count = 0
         if not self.target or not self.map:IsShown() then
@@ -91,6 +125,7 @@ function Canvas.New(map, api, create)
                 level = math.max(level, surface.GetFrameLevel and surface:GetFrameLevel() or 0)
             end
         end
+        self:DrawRoute(mapID, width, height, scale)
         for index, group in ipairs(groups) do
             local pin = self.pins[index]
             if not pin then pin = NewPin() self.pins[index] = pin end

@@ -160,7 +160,7 @@ local english = {
     ClearQuestNote = "Clear note text",
     QuestNoteText = "Your note: %s",
     MapLegend = "FQN map legend",
-    MapLegendHelp = "Gold marks the current destination. Blue marks later route stops. Numbers show stop order; co-located stops can share a marker. Right-click an FQN marker, or use Clear FQN markers, to remove FQN's markers. Other addons' markers are unaffected.",
+    MapLegendHelp = "Gold marks the current destination. Blue marks later route stops. Numbers show stop order; co-located stops can share a marker. A line connects the stops in order (gold: next leg); toggle it with Route line. Right-click an FQN marker, or use Clear FQN markers, to remove them.",
     ClearFQNMarkers = "Clear FQN markers",
     ExcursionTitle = "Review this outing",
     ExcursionBuild = "Build outing from area",
@@ -1009,6 +1009,9 @@ local english = {
     CmdSetup = "Run the setup again",
     IconLabels = "Symbols instead of action words",
     IconLabelsHelp = "Shows quest symbols for accept, objective and turn-in steps in routes and plans. The full word stays in the tooltip.",
+    RouteLine = "Connect route stops with a line",
+    RouteLineHelp = "Draws a line on the world map between the numbered stops of the current route or outing. Gold is the next leg.",
+    RouteLineShort = "Route line",
 }
 
 local german = setmetatable({
@@ -1172,7 +1175,7 @@ local german = setmetatable({
     ClearQuestNote = "Notiztext löschen",
     QuestNoteText = "Deine Notiz: %s",
     MapLegend = "FQN-Kartenlegende",
-    MapLegendHelp = "Gold markiert das aktuelle Ziel. Blau markiert spätere Routenstopps. Zahlen zeigen die Reihenfolge; zusammenliegende Stopps können einen Marker teilen. Rechtsklick auf einen FQN-Marker oder FQN-Markierungen entfernen löscht die FQN-Markierungen. Marker anderer Addons bleiben erhalten.",
+    MapLegendHelp = "Gold markiert das aktuelle Ziel. Blau markiert spätere Routenstopps. Zahlen zeigen die Reihenfolge; zusammenliegende Stopps können einen Marker teilen. Eine Linie verbindet die Stopps der Reihe nach (Gold: nächster Abschnitt); mit Routenlinie ein- und ausschalten. Rechtsklick auf einen FQN-Marker oder FQN-Marker entfernen löscht sie.",
     ClearFQNMarkers = "FQN-Markierungen entfernen",
     ExcursionTitle = "Diesen Ausflug prüfen",
     ExcursionBuild = "Ausflug aus Gebiet erstellen",
@@ -2021,6 +2024,9 @@ local german = setmetatable({
     CmdSetup = "Einrichtung erneut starten",
     IconLabels = "Symbole statt Aktionswörtern",
     IconLabelsHelp = "Zeigt Questsymbole für Annahme, Ziel und Abgabe in Routen und Plänen. Das ausgeschriebene Wort bleibt im Tooltip.",
+    RouteLine = "Routenstopps mit einer Linie verbinden",
+    RouteLineHelp = "Zeichnet auf der Weltkarte eine Linie zwischen den nummerierten Stopps der aktuellen Route oder des Ausflugs. Gold ist der nächste Abschnitt.",
+    RouteLineShort = "Routenlinie",
 }, { __index = english })
 
 addon.L = {}

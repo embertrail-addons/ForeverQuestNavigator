@@ -157,6 +157,14 @@ function addon.SettingsController.Register(context)
         "showRouteMarkers", settings, Settings.VarType.Boolean, L.RouteMarkers, true)
     routeMarkers:SetValueChangedCallback(context.UpdateMapMarker)
     Checkbox(category, routeMarkers, L.RouteMarkersHelp)
+    local routeLine = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
+        "showRouteLine", settings, Settings.VarType.Boolean, L.RouteLine, true)
+    routeLine:SetValueChangedCallback(function(_, value)
+        addon.CanvasMarkers.showLine = value ~= false
+        context.UpdateMapMarker()
+    end)
+    Checkbox(category, routeLine, L.RouteLineHelp)
+    function addon.ToggleRouteLine() routeLine:SetValue(not (settings.showRouteLine ~= false)) end
     local quiet = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_QUIET_NAVIGATION",
         "quietNavigation", settings, Settings.VarType.Boolean, L.QuietNavigation, true)
     quiet:SetValueChangedCallback(function() UpdateDirectionTicker() ScheduleRefresh() end)

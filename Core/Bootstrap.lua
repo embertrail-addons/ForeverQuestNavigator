@@ -85,8 +85,23 @@ local function BuildDecisionBrief(snapshot, mapType)
     return addon.DecisionBrief.Build(snapshot, insights.roundLedger, C_Map, mapType)
 end
 
+-- A started outing shows up to six upcoming stops on the map (and the route line).
+local function OutingMapRoute()
+    local plan = insights.excursion
+    if not (plan and plan.started and plan.stops) then return end
+    local route = {}
+    for index = plan.index or 1, #plan.stops do
+        local stop = plan.stops[index]
+        if stop.target and not stop.done then
+            route[#route + 1] = {target = stop.target, quest = stop.quest, action = stop.action}
+            if #route >= 6 then break end
+        end
+    end
+    return #route > 1 and route or nil
+end
+
 local function CurrentMapRoute(id)
-    if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return shown.routePreview end
+    if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return OutingMapRoute() or shown.routePreview end
     local destination = GetQuestDestination and GetQuestDestination(id)
     if destination and destination.target then
         for _, quest in ipairs(eligibleQuests or {}) do
@@ -2565,6 +2580,7 @@ local function AddonLoaded(name)
         end
         addon.SettingsDefaults.Normalize(settings, LIMITS, not insights.hadSettings)
         addon.UI.iconLabels = settings.iconLabels ~= false
+        addon.CanvasMarkers.showLine = settings.showRouteLine ~= false
         addon.SetLanguage(settings.language)
         insights.lastLevel = UnitLevel and UnitLevel("player")
         addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)
