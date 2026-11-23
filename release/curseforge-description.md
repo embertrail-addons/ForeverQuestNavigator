@@ -2,84 +2,80 @@
 
 **Choose your next quest with distance, level suitability and known follow-ups in view.**
 
-Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Forever 1.60.1**. It compares accepted quests across zone borders and helps you decide where to go next, while you control the gameplay.
+Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Forever 1.60.1**. It compares your accepted quests across zone borders, shows where to go next and guides you there. You stay in control: FQN never accepts, completes or turns in quests for you.
+
+## New in 0.2.0
+
+*   **Quick setup on first start:** choose navigator or arrow only, Questie data on or off, and Simple, Standard or Expert detail.
+*   **Simple mode:** new installations start with the essentials. Switch to expert mode for tours, planning, outings and history. Existing players keep their current view.
+*   **One tool window** for quests, planning, outings, activity, settings and help, plus a **searchable command menu** (`/fqn menu` or right-click on the minimap button).
+*   **Route line on the world map** connecting the next stops, and a **distance bar** showing how much of the way is already covered.
+*   **Level forecast:** see how many of the nearest turn-ins reach your next level.
+*   **Session recap** with XP per hour, the zones you played and a suggestion for next time.
+*   **Optional group sync:** share quest progress with party members who also use FQN (off by default).
+*   A calmer navigator with quest symbols, one row of actions and scrollable lists.
 
 ## Quest navigation
 
-- A configurable tracker shows your active quest, all objective progress, distance and approximate XP when known.
-- A separate, movable direction arrow follows the current target. FQN normally chooses the nearest known unfinished objective; you can select or temporarily avoid a goal yourself.
-- Local Questie spawn neighborhoods and publicly identifiable enemies you are fighting help recognize when you are already working on an unfinished objective.
-- During ghost runs, corpse navigation takes priority and keeps a stable destination. Missing coordinates are shown explicitly; normal quest navigation resumes after resurrection.
-- Clear objective counters, progress bars, short XP forecasts and labelled turn-in/recommendation states keep the next action readable.
-- Open complete quest details beside the navigator. Adjustable height keeps the quest title pinned while content scrolls; Show more appends entries without wheel paging.
-- A compact notice area shows arrival instructions or quest-log progress without moving the lists.
-- Supported native quest items have a click-to-use button with count and cooldown outside combat. Item-use arrival prompts additionally require confirmed range.
-- Open destinations on the world map with removable FQN pins. Supported previews show numbered upcoming stops.
-- Compare known follow-up routes, including up to two unambiguous follow-up quests, nearby shared stops and ready turn-in rounds.
-- Review possible level-up opportunities and known return travel when comparing quests.
-- Pin a quest through the quest log or an accepted quest's context menu. Ordinary list clicks open the map without overriding automatic selection.
+*   The navigator shows your active quest, objective progress, distance and approximate XP when known. One "Next" step and a compact row of actions keep the following decision in view.
+*   A separate, movable direction arrow follows the current target, with a progress bar for the current leg. FQN normally chooses the nearest known unfinished objective; you can select or temporarily avoid a goal yourself.
+*   Local Questie spawn areas and enemies you are actually fighting help recognize when you are already working on an objective.
+*   During ghost runs, corpse navigation takes priority with a stable destination. Quest navigation resumes after resurrection.
+*   Quest items get a click-to-use button with count and cooldown outside combat.
+*   Open destinations on the world map with removable FQN pins. Upcoming stops are numbered and connected by a route line.
+*   Compare known follow-up routes, nearby shared stops and ready turn-in rounds. Level-up forecasts show when your next turn-ins reach a new level.
+*   Pin a quest through the quest log or a quest's context menu. Ordinary clicks only open the map and never override automatic selection.
 
 ## Plan your outing
 
-Version 0.1.83 plans mixed pickups, objectives and hand-ins using known coordinate travel, level suitability, potential XP and quest-log capacity. Skip a recommended pickup, save it for later or hide it per character; hidden pickups have their own restoration list. Actual acceptance pauses the outing for target review before explicit resume. Coordinate proximity does not guarantee shared enemies or walkable paths.
+*   **Outings** combine pickups, objectives and known hand-ins in one reviewed order, using coordinate travel, level suitability, possible XP and quest-log capacity. Start, pause and resume explicitly.
+*   **Tour assistant:** departure checks, tour comparisons, hand-ins on the way, level-up review, quest chains, bag warnings and reminders.
+*   Build a personal tour of up to 20 accepted quests, reorder stops and save a return point.
+*   Search accepted quests, nearby offers and skipped quests by name, ID or zone.
+*   Discover nearby quests to accept through Questie, with level, estimated XP and why they fit your route.
+*   Browse quest targets by zone, review shared item requirements, save personal access routes with notes and set temporary outdoor stops.
+*   Skip a quest or a suggested pickup without abandoning anything; restore it any time. A character-specific notepad keeps your own notes.
+*   The session overview records turn-ins, XP per hour and zones, and offers a recap when you return.
 
-Tour assistant groups departure checks, tour comparisons, hand-ins on the way, optional native group quest checks, level-up review, expandable chains, personal corrections and contextual reminders. Optional time budgets show their heuristic assumptions. Simple navigator reduces permanent displays; Details keeps information accessible. Bag warnings and explicitly saved merchant visits help with preparation; FQN never sells items automatically. Real-client acceptance checks for the latest changes remain open.
+## Group sync (optional)
 
-- Build and review a personal tour of up to 20 accepted quests, reorder stops and start navigation explicitly.
-- Preview a closing hand-in round with a saved outdoor return point. Order suggestions use known straight-line distances and require confirmation before changing the tour.
-- Search accepted quests, nearby offers and skipped entries by name, ID or known zone through the unified quest finder.
-- Optionally remember a tour and quest priority per character, then choose whether to resume it after login.
-- Hover map pins and tracker quests to highlight their matching entries. Co-located route stops keep grouped numbers.
-- Choose a temporary quest priority until objectives are complete or the quest is turned in; automatic selection then resumes.
-- Enable approximate travel times in route details. These are straight-line estimates at walking/current mounted speed, excluding terrain, combat and transport.
-- See advisory suggestions when another zone has a compact group of at least three suitable quests with a clear distance advantage.
-- Compare known reward base stats and armor against equipped items in tooltips. Accessory slots are compared separately; melee weapons, effects, damage and set bonuses are excluded. There is no automatic upgrade score.
-- Discover nearby quests to accept through Questie, with level, estimated XP and explanations of useful overlap or route fit when known.
-- Browse quest targets by zone and review shared item requirements across active quests.
-- Temporarily lower a quest's priority or try another known area for the same objective.
-- Save personal access routes with up to eight ordered waypoints and notes for individual steps.
-- Set a temporary stop using an outdoor map ID and coordinates, then automatically resume quest navigation on arrival.
-- Get supported quest-action item hints, quest-log capacity reminders and optional travel-preparation warnings.
-- Keep persistent skips and a character-specific quest notepad. Skipping never abandons a quest.
+When **Share quest progress with my group** is enabled, FQN sends your active quest IDs, objective counts (for example 3/5) and your current target quest to your own party or raid, at most every 3 seconds and never during combat. Members who also use FQN see shared quests and progress, and quests several members still need rank slightly earlier. Nothing is saved, and a member's data is dropped when they leave. With the setting off (the default), FQN sends no addon messages.
 
 ## Make it yours
 
-Tools share a window with **Quests, Planning, Activity, Settings and Help** sections. Related views stay together, Back restores your previous view, and searches and filters are retained while navigating. Settings start with common options and provide searchable advanced options with checkboxes, numeric controls and direct selection menus.
-
-Choose Compact or Detailed display, resize the tracker, collapse secondary content and adjust text size, background opacity and visible list lengths. Text remains readable independently of background opacity. Appearance profiles, optional high contrast, adaptive narrow layouts, quiet combat/taxi views and configurable key bindings are included.
-
-Right-click the navigator title to choose Current objective only, Active quest or All recommendations. Try font size, width and opacity in the live appearance preview and restore the previous values if desired. Arrange interface positions both displays with guides and snapping; Done locks both positions.
-
-Share display settings through a copyable code with a preview before applying. Quest progress, skips, positions and notes are excluded. Selected addon changes can be undone through the local change history. **English and German** interfaces are available.
+*   Simple or expert mode, Focus or Overview navigator, compact or detailed tracker.
+*   Adjust text size, width, height and background opacity; text stays readable at any opacity. Try changes in a live preview.
+*   Three color designs, high contrast and reduced colors. Quest symbols or action words.
+*   Position the navigator and arrow with guides (`/fqn arrange`), use appearance profiles and key bindings, and share display settings as a code with preview.
+*   Undo supported changes through the change history. **English and German** interfaces are available.
 
 ## Getting started
 
-Install FQN for the Forever client and restart WoW. The gold **FQN minimap button** switches display modes; right-click it for common commands and settings, and drag it with the left mouse button to reposition it. New installations start with a short setup.
+Install FQN for the Forever client and restart WoW. New installations start with a short setup. The gold **FQN minimap button** switches display modes; right-click it for common commands and settings, and drag it to reposition it.
 
 Useful commands:
 
-- `/fqn` — toggle the tracker
-- `/fqn settings` — common settings and tools
-- `/fqn menu` — searchable list of all commands
-- `/fqn setup` — run the first-start setup again
-- `/fqn arrange` — position the navigator and direction display
-- `/fqn plan` — quest planning, turn-ins, shared items and supported chains
-- `/fqn detour` — temporary stop
-- `/fqn access` — saved access routes and waypoint notes
-- `/fqn share` — export/import appearance
-- `/fqn notes` — character quest notepad
-- `/fqn history` — recorded addon changes and undo
-- `/fqn status` — Questie integration status
+*   `/fqn` — show or hide the navigator
+*   `/fqn menu` — searchable list of all commands
+*   `/fqn settings` — settings with search
+*   `/fqn setup` — run the setup again
+*   `/fqn tools` — the tool window
+*   `/fqn find [text]` — search quests
+*   `/fqn plan` — planning, turn-ins and quest chains
+*   `/fqn assist` — Tour assistant
+*   `/fqn session` — session overview and recap
+*   `/fqn arrange` — position navigator and arrow
+*   `/fqn problem` — copyable problem report
 
 ## Questie integration
 
-FQN can read the game's quest log and map data on its own. For objective spawn locations, nearby offers and supported follow-up planning, install the **Forever-compatible versions of Questie and QuestieDB** separately. They are optional integrations; TomTom is not required.
+FQN works with the game's quest log and map data on its own. For spawn locations, nearby quest offers and follow-up planning, install the **Forever-compatible versions of Questie and QuestieDB** separately. They are optional; TomTom is not required.
 
 ## How to read the recommendations
 
-Distances and route comparisons use known coordinates and straight-line measurements. They do not account for every mountain, cave, enemy, flight connection or terrain obstacle. Missing targets and unsupported follow-ups remain unknown. XP marked with `~` is an estimate; later-level rewards may change. Item hints do not guarantee that an item is usable at your exact position.
+Distances, routes and travel times use known coordinates and straight lines. They do not account for every mountain, cave, enemy, flight path or obstacle. Missing targets stay marked as unknown. XP marked with `~` is an estimate. Item hints do not guarantee that an item can be used at your exact position.
 
-Outdoor elite/group quests are included. Unfinished dungeon, raid and PvP objectives are excluded from normal recommendations; completed special quests remain available for turn-in. FQN gives recommendations and navigation information; you accept, complete and turn in quests, travel and use items yourself.
+Outdoor elite and group quests are included. Unfinished dungeon, raid and PvP objectives are excluded from normal recommendations; completed ones remain available for turn-in. FQN gives recommendations and navigation; you accept, complete and turn in quests, travel and use items yourself.
 
 Source code, documentation and issue reports: [GitHub](https://github.com/embertrail-addons/ForeverQuestNavigator).
 
