@@ -1021,6 +1021,8 @@ local english = {
     RecapNext = "Next time: %s has the most open quests nearby.",
     RecapOpen = "Show session overview",
     RecapNewSession = "Start a new session",
+    LevelForecastRoute = "Level %d after the nearest %d turn-ins (%d XP)",
+    LevelForecastUnlocks = "%d nearby quests unlock then",
 }
 
 local german = setmetatable({
@@ -2045,6 +2047,8 @@ local german = setmetatable({
     RecapNext = "Nächstes Mal: In %s liegen die meisten offenen Quests.",
     RecapOpen = "Sitzungsübersicht anzeigen",
     RecapNewSession = "Neue Sitzung beginnen",
+    LevelForecastRoute = "Stufe %d nach den nächsten %d Abgaben (%d EP)",
+    LevelForecastUnlocks = "dann %d neue Quests in der Nähe",
 }, { __index = english })
 
 addon.L = {}

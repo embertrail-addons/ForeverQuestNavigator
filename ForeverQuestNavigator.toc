@@ -37,6 +37,7 @@ Core\DisplayTransfer.lua
 Core\QuestItemHints.lua
 Core\UndoHistory.lua
 Core\QuestInsights.lua
+Core\LevelForecast.lua
 Navigation\CampAlternatives.lua
 Navigation\CampChoices.lua
 Navigation\ObjectivePresence.lua

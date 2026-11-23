@@ -104,6 +104,20 @@ return function(test, addon, equal)
         equal(addon.Session.New({}, 0):Summary(60).xpPerHour, nil)
     end)
 
+    test("Level forecast sums the nearest ready turn-ins and skips single level-ups", function()
+        local F = addon.LevelForecast
+        local quests = {{id = 1, readyToTurnIn = true, xp = 300}, {id = 2, readyToTurnIn = true, xp = 500},
+            {id = 3, xp = 9999}, {id = 4, readyToTurnIn = true, xp = 400}, {id = 5, readyToTurnIn = true}}
+        local yards = {[1] = {yards = 900}, [2] = {yards = 100}, [4] = {yards = 200}}
+        local function XP(quest) return quest.xp end
+        local plan = F.FromQuests(quests, yards, XP, 850)
+        equal(plan.count, 2) equal(plan.total, 900) equal(plan.ids[1], 2) equal(plan.ids[2], 4)
+        equal(F.FromQuests(quests, yards, XP, 450), nil)
+        equal(F.FromQuests(quests, yards, XP, 5000), nil)
+        equal(F.FromQuests(quests, yards, XP, nil), nil)
+        equal(F.FromQuests(quests, yards, XP, 1200).count, 3)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

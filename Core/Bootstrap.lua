@@ -603,6 +603,15 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         routeDetails = routeDetails and (routeDetails .. "\n" .. rewardText) or rewardText
     end
     if routeNote == L.LevelUpOnTurnIn and settings.showQuestXP and reward and reward >= xpNeeded then routeNote = nil end
+    if xpNeeded and not (reward and reward >= xpNeeded) and type(playerLevel) == "number" and playerLevel > 0 then
+        local levelPlan = addon.LevelForecast.FromQuests(eligibleQuests, questMeasurements, addon.QuestLog.GetTurnInXP, xpNeeded)
+        if levelPlan then
+            local text = L.LevelForecastRoute:format(playerLevel + 1, levelPlan.count, levelPlan.total)
+            local soon = integration.SoonAvailable and integration.SoonAvailable()
+            if soon and soon > 0 then text = text .. " · " .. L.LevelForecastUnlocks:format(soon) end
+            routeDetails = routeDetails and (routeDetails .. "\n" .. text) or text
+        end
+    end
     local nearbyStops = GetNearbyStops(quest, destination, ranked, playerLevel)
     local approachStops
     local flightContext = addon.QuestLocation.GetFlightContext(C_Map, distanceMaps, flight.routes)

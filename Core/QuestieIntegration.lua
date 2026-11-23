@@ -138,12 +138,15 @@ end
 
 local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType, playerLevel, radius, anchor, includeRoute, routeAnchors)
     local questieMap = QuestieLoader:ImportModule("QuestieMap")
-    local markersByQuest, offersByID, ids = {}, {}, {}
+    local markersByQuest, offersByID, ids, soon = {}, {}, {}, {}
     for id, frames in pairs(questieMap.questIdFrames) do
         for name in pairs(frames) do
             local pin = _G[name]
             local data = pin and pin.miniMapIcon == false and targetMaps[pin.UiMapID] and pin.data
             local quest = data and data.Type == "available" and data.StarterType == nil and data.Id == id and data.QuestData
+            if quest and type(id) == "number" and type(quest.requiredLevel) == "number" and quest.requiredLevel == playerLevel + 1 then
+                soon[id] = true
+            end
             if quest and type(id) == "number" and id > 0 and type(quest.name) == "string" and quest.name ~= ""
                 and type(quest.requiredLevel) == "number" and quest.requiredLevel <= playerLevel then
                 local marker = LocalMarker(targetMaps, pin.UiMapID, pin.x, pin.y)
@@ -160,6 +163,9 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
         end
     end
 
+    local soonCount = 0
+    for _ in pairs(soon) do soonCount = soonCount + 1 end
+    Integration.soonAvailable = soonCount
     local offers = {}
     local priority = addon.QuestPrioritizer
     local anchorDistance = anchor and addon.QuestLocation.GetDistanceMetric(mapAPI, anchor)
@@ -237,6 +243,9 @@ function Integration.GetObjectiveMarkers(quests, questAPI, localMaps, useKillLoc
     local ok, markers, kills = pcall(CollectObjectiveMarkers, quests, questAPI, localMaps, useKillLocations)
     if ok then return markers, kills end
 end
+
+-- Quest givers on the shown maps that unlock at the next level (only when Questie draws them).
+function Integration.SoonAvailable() return Integration.soonAvailable end
 
 function Integration.GetNearbyOffers(...)
     local ok, offers = pcall(FindNearbyOffers, ...)
