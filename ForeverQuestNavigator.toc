@@ -75,6 +75,7 @@ UI\ManagementWindows.lua
 UI\ToolHub.lua
 UI\CommandMenu.lua
 UI\NavigatorTools.lua
+UI\Setup.lua
 UI\ActiveQuestCard.lua
 UI\QuestLists.lua
 UI\RoutePreview.lua

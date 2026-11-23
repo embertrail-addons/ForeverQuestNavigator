@@ -2469,6 +2469,12 @@ local function InitializeWorkspace(character)
     })
 end
 
+local function ShowSetup(done)
+    return addon.ShowSetup(settings, {catalog = addon.SettingsController.catalog, done = done,
+        questie = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie") and true or false,
+        setDisplayMode = SetDisplayMode})
+end
+
 local function RegisterCommands()
     local C = addon.Commands
     C.Reset()
@@ -2515,6 +2521,7 @@ local function RegisterCommands()
     end, {advanced = true})
     Add("access", "settings", "CmdAccess", function() ShowAccessManager() end, {advanced = true})
     Add("help", "help", "CmdHelp", function() addon.ShowIntroduction(settings) end)
+    Add("setup", "help", "CmdSetup", function() ShowSetup() end)
     Add("whatsnew", "help", "CmdWhatsNew", function() addon.ShowReleaseNotes(settings, AddonVersion()) end)
     Add("demo", "help", "CmdDemo", function(text)
         addon.DemoMode.Command((text or ""):lower(), settings, tracker, function() UpdateMapMarker() ScheduleRefresh() end)
@@ -2675,7 +2682,11 @@ addon.EventController.Bind(events, {
     end,
     introduction = function()
         if settings and not settings.introSeen
-            and not (InCombatLockdown and InCombatLockdown()) then addon.ShowIntroduction(settings) end
+            and not (InCombatLockdown and InCombatLockdown()) then
+            if not insights.hadSettings and not settings.setupDone then
+                ShowSetup(function() addon.ShowIntroduction(settings) end)
+            else addon.ShowIntroduction(settings) end
+        end
         if settings and settings.introSeen and insights.updateVersion and not (InCombatLockdown and InCombatLockdown())
             and not (UnitOnTaxi and UnitOnTaxi("player")) and not addon.DemoMode.IsActive() then
             if settings.showUpdateNotes then addon.ShowReleaseNotes(settings, insights.updateVersion)

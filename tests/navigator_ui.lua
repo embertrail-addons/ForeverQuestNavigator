@@ -937,4 +937,36 @@ return function(test, equal, near, mockUI, loadAddon)
         equal(window.rows[1].entry.key, "repeatablePolicy") equal(window.rows[2]:IsShown(), false)
         assert(window.examples:IsShown())
     end)
+    test("Setup applies only clicked choices on Finish and Skip changes nothing", function()
+        local addon = Fixture()
+        local function Catalog(settings)
+            local catalog = {}
+            for _, key in ipairs({"showQuestieOffers", "useQuestieKillLocations", "simpleNavigator", "detailMode",
+                "acceptedRows", "offerRows", "fontPercent", "opacityPercent", "showScreenArrow", "showQuestXP", "highContrast"}) do
+                catalog[#catalog + 1] = {key = key, control = {SetValue = function(_, value) settings[key] = value end}}
+            end
+            return catalog
+        end
+        local settings, mode, finished = {displayMode = "full", simpleNavigator = true, showQuestieOffers = true}, nil, 0
+        local options = {catalog = Catalog(settings), questie = true, setDisplayMode = function(value) mode = value end,
+            done = function() finished = finished + 1 end}
+        local wizard = addon.ShowSetup(settings, options)
+        equal(wizard.step, 1) assert(wizard.choiceButtons[1].text:find("^> "))
+        wizard.choiceButtons[2]:Click() wizard.next:Click()
+        wizard.choiceButtons[2]:Click() wizard.next:Click()
+        wizard.choiceButtons[3]:Click() wizard.next:Click()
+        equal(wizard:IsShown(), false) equal(finished, 1) equal(settings.setupDone, true)
+        equal(mode, "arrow") equal(settings.showQuestieOffers, false) equal(settings.useQuestieKillLocations, false)
+        equal(settings.simpleNavigator, false) equal(settings.acceptedRows, 5)
+        local untouched = {displayMode = "full", simpleNavigator = false, detailMode = "compact"}
+        local quiet = {catalog = Catalog(untouched), setDisplayMode = function() error("skip must not change the display") end}
+        wizard = addon.ShowSetup(untouched, quiet)
+        equal(wizard.choiceButtons[1]:IsShown(), true)
+        wizard.next:Click() equal(wizard.choiceButtons[1]:IsShown(), false)
+        wizard.skip:Click()
+        equal(untouched.simpleNavigator, false) equal(untouched.detailMode, "compact") equal(untouched.setupDone, true)
+        wizard = addon.ShowSetup(untouched, quiet)
+        wizard.next:Click() wizard.next:Click() wizard.next:Click()
+        equal(untouched.detailMode, "compact")
+    end)
 end
