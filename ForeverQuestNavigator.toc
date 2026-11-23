@@ -110,5 +110,7 @@ UI\ReleaseNotes.lua
 Core\QuestActions.lua
 Core\SettingsController.lua
 Core\EventController.lua
+Core\NavigatorCommands.lua
+Core\NavigatorQuestMenu.lua
 Core\NavigatorPlanning.lua
 Core\Bootstrap.lua

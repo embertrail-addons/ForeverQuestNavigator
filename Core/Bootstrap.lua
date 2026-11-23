@@ -1669,188 +1669,16 @@ local function SwitchCamp(questID)
     S.previousObjectives[questID], S.outing = nil, nil
 end
 
-local function OpenQuestMenu(owner, questID, isOffer)
-    if not (questID and MenuUtil and MenuUtil.CreateContextMenu) then return end
-    local measured = S.questMeasurements and S.questMeasurements[questID]
-    local target = measured and (measured.objectiveMarker or measured.marker)
-    local ready = C_QuestLog.IsComplete and C_QuestLog.IsComplete(questID)
-    local key = target and (target.objectiveIndex or 0)
-    local function Save(point, name)
-        local metric = target and addon.QuestLocation.GetDistanceMetric(C_Map, target)
-        if not (addon.TravelSupport.ValidPoint(point) and metric and metric(target, point)
-            and addon.QuestLocation.IsOutdoorMap(C_Map, Enum and Enum.UIMapType, point.mapID, S.questTargetMaps)) then
-            print(L.AccessUnavailable) return
-        end
-        local before = addon.UndoHistory.Copy(S.savedAccessPoints[questID] and S.savedAccessPoints[questID][key])
-        if addon.TravelSupport.SaveAccess(S.savedAccessPoints, questID, target, point, name) then
-            for _, quest in ipairs(S.eligibleQuests or {}) do
-                if quest.id == questID then S.savedAccessPoints[questID][key].questTitle = quest.title break end
-            end
-            S.passedAccessPoints[questID .. ":" .. key] = nil
-            RecordAccessChange(questID, key, before)
-            S.outing = nil
-            print(L.AccessSaved)
-            ScheduleRefresh()
-        end
-    end
-    local chosen
-    for _, quest in ipairs((isOffer and S.nearbyOffers or S.eligibleQuests) or {}) do
-        if quest.id == questID then chosen = quest break end
-    end
-    local function Submenu(menu, label)
-        return menu:CreateButton(label) or menu
-    end
-    local function Feedback(kind)
-        local before = addon.UndoHistory.Copy(S.temporaryFeedback)
-        if kind == "area" then
-            addon.RecommendationFeedback.SetArea(S.temporaryFeedback, C_Map, S.eligibleQuests, S.questMeasurements or {}, target, SessionTime())
-        else
-            addon.RecommendationFeedback.Set(S.temporaryFeedback, chosen, S.questMeasurements and S.questMeasurements[questID], kind, SessionTime())
-        end
-        if addon.Undo then addon.Undo:Capture(L.FeedbackSubmenu, function() return S.temporaryFeedback end, function(value)
-            S.temporaryFeedback = value S.outing = nil ScheduleRefresh()
-        end, before, S.temporaryFeedback) end
-        S.outing = nil
-        ScheduleRefresh()
-    end
-    MenuUtil.CreateContextMenu(owner, function(_, menu)
-        menu:CreateTitle(L.QuestActionsMenu)
-        menu:SetScrollMode(260)
-        menu:CreateButton(L.OpenQuestMap, function() if isOffer then OpenOfferMap(questID) else OpenQuestMap(questID) end end)
-        if isOffer and chosen then
-            menu:CreateButton(L.OfferSkip, function() addon.SkipCurrentOffer(questID, "once") end)
-            menu:CreateButton(L.OfferLater, function() addon.SkipCurrentOffer(questID, "later") end)
-            menu:CreateButton(L.OfferHide, function() addon.SkipCurrentOffer(questID, "hide") end)
-        end
-        if not isOffer and CanPinQuest(questID) then
-            menu:CreateButton(S.manualQuestID == questID and L.ClearActiveQuest or L.SetActiveQuest,
-                function() if S.manualQuestID == questID then SelectQuest(nil) else SelectQuest(questID) end end)
-            local priorityMenu = Submenu(menu, L.PriorityMenu)
-            if chosen and not chosen.readyToTurnIn then
-                priorityMenu:CreateButton(L.PriorityUntilComplete, function() ApplyQuestAction("prioritize", {id = questID}) end)
-            end
-            priorityMenu:CreateButton(L.PriorityUntilTurnIn, function() ApplyQuestAction("prioritize", {id = questID, turnIn = true}) end)
-        end
-        local more = Submenu(menu, L.MoreActions)
-        if chosen then
-            local later = Submenu(more, L.JourneyLaterMenu)
-            for _, when in ipairs({"round", "visit", "group"}) do
-                local trigger = when
-                later:CreateButton(L["JourneyLater_" .. trigger], function()
-                    if addon.DemoMode.IsActive() then return end
-                    local point = isOffer and chosen.marker or target
-                    local zone = point and addon.QuestLocation.GetZone(C_Map, Enum and Enum.UIMapType, point.mapID)
-                    addon.JourneyPlanning.SetLater(S.insights.laterQuests, chosen, point, trigger, zone or point and point.mapID, addon.GetLaterContext())
-                    ScheduleRefresh()
-                end)
-            end
-            later:CreateButton(L.Adventure_later, function() addon.OpenAdventure("later") end)
-        end
-        more:CreateButton(L.EditQuestNote, function() addon.OpenQuestNote(questID, isOffer) end)
-        if not isOffer and S.navigationSnapshot and S.navigationSnapshot.camps and S.navigationSnapshot.camps[questID] then
-            more:CreateButton(L.CampChoices, function() addon.OpenCampChoices(questID) end)
-        end
-        if not isOffer and S.shownQuests and S.shownQuests[1] and S.shownQuests[1].id == questID then
-            more:CreateButton(S.heldQuest and S.heldQuest.id == questID and L.ReleaseQuest or L.HoldQuest, ToggleQuestHold)
-        end
-        more:CreateButton(S.questNotes[questID] and L.UnmarkQuest or L.MarkQuest, function()
-            local point = isOffer and chosen and chosen.marker or target
-            addon.QuestTools.ToggleNote(S.questNotes, questID, chosen and chosen.title, point, isOffer)
-            S.insights.noteRevision = (S.insights.noteRevision or 0) + 1 ScheduleRefresh()
-            addon.RefreshQuestNotepad()
-        end)
-        if chosen and not isOffer and addon.CampAlternatives.Find(C_Map, chosen, measured, S.questMarkers[questID], S.campAvoidance, SessionTime()) then
-            more:CreateButton(L.AnotherCamp, function() SwitchCamp(questID) end)
-        end
-        more:CreateButton(L.PlanningOverview, function() F.ShowPlanning() end)
-        if chosen and not isOffer then
-            menu:CreateButton(L.AdventureBlockedAction, function()
-                Feedback("blocked") addon.PauseExcursion() addon.OpenAdventure("blocked", questID)
-            end)
-            local tourMenu = Submenu(menu, L.MyTour)
-            tourMenu:CreateButton(L.AddToTour, function()
-                if S.workspace then S.workspace:Action("add", {quest = chosen}) addon.OpenWorkspace("tour") end
-            end)
-            tourMenu:CreateButton(L.MyTour, function() addon.OpenWorkspace("tour") end)
-        end
-        local feedbackMenu = Submenu(more, L.FeedbackSubmenu)
-        if chosen and not isOffer then
-            feedbackMenu:CreateButton(L.FeedbackHard, function() Feedback("hard") end)
-            feedbackMenu:CreateButton(L.FeedbackBlocked, function() Feedback("blocked") end)
-            feedbackMenu:CreateButton(L.FeedbackInconvenient, function() Feedback("inconvenient") end)
-            feedbackMenu:CreateButton(L.FeedbackNoMobs, function() Feedback("empty") end)
-            feedbackMenu:CreateButton(L.FeedbackGroup, function() Feedback("group") end)
-            feedbackMenu:CreateButton(L.FeedbackAccess, function() Feedback("access") end)
-            feedbackMenu:CreateButton(L.FeedbackArea, function() Feedback("area") end)
-            if S.temporaryFeedback[questID] then
-                feedbackMenu:CreateButton(L.FeedbackClear, function() ClearTemporaryFeedback(questID) end)
-            end
-            if S.campAvoidance[questID] then
-                feedbackMenu:CreateButton(L.RestoreCamps, function() S.campAvoidance[questID] = nil S.outing = nil ScheduleRefresh() end)
-            end
-        end
-        feedbackMenu:CreateButton(L.FeedbackManager, function() F.ShowFeedback() end)
-        if chosen and not isOffer then
-            if chosen.readyToTurnIn or target and target.objectiveIndex then more:CreateButton(L.AdventureCorrectHere, function()
-                if addon.DemoMode.IsActive() or IsInInstance and IsInInstance() then return end
-                local mapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-                local pos = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
-                if pos and not (issecretvalue and issecretvalue(pos)) and addon.AdventureSupport.Correct(S.targetCorrections, chosen,
-                    {mapID = mapID, x = pos.x, y = pos.y}, target and target.objectiveIndex) then
-                    ScheduleRefresh()
-                end
-            end) end
-            if S.targetCorrections[questID] then more:CreateButton(L.AdventureCorrections, function() addon.OpenAdventure("corrections") end) end
-        end
-        if not (isOffer or ready or not target) then
-            local access = Submenu(more, L.AccessSubmenu)
-            local saved = addon.TravelSupport.GetAccess(S.savedAccessPoints, questID, target, C_Map)
-            local steps = saved and addon.TravelSupport.AccessSteps(saved)
-            access:CreateButton(steps and #steps > 1 and L.ReplaceAccessHere or L.SaveAccessHere, function()
-                if IsInInstance and IsInInstance() then print(L.AccessUnavailable) return end
-                local mapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-                local point = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
-                Save(point and {mapID = mapID, x = point.x, y = point.y}, L.SavedAccess)
-            end)
-            if saved then
-                if #steps < 8 then access:CreateButton(L.AppendAccessHere, function()
-                    local before = addon.UndoHistory.Copy(S.savedAccessPoints[questID][key])
-                    if IsInInstance and IsInInstance() then print(L.AccessUnavailable) return end
-                    local mapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-                    local position = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
-                    local point = position and {mapID = mapID, x = position.x, y = position.y}
-                    if not point or not addon.QuestLocation.IsOutdoorMap(C_Map, Enum and Enum.UIMapType, mapID, S.questTargetMaps)
-                        or not addon.TravelSupport.AppendAccess(S.savedAccessPoints, questID, target, point, C_Map) then
-                        print(L.AccessAppendUnavailable) return
-                    end
-                    local route = S.savedAccessPoints[questID][key]
-                    if flight.active then S.passedAccessPoints[questID .. ":" .. key] = nil
-                    else S.passedAccessPoints[questID .. ":" .. key] = {entry = route, revision = route.revision,
-                        index = #addon.TravelSupport.AccessSteps(route) + 1} end
-                    S.outing = nil
-                    RecordAccessChange(questID, key, before)
-                    addon.RefreshAccessManager() ScheduleRefresh()
-                end) end
-                access:CreateButton(L.ReuseAccess, function()
-                    S.passedAccessPoints[questID .. ":" .. key] = nil S.outing = nil ScheduleRefresh()
-                end)
-                access:CreateButton(L.ClearAccess, function()
-                    local before = addon.UndoHistory.Copy(S.savedAccessPoints[questID][key])
-                    S.savedAccessPoints[questID][key] = nil
-                    RecordAccessChange(questID, key, before)
-                    S.passedAccessPoints[questID .. ":" .. key] = nil S.outing = nil ScheduleRefresh()
-                end)
-            end
-            for _, hint in ipairs(addon.QuestieRoutes.GetAccessHints(C_Map, Enum and Enum.UIMapType, S.questTargetMaps or {}, questID, target)) do
-                local point, text = hint.point, hint.text
-                access:CreateButton(L.AccessHintMap:format(text), function() OpenRouteStop({target = point}) end)
-                access:CreateButton(L.UseAccessHint:format(text), function() Save(point, text) end)
-            end
-        end
-        local diagnostic = Submenu(more, L.SettingsDiagnostics)
-        diagnostic:CreateButton(L.PositionReport, function() ShowTargetReport(questID, isOffer) end)
-    end)
-end
+-- Quest context menu of the navigator and quest log (Core/NavigatorQuestMenu.lua).
+for name, fn in pairs({
+    ApplyQuestAction = ApplyQuestAction, CanPinQuest = CanPinQuest,
+    ClearTemporaryFeedback = ClearTemporaryFeedback, OpenOfferMap = OpenOfferMap, OpenQuestMap = OpenQuestMap,
+    OpenRouteStop = OpenRouteStop, RecordAccessChange = RecordAccessChange, ScheduleRefresh = ScheduleRefresh,
+    SelectQuest = SelectQuest, SessionTime = SessionTime, ShowTargetReport = ShowTargetReport,
+    SwitchCamp = SwitchCamp, ToggleQuestHold = ToggleQuestHold,
+}) do F[name] = fn end
+S.flight = flight
+addon.NavigatorQuestMenu.Install(S, F)
 
 -- Planning, outing, access point, notepad and skip actions of the navigator (Core/NavigatorPlanning.lua).
 for name, fn in pairs({
@@ -1970,85 +1798,14 @@ local function ShowSetup(done)
         setDisplayMode = SetDisplayMode})
 end
 
-local function RegisterCommands()
-    local C = addon.Commands
-    C.Reset()
-    local function Add(key, group, label, run, options)
-        local entry = {key = key, group = group, label = label, run = run}
-        for name, value in pairs(options or {}) do entry[name] = value end
-        C.Register(entry)
-    end
-    local function Print(text) print("FQN | " .. text) end
-    Add("", "navigation", nil, function() ToggleTracker() end, {hidden = true})
-    Add("settings", "settings", "CmdSettings", function() OpenSettings() end)
-    Add("arrange", "settings", "CmdArrange", function() S.tracker:ArrangeUI() end)
-    Add("tools", "navigation", "CmdTools", function() addon.UI.ToolHub.Open(addon.UI.ToolHub.key or "finder") end)
-    Add("menu", "navigation", "CmdMenu", function() addon.ShowCommandMenu(S.settings) end)
-    Add("find", "quests", "CmdFind", function(text)
-        local panel = addon.OpenWorkspace("finder")
-        if panel then panel.search:SetText(text or "") end
-    end, {args = true})
-    Add("tour", "quests", "CmdTour", function() addon.OpenWorkspace("tour") end, {advanced = true})
-    Add("resume", "quests", "CmdResume", function() addon.ResumePlan() end, {advanced = true})
-    Add("plan", "quests", "CmdPlan", function() F.ShowPlanning() end, {advanced = true})
-    Add("assist", "quests", "CmdAssist", function() addon.OpenAdventure() end, {advanced = true})
-    Add("zones", "quests", "CmdZones", function() F.ShowZones() end)
-    Add("notes", "quests", "CmdNotes", function() F.ShowNotepad() end)
-    Add("detour", "quests", "CmdDetour", function() addon.OpenDetourTools() end, {advanced = true})
-    Add("report", "quests", "CmdReport", function()
-        local quest = S.shownQuests and S.shownQuests[1]
-        if quest then ShowTargetReport(quest.id) end
-    end, {advanced = true})
-    Add("session", "history", "CmdSession", function() ShowSession() end)
-    Add("session reset", "history", "CmdSessionReset", function()
-        S.session = addon.Session.New(nil, SessionTime())
-        ForeverQuestNavigatorCharacterDB.session = S.session.data
-        CaptureSessionXP()
-        ShowSession()
-    end, {advanced = true})
-    Add("undo", "history", "CmdUndo", function() addon.UndoLastChange() end)
-    Add("history", "history", "CmdHistory", function() addon.ShowUndoHistory(addon.Undo) end, {advanced = true})
-    Add("levels", "history", "CmdLevels", function() F.ShowLevelChanges() end, {advanced = true})
-    Add("feedback", "history", "CmdFeedback", function() F.ShowFeedback() end, {advanced = true})
-    Add("profiles", "settings", "CmdProfiles", function() F.ShowProfiles() end)
-    Add("share", "settings", "CmdShare", function()
-        addon.ShowDisplayTransfer(S.settings, addon.SettingsController.catalog)
-    end, {advanced = true})
-    Add("access", "settings", "CmdAccess", function() F.ShowAccessManager() end, {advanced = true})
-    Add("help", "help", "CmdHelp", function() addon.ShowIntroduction(S.settings) end)
-    Add("setup", "help", "CmdSetup", function() ShowSetup() end)
-    Add("whatsnew", "help", "CmdWhatsNew", function() addon.ShowReleaseNotes(S.settings, AddonVersion()) end)
-    Add("demo", "help", "CmdDemo", function(text)
-        addon.DemoMode.Command((text or ""):lower(), S.settings, S.tracker, function() UpdateMapMarker() ScheduleRefresh() end)
-    end, {args = true})
-    Add("status", "debug", "CmdStatus", function() Print("Questie: " .. addon.ReadQuestieStatus(C_AddOns)) end, {advanced = true})
-    Add("debug", "debug", "CmdDebug", function() ShowDiagnostics() end, {advanced = true})
-    Add("problem", "debug", "CmdProblem", function() addon.OpenProblemReport() end)
-    Add("fixture", "debug", "CmdFixture", function() F.ShowFixture() end, {advanced = true})
-    Add("markers", "debug", "CmdMarkers", function()
-        local marker = addon.GetMapMarkerStatus()
-        Print(("mapMarkers: backend=%s count=%d target=%s"):format(marker.backend, marker.count, tostring(marker.hasTarget)))
-        Print(marker.detail)
-    end, {advanced = true})
-    Add("activity", "debug", "CmdActivity", function()
-        local active = S.shownQuests and S.shownQuests[1]
-        local area = active and S.navigationSnapshot and S.navigationSnapshot.presence and S.navigationSnapshot.presence[active.id]
-        local fight, body = S.insights.engagement, addon.RecoveryState
-        Print(("activity: combatMatch=%s objective=%s area=%s recovery=%s corpse=%s"):format(
-            tostring(fight and fight.questID or "none"), tostring(fight and fight.objectiveIndex or "none"),
-            tostring(area and area.objectiveIndex or "none"), tostring(body and body.active == true),
-            body and body.active and (body.exact and "native" or body.target and "last-death-position" or "unknown") or "none"))
-    end, {advanced = true})
-    Add("perf", "debug", "CmdPerf", function()
-        addon.ShowTextWindow("performance", addon.Performance:Report(), L.PerformanceTitle, L.PerformanceHelp)
-    end, {advanced = true})
-    Add("perf on", "debug", "CmdPerfOn", function()
-        Print(addon.Performance:Start() and L.PerformanceEnabled or L.PerformanceUnavailable)
-    end, {advanced = true, menu = false})
-    Add("perf off", "debug", "CmdPerfOff", function()
-        addon.Performance.enabled = false Print(L.PerformanceDisabled)
-    end, {advanced = true, menu = false})
-end
+-- Registration of all /fqn commands (Core/NavigatorCommands.lua).
+for name, fn in pairs({
+    AddonVersion = AddonVersion, CaptureSessionXP = CaptureSessionXP, OpenSettings = OpenSettings,
+    ScheduleRefresh = ScheduleRefresh, SessionTime = SessionTime, ShowDiagnostics = ShowDiagnostics,
+    ShowSession = ShowSession, ShowSetup = ShowSetup, ShowTargetReport = ShowTargetReport,
+    ToggleTracker = ToggleTracker, UpdateMapMarker = UpdateMapMarker,
+}) do F[name] = fn end
+addon.NavigatorCommands.Install(S, F)
 
 local function AddonLoaded(name)
     if name == addonName and not S.tracker then
@@ -2091,7 +1848,7 @@ local function AddonLoaded(name)
             openSettings = OpenSettings,
             openFinder = function() addon.OpenWorkspace("finder") end,
             openQuestMap = OpenQuestMap,
-            openQuestMenu = OpenQuestMenu,
+            openQuestMenu = F.OpenQuestMenu,
             openOfferMap = OpenOfferMap,
             openRouteStop = OpenRouteStop,
             selectObjective = SelectObjective,
@@ -2128,7 +1885,7 @@ local function AddonLoaded(name)
 
         addon.EventController.RegisterRuntime(events)
 
-        RegisterCommands()
+        F.RegisterCommands()
         SLASH_FOREVERQUESTNAVIGATOR1 = "/fqn"
         SlashCmdList.FOREVERQUESTNAVIGATOR = function(message)
             addon.Commands.Dispatch(message, S.settings.simpleNavigator)

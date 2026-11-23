@@ -8,6 +8,7 @@ Larger update: easier first steps, one tool window, new planning aids and option
 - **Simple and expert mode:** the existing "Simple navigator" setting is now **Simple mode**. It also hides advanced tool pages, settings and commands. New installations start in simple mode; existing players keep their current choice. A page you open explicitly stays reachable.
 - **One tool window:** Outing and Tour assistant are now pages of the tool window, in the new **On the road** group. What's new and the full command list are Help pages. The window remembers its position.
 - **Command menu:** `/fqn menu` lists every command with a search field. Right-clicking the minimap button opens a short menu of common commands. `/fqn` help is generated from the same list, so it now includes `demo`, `tools`, `assist`, `share` and others that were missing.
+- **Distance bar:** a thin bar under the distance in the direction display shows how much of the way to the current target is already covered.
 - **Symbols instead of words:** route stops, area overview and pickup plans show quest symbols for accept, objective and turn-in. The full word is in the tooltip. You can switch this off in the settings.
 - Text and diagnostics windows now close with Escape.
 
@@ -27,7 +28,7 @@ Larger update: easier first steps, one tool window, new planning aids and option
 
 - Bag, durability, equipment and mount changes now only recompute items, travel preparation and distances, without re-reading the quest log. Full refreshes during combat are combined over one second.
 - The quest item button only polls while the navigator is visible and combines frequent cooldown events.
-- `Core/Bootstrap.lua` is split up: flight points, settings defaults and the command registry are separate modules. Grouped state keeps it well below Lua 5.1's 200-local limit, and a test guards that limit for every file.
+- `Core/Bootstrap.lua` is split up (2817 -> 1994 lines): the navigator state lives in one shared table, and flight points, settings defaults, the command registry and command list, the quest context menu and the planning/outing/access/notepad actions are separate modules. It now uses 89 of Lua 5.1's 200 top-level locals instead of 165, and a test guards that limit for every file.
 - Update notes show only the latest three versions.
 - luacheck (global variables only) runs in CI.
 
@@ -38,5 +39,7 @@ These were checked with automated tests and mocks only, not yet in the real clie
 - Setup on a fresh character; switching between simple and expert mode; command menu and minimap right-click menu.
 - Outing and Tour assistant inside the tool window, including closing and Back.
 - Route line rendering, thickness and zoom on the world map; legend toggle.
+- Distance bar while walking towards a target, and after changing targets.
+- Quest context menus, planning, outing, access points and notepad after the module split (behaviour should be unchanged).
 - Recap notice after a re-login more than 30 minutes later.
 - Group sync with a second player using FQN 0.2.0 (party and raid), including a member leaving.
