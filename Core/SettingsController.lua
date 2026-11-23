@@ -69,6 +69,13 @@ function addon.SettingsController.Register(context)
         Settings.VarType.Boolean, L.AdventureGroupOn, false)
     groupHints:SetValueChangedCallback(ScheduleRefresh)
     Checkbox(category, groupHints, L.AdventureGroupHelp)
+    local groupSync = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_GROUP_SYNC", "groupSync", settings,
+        Settings.VarType.Boolean, L.GroupSync, false)
+    groupSync:SetValueChangedCallback(function(_, value)
+        if not value then addon.GroupSync.Reset() else addon.GroupSync.MarkDirty() if addon.SyncGroup then addon.SyncGroup() end end
+        ScheduleRefresh()
+    end)
+    Checkbox(category, groupSync, L.GroupSyncHelp)
     local difficultyWords = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_DIFFICULTY_WORDS", "difficultyWords", settings,
         Settings.VarType.Boolean, L.AdventureDifficultyWords, true)
     difficultyWords:SetValueChangedCallback(ScheduleRefresh)

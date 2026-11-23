@@ -118,6 +118,55 @@ return function(test, addon, equal)
         equal(F.FromQuests(quests, yards, XP, 1200).count, 3)
     end)
 
+    test("Group sync encodes compactly, rejects malformed or foreign messages and forgets members who leave", function()
+        local Sync = addon.GroupSync
+        Sync.Reset()
+        local state = {target = 12, quests = {{id = 12, done = 1, total = 3}, {id = 40, done = 2, total = 2}}}
+        local text = Sync.Encode(state)
+        equal(text, "1|12|12:1:3,40:2:2")
+        local decoded = Sync.Decode(text)
+        equal(decoded.target, 12) equal(#decoded.quests, 2) equal(decoded.quests[2].done, 2)
+        equal(Sync.Decode("1|0|").target, nil)
+        for _, bad in ipairs({"2|1|5:0:1", "1|x|5:0:1", "1|1|5:3:1", "1|1|5:0", "1|1|5:0:1;DROP", "1|1|0:0:1", ("1|1|" .. ("9"):rep(300))}) do
+            equal(Sync.Decode(bad), nil)
+        end
+        local many = {quests = {}}
+        for id = 1, 80 do many.quests[id] = {id = 100000 + id, done = 0, total = 5} end
+        local long = Sync.Encode(many)
+        assert(#long <= Sync.MAX_BYTES) assert(Sync.Decode(long))
+        local members = {Alice = true, ["Bob-OtherRealm"] = true}
+        equal(Sync.Receive("Mallory", text, members, 1), false)
+        equal(Sync.Receive("Alice", "garbage", members, 1), false)
+        equal(Sync.Receive("Alice", text, members, 1), true)
+        equal(Sync.Receive("Bob-OtherRealm", "1|0|12:0:3", members, 1), true)
+        equal(Sync.Counts()[12], 2) equal(Sync.Counts()[40], nil)
+        equal(Sync.Describe(12), "Alice 1/3, Bob-OtherRealm 0/3")
+        equal(Sync.Prune({Alice = true}), true) equal(Sync.Describe(12), "Alice 1/3")
+        Sync.Prune({}) equal(Sync.Counts(), nil)
+    end)
+
+    test("Group sync collects objective counts and throttles sends outside combat", function()
+        local Sync = addon.GroupSync
+        Sync.Reset()
+        local questLog = {GetQuestObjectives = function(id)
+            if id == 1 then return {{finished = true}, {finished = false}} end
+            return {{finished = false}}
+        end}
+        local state = Sync.Collect({{id = 1}, {id = 2, readyToTurnIn = true}}, questLog, 1)
+        equal(state.quests[1].done, 1) equal(state.quests[1].total, 2) equal(state.quests[2].done, 1)
+        local sent = {}
+        local api = {SendAddonMessage = function(prefix, message, channel) sent[#sent + 1] = {prefix, message, channel} end}
+        equal(Sync.ReadyToSend(10, false), false)
+        Sync.MarkDirty()
+        equal(Sync.ReadyToSend(10, true), false)
+        equal(Sync.ReadyToSend(10, false), true)
+        Sync.Send(api, "PARTY", state, 10)
+        equal(sent[1][1], "FQN1") equal(sent[1][3], "PARTY") equal(sent[1][2], "1|1|1:1:2,2:1:1")
+        Sync.MarkDirty()
+        equal(Sync.ReadyToSend(12, false), false) equal(Sync.ReadyToSend(13, false), true)
+        Sync.Reset()
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

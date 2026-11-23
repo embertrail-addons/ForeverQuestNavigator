@@ -97,6 +97,10 @@ function addon.NavigationController.Compute(input)
         if capacity and (capacity.full or capacity.reserveNeeded) and quest.readyToTurnIn and not entry
             and measurements[quest.id] and measurements[quest.id].yards <= 500 then adjustments[quest.id] = -100 end
     end
+    -- Quests that synced group members still work on rank a little earlier.
+    for id, count in pairs(input.groupCounts or {}) do
+        if measurements[id] and not feedback[id] then adjustments[id] = (adjustments[id] or 0) - math.min(80, 40 * count) end
+    end
     local bundles = addon.PlanningInsights.Bundles(input.mapAPI, eligibleQuests, measurements, input.playerLevel, feedback)
     for _, bundle in ipairs(bundles) do
         local bonus = math.min(60, (#bundle.entries - 1) * 20)

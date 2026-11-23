@@ -35,6 +35,7 @@ local runtimeEvents = {
     "PLAYER_EQUIPMENT_CHANGED",
     "PLAYER_MOUNT_DISPLAY_CHANGED",
     "GET_ITEM_INFO_RECEIVED",
+    "CHAT_MSG_ADDON",
 }
 
 -- Events that only change bags, gear or mount state: the quest log and markers are
@@ -51,10 +52,16 @@ function addon.EventController.RegisterRuntime(frame)
     for _, event in ipairs(runtimeEvents) do frame:RegisterEvent(event) end
 end
 
-function addon.EventController.Handle(context, event, arg, rewardXP)
+function addon.EventController.Handle(context, event, payload, rewardXP, ...)
+    -- Not named "arg": Lua 5.1 adds an implicit local "arg" to vararg functions.
+    if event == "CHAT_MSG_ADDON" then
+        -- prefix, text, channel, sender: only group sync reads these; never a refresh by itself.
+        if context.addonMessage then context.addonMessage(payload, rewardXP, ...) end
+        return
+    end
     if event == "PLAYER_TARGET_CHANGED" or event == "UNIT_THREAT_LIST_UPDATE" or event == "UNIT_TARGET" then
-        if issecretvalue and issecretvalue(arg) then return end
-        if event == "PLAYER_TARGET_CHANGED" or arg == "target" or arg == "player" or arg == "pet" then
+        if issecretvalue and issecretvalue(payload) then return end
+        if event == "PLAYER_TARGET_CHANGED" or payload == "target" or payload == "player" or payload == "pet" then
             if context.visible() then context.measure() end
         end
         return
@@ -67,20 +74,20 @@ function addon.EventController.Handle(context, event, arg, rewardXP)
         return
     end
     if event == "PLAYER_XP_UPDATE" or event == "PLAYER_ENTERING_WORLD" or event == "QUEST_TURNED_IN" then context.captureXP() end
-    if event == "QUEST_TURNED_IN" then context.turnIn(arg, rewardXP) end
+    if event == "QUEST_TURNED_IN" then context.turnIn(payload, rewardXP) end
     if event == "PLAYER_LOGOUT" then context.saveSession() return end
-    if event == "ADDON_LOADED" then context.loaded(arg) return end
+    if event == "ADDON_LOADED" then context.loaded(payload) return end
     if itemEvents[event] and context.refreshItems then context.refreshItems() return end
     if event == "GROUP_ROSTER_UPDATE" and context.refreshGroup then context.refreshGroup() return end
     if event == "PLAYER_XP_UPDATE" and context.hasMeasurements() then
         if context.visible() then context.measure() end
         return
     end
-    if event == "PLAYER_LEVEL_UP" then context.levelUp(arg) end
+    if event == "PLAYER_LEVEL_UP" then context.levelUp(payload) end
     if event == "PLAYER_ENTERING_WORLD" then context.enterWorld() end
     if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_ENABLED" then context.introduction() end
     context.taxi(event)
-    if event == "QUEST_REMOVED" then context.removeQuest(arg) end
+    if event == "QUEST_REMOVED" then context.removeQuest(payload) end
     context.updateQuestLog()
     context.refresh()
 end

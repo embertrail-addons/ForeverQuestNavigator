@@ -566,6 +566,8 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     end
     local feedback = navigationSnapshot.feedback and navigationSnapshot.feedback[quest.id]
     if feedback then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.FeedbackActive summaryImportant = true end
+    local mates = settings.groupSync and addon.GroupSync.Describe(quest.id)
+    if mates then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.GroupSyncMates:format(mates) end
     if quest.readyToTurnIn and navigationSnapshot.capacity and (navigationSnapshot.capacity.full or navigationSnapshot.capacity.reserveNeeded) then
         routeNote = (routeNote and (routeNote .. " · ") or "") .. (navigationSnapshot.capacity.full and L.FreeQuestSlot or L.ReserveQuestSlot)
     end
@@ -1007,6 +1009,7 @@ local function UpdateDistances(force)
             flying = flight.active or combatQuestID ~= nil, manual = manualQuestID ~= nil or addon.ExcursionPlan.Current(insights.excursion) ~= nil, routeChains = routeChains,
             onTaxi = flight.active, detour = temporaryDetour ~= nil,
             feedback = temporaryFeedback, now = SessionTime(),
+            groupCounts = settings.groupSync and addon.GroupSync.Counts() or nil,
             campAvoidance = campAvoidance,
             previousCamps = insights.previousCamps,
             previousPresence = insights.presence,
@@ -1216,6 +1219,37 @@ function addon.SyncExcursion(quests)
     end
 end
 
+-- Group sync helpers (opt-in). Names are normalized like CHAT_MSG_ADDON senders.
+local function GroupMembers()
+    local members, raid = {}, IsInRaid and IsInRaid()
+    for index = 1, raid and 40 or 4 do
+        local unit = (raid and "raid" or "party") .. index
+        if UnitExists and UnitExists(unit) and not (UnitIsUnit and UnitIsUnit(unit, "player")) then
+            local name, realm = UnitName(unit)
+            if type(name) == "string" and not (issecretvalue and issecretvalue(name)) then
+                members[realm and realm ~= "" and (name .. "-" .. realm) or name] = true
+            end
+        end
+    end
+    return members
+end
+
+local function SyncGroup()
+    local Sync = addon.GroupSync
+    if not (settings and settings.groupSync and C_ChatInfo) then return end
+    local channel = IsInRaid and IsInRaid() and "RAID" or IsInGroup and IsInGroup() and "PARTY" or nil
+    if not channel then Sync.dirty = false return end
+    local now, fighting = SessionTime(), InCombatLockdown and InCombatLockdown()
+    if Sync.ReadyToSend(now, fighting) then
+        local target = shownQuests and shownQuests[1] and shownQuests[1].id
+        Sync.Send(C_ChatInfo, channel, Sync.Collect(addon.QuestLog.Read(C_QuestLog), C_QuestLog, target), now)
+    elseif Sync.dirty and not fighting and not insights.syncScheduled and C_Timer then
+        insights.syncScheduled = true
+        C_Timer.After(Sync.INTERVAL, function() insights.syncScheduled = nil SyncGroup() end)
+    end
+end
+addon.SyncGroup = SyncGroup
+
 local function UpdateSharedItems()
     insights.sharedItems = addon.QuestInsights.SharedItems(eligibleQuests,
         function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
@@ -1368,6 +1402,7 @@ local function Refresh()
     UpdateDistanceTicker()
     RefreshNearbyOffers(localMaps, targetMaps, mapType)
     addon.RefreshQuestNotepad()
+    if settings.groupSync then addon.GroupSync.MarkDirty() SyncGroup() end
 end
 
 ScheduleRefresh = function()
@@ -2117,8 +2152,11 @@ function addon.OpenAdventure(mode, blockedID)
                 end
                 for _, e in ipairs(cached.rows) do
                     local m = snapshot.measurements and snapshot.measurements[e.quest.id]
+                    local short = L.AdventureShared:format(e.count, e.unknown)
+                    local mates = settings.groupSync and addon.GroupSync.Describe(e.quest.id)
+                    if mates then short = short .. " · " .. L.GroupSyncMates:format(mates) end
                     result.rows[#result.rows + 1] = {quest = e.quest, target = m and m.marker,
-                        short = L.AdventureShared:format(e.count, e.unknown), detail = L.AdventureShared:format(e.count, e.unknown) .. "\n" .. L.AdventureGroupHelp}
+                        short = short, detail = short .. "\n" .. L.AdventureGroupHelp}
                 end
             end
         elseif section == "level" then
@@ -2603,6 +2641,9 @@ local function AddonLoaded(name)
         addon.SettingsDefaults.Normalize(settings, LIMITS, not insights.hadSettings)
         addon.UI.iconLabels = settings.iconLabels ~= false
         addon.CanvasMarkers.showLine = settings.showRouteLine ~= false
+        if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+            pcall(C_ChatInfo.RegisterAddonMessagePrefix, addon.GroupSync.PREFIX)
+        end
         addon.SetLanguage(settings.language)
         insights.lastLevel = UnitLevel and UnitLevel("player")
         addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)
@@ -2757,6 +2798,19 @@ addon.EventController.Bind(events, {
     updateQuestLog = UpdateQuestLogButton,
     refresh = ScheduleRefresh,
     refreshItems = RefreshItems,
+    refreshGroup = function()
+        if addon.GroupSync.Prune(GroupMembers()) then insights.groupAdvice = nil end
+        if settings and settings.groupSync then addon.GroupSync.MarkDirty() SyncGroup() end
+        ScheduleRefresh()
+    end,
+    addonMessage = function(prefix, text, _, sender)
+        if prefix ~= addon.GroupSync.PREFIX or not (settings and settings.groupSync) then return end
+        local name = Ambiguate and type(sender) == "string" and Ambiguate(sender, "none") or sender
+        if addon.GroupSync.Receive(name, text, GroupMembers(), SessionTime()) then
+            insights.groupAdvice = nil
+            if measurableQuestIDs and TrackingVisible() then UpdateDistances() end
+        end
+    end,
     itemRewardsUpdated = function()
         if addon.QuestRewards.HasPending() then addon.QuestRewards.Clear() return true end
     end,

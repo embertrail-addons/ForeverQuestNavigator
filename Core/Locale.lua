@@ -87,7 +87,7 @@ local english = {
     AdventureAcceptManual = "Accept manually at the quest giver; verify requirements in the quest text.",
     AdventureBlockedAction = "I cannot continue here",
     AdventureBlockedHelp = "Your outing is paused and retained. Map opens a destination; Choose explicitly prioritizes an alternative. Resume the previous outing from its preview when ready.",
-    AdventureGroupHelp = "Optional native group quest checks. Counts mean members confirmed on this quest, not matching objective progress. Unknown/unavailable data stays unknown. No addon messages are sent; no member names or quest lists are saved or shared. Click a row for details.",
+    AdventureGroupHelp = "Optional native group quest checks. Counts mean members confirmed on this quest, not matching objective progress. Unknown/unavailable data stays unknown. Without 'Share quest progress with my group' no addon messages are sent; with it, members using FQN also show their objective progress. No member names or quest lists are saved. Click a row for details.",
     AdventureGroupOn = "Show shared group quests",
     AdventureGroupOff = "Disable group quest checks",
     AdventureShared = "%d other member(s) confirmed · %d unknown",
@@ -1023,6 +1023,9 @@ local english = {
     RecapNewSession = "Start a new session",
     LevelForecastRoute = "Level %d after the nearest %d turn-ins (%d XP)",
     LevelForecastUnlocks = "%d nearby quests unlock then",
+    GroupSync = "Share quest progress with my group",
+    GroupSyncHelp = "Off by default. When on, FQN sends your active quest IDs, objective counts (for example 3/5) and your current target quest to your own party or raid as addon messages, at most every 3 seconds and never during combat. Members who also use FQN see shared quests and progress; quests several members still need rank slightly earlier. Nothing is saved, and data from a member is dropped when they leave the group.",
+    GroupSyncMates = "Group: %s",
 }
 
 local german = setmetatable({
@@ -1113,7 +1116,7 @@ local german = setmetatable({
     AdventureAcceptManual = "Beim Questgeber selbst annehmen; Voraussetzungen im Questtext prüfen.",
     AdventureBlockedAction = "Hier komme ich nicht weiter",
     AdventureBlockedHelp = "Dein Ausflug ist pausiert und bleibt erhalten. Karte zeigt das Ziel; Auswählen setzt eine Alternative ausdrücklich auf aktiv. Den bisherigen Ausflug kannst du über seinen Rückblick fortsetzen.",
-    AdventureGroupHelp = "Freiwillige Gruppenprüfung über Spielinformationen. Gezählt werden Mitglieder mit bestätigter gleicher Quest, kein gemeinsamer Zielfortschritt. Fehlende Daten bleiben unbekannt. Keine Addon-Nachrichten; Namen und Questlisten werden nicht gespeichert oder geteilt. Zeile anklicken für Details.",
+    AdventureGroupHelp = "Freiwillige Gruppenprüfung über die Spiel-API. Zahlen bedeuten bestätigte Mitglieder auf dieser Quest, nicht gleicher Zielfortschritt. Unbekannte Daten bleiben unbekannt. Ohne „Questfortschritt mit meiner Gruppe teilen“ werden keine Addon-Nachrichten gesendet; mit der Einstellung zeigen Mitspieler mit FQN auch ihren Zielfortschritt. Es werden keine Namen oder Questlisten gespeichert. Klicke eine Zeile für Details.",
     AdventureGroupOn = "Gemeinsame Gruppenquests anzeigen",
     AdventureGroupOff = "Gruppenprüfung ausschalten",
     AdventureShared = "%d weitere Mitglieder bestätigt · %d unbekannt",
@@ -2049,6 +2052,9 @@ local german = setmetatable({
     RecapNewSession = "Neue Sitzung beginnen",
     LevelForecastRoute = "Stufe %d nach den nächsten %d Abgaben (%d EP)",
     LevelForecastUnlocks = "dann %d neue Quests in der Nähe",
+    GroupSync = "Questfortschritt mit meiner Gruppe teilen",
+    GroupSyncHelp = "Standardmäßig aus. Eingeschaltet sendet FQN deine aktiven Quest-IDs, Zielstände (z. B. 3/5) und deine aktuelle Zielquest als Addon-Nachricht an deine eigene Gruppe oder deinen Schlachtzug, höchstens alle 3 Sekunden und nie im Kampf. Mitspieler mit FQN sehen gemeinsame Quests und Fortschritt; Quests, die mehrere noch brauchen, rücken etwas nach vorn. Nichts wird gespeichert; Daten eines Mitspielers verfallen, wenn er die Gruppe verlässt.",
+    GroupSyncMates = "Gruppe: %s",
 }, { __index = english })
 
 addon.L = {}

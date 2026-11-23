@@ -51,6 +51,7 @@ Core\OutingLedger.lua
 Core\ExcursionPlan.lua
 Navigation\MixedQuestPlan.lua
 Core\AdventureSupport.lua
+Core\GroupSync.lua
 Navigation\JourneyPlanning.lua
 Navigation\NavigationController.lua
 Navigation\TravelPreparation.lua

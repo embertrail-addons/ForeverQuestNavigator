@@ -1006,6 +1006,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     offerRows = "FOREVERQUESTNAVIGATOR_OFFER_ROWS",
                     iconLabels = "FOREVERQUESTNAVIGATOR_ICON_LABELS",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
+                    groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                 })[key])
                 local expectedType = ({ opacityPercent = "number", questieOfferRadius = "number", language = "string",
                     fontPercent = "number", acceptedRows = "number", offerRows = "number", detailMode = "string",
@@ -1048,6 +1049,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     questieOfferRadius = "Quest offer search radius",
                     iconLabels = "Symbols instead of action words",
                     showRouteLine = "Connect route stops with a line",
+                    groupSync = "Share quest progress with my group",
                 })[key])
                 local expectedDefault = true
                 if key == "repeatablePolicy" then expectedDefault = "show" end
@@ -1055,6 +1057,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "navigatorLayout" then expectedDefault = "guided" end
                 if key == "reducedColors" then expectedDefault = false end
                 if key == "groupQuestHints" then expectedDefault = false end
+                if key == "groupSync" then expectedDefault = false end
                 if key == "simpleNavigator" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end
