@@ -218,6 +218,24 @@ local function CreateSkipCheckbox(parent, skipQuest)
     return checkbox
 end
 addon.UI.FormatQuestTitle = FormatQuestTitle
+
+-- Quest step symbols (Blizzard textures available in the classic client).
+local actionIcons = {
+    accept = "Interface\\GossipFrame\\AvailableQuestIcon",
+    turnIn = "Interface\\GossipFrame\\ActiveQuestIcon",
+    objective = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
+    access = "Interface\\Icons\\INV_Misc_Map_01",
+}
+addon.UI.iconLabels = true
+function addon.UI.ActionIcon(action, size)
+    local texture = actionIcons[action] or actionIcons.objective
+    return ("|T%s:%d|t"):format(texture, size or 14)
+end
+-- With symbols on, the icon replaces the action word; the word stays for tooltips.
+function addon.UI.ActionText(action, word)
+    if addon.UI.iconLabels then return addon.UI.ActionIcon(action) end
+    return word
+end
 addon.UI.MakeButton = MakeButton
 addon.UI.CreateSkipCheckbox = CreateSkipCheckbox
 addon.UI.AddRowBackground = AddRowBackground

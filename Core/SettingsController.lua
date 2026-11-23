@@ -22,7 +22,7 @@ function addon.SettingsController.Register(context)
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
         theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true, fontPercent = true,
-        showQuestieOffers = true }
+        showQuestieOffers = true, iconLabels = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
@@ -262,6 +262,10 @@ function addon.SettingsController.Register(context)
         "showQuestXP", settings, Settings.VarType.Boolean, L.ShowQuestXP, true)
     questXP:SetValueChangedCallback(function() ScheduleRefresh() addon.RefreshAppearancePreview() end)
     Checkbox(category, questXP, L.ShowQuestXPHelp)
+    local iconLabels = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ICON_LABELS",
+        "iconLabels", settings, Settings.VarType.Boolean, L.IconLabels, true)
+    iconLabels:SetValueChangedCallback(function(_, value) addon.UI.iconLabels = value ~= false ScheduleRefresh() end)
+    Checkbox(category, iconLabels, L.IconLabelsHelp)
 
     local opacity = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRACKER_OPACITY",
         "opacityPercent", settings, Settings.VarType.Number, L.Opacity, DEFAULT_OPACITY)

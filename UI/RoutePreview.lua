@@ -42,6 +42,7 @@ function addon.CreateRoutePreview(parent, actions)
                     local origin = button.stop.current and L.RouteFromPlayer or L.RouteFromPrevious
                     local detail = origin .. "\n" .. L.ShowMapTarget
                     if button.stop.current then detail = L.RouteCurrent .. "\n" .. detail end
+                    if button.actionWord then detail = button.actionWord .. "\n" .. detail end
                     addon.UI.ShowTextTooltip(button, button:GetText(), detail)
                 end)
                 row:SetScript("OnLeave", addon.UI.HideTextTooltip)
@@ -51,8 +52,9 @@ function addon.CreateRoutePreview(parent, actions)
             local stop = stops[index]
             row.stop = stop
             local action = ({ accept = L.RouteAccept, objective = L.RouteObjective, turnIn = L.RouteTurnIn, access = L.SavedAccess })[stop.action]
-            local text = (stop.current and "> " or "") .. (action or L.RouteObjective)
-                .. " · " .. addon.UI.FormatQuestTitle(stop.quest)
+            row.actionWord = action or L.RouteObjective
+            local text = (stop.current and "> " or "") .. addon.UI.ActionText(stop.action, row.actionWord)
+                .. (addon.UI.iconLabels and " " or " · ") .. addon.UI.FormatQuestTitle(stop.quest)
             if stop.yards then text = text .. (" · ~%.0f yd"):format(stop.yards) end
             row:SetText(text)
             row.label:SetTextColor(1, stop.current and 0.82 or 1, stop.current and 0.34 or 1)

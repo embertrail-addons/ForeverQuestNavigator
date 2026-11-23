@@ -72,6 +72,16 @@ return function(test, addon, equal)
         notes.history = saved
     end)
 
+    test("Action symbols replace words only while symbols are enabled", function()
+        local saved = addon.UI.iconLabels
+        addon.UI.iconLabels = true
+        assert(addon.UI.ActionText("turnIn", "Turn in"):find("ActiveQuestIcon", 1, true))
+        assert(addon.UI.ActionIcon("unknown"):find("RaidTargetingIcon", 1, true))
+        addon.UI.iconLabels = false
+        equal(addon.UI.ActionText("accept", "Accept"), "Accept")
+        addon.UI.iconLabels = saved
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

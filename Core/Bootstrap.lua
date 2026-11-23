@@ -2564,6 +2564,7 @@ local function AddonLoaded(name)
             ForeverQuestNavigatorDB = settings
         end
         addon.SettingsDefaults.Normalize(settings, LIMITS, not insights.hadSettings)
+        addon.UI.iconLabels = settings.iconLabels ~= false
         addon.SetLanguage(settings.language)
         insights.lastLevel = UnitLevel and UnitLevel("player")
         addon.UI.Theme.Apply(settings.highContrast, settings.theme, settings.reducedColors)

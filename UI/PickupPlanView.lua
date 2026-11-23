@@ -53,7 +53,8 @@ function View.Rows(plan, mode, areaKey)
             local title = addon.UI.FormatQuestTitle(stop.quest)
             local text = stop.action == "accept" and L.PickupAcceptStep:format(title)
                 or stop.action == "turnIn" and (L.ReadyToTurnIn .. ": " .. title) or L.PickupObjectiveStep:format(title)
-            rows[#rows + 1] = {text = index .. ". " .. text, stop = stop, detail = L.PickupRoundHelp}
+            local icon = addon.UI.iconLabels and (addon.UI.ActionIcon(stop.action) .. " ") or ""
+            rows[#rows + 1] = {text = index .. ". " .. icon .. text, stop = stop, detail = L.PickupRoundHelp}
         end
         for _, chain in ipairs(plan.followUps or {}) do
             rows[#rows + 1] = {text = addon.UI.FormatQuestTitle(chain.quest) .. "\n" .. (chain.summary or L.UnknownFollowUps),

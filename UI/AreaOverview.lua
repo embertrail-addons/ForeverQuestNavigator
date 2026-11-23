@@ -54,7 +54,7 @@ function addon.CreateAreaOverview(parent, settings, actions)
                     row:SetText(prefix .. L.TargetGroup:format(#group.entries, group.place))
                 else
                     local goals = (entry.objectives == 1 and L.AreaOpenObjectiveOne or L.AreaObjectives):format(entry.objectives)
-                    local detail = entry.action == "turnIn" and L.RouteTurnIn or goals
+                    local detail = entry.action == "turnIn" and (addon.UI.iconLabels and addon.UI.ActionIcon("turnIn") .. " " or "") .. L.RouteTurnIn or goals
                     row:SetText("  " .. addon.UI.FormatQuestTitle(entry.quest) .. "\n" .. detail .. (" · ~%d yd"):format(entry.yards))
                 end
                 row:ClearAllPoints()

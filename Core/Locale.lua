@@ -1007,6 +1007,8 @@ local english = {
     SetupLevelStandard = "Standard",
     SetupLevelExpert = "Expert (all tools, detailed lists)",
     CmdSetup = "Run the setup again",
+    IconLabels = "Symbols instead of action words",
+    IconLabelsHelp = "Shows quest symbols for accept, objective and turn-in steps in routes and plans. The full word stays in the tooltip.",
 }
 
 local german = setmetatable({
@@ -2017,6 +2019,8 @@ local german = setmetatable({
     SetupLevelStandard = "Standard",
     SetupLevelExpert = "Experte (alle Werkzeuge, ausführliche Listen)",
     CmdSetup = "Einrichtung erneut starten",
+    IconLabels = "Symbole statt Aktionswörtern",
+    IconLabelsHelp = "Zeigt Questsymbole für Annahme, Ziel und Abgabe in Routen und Plänen. Das ausgeschriebene Wort bleibt im Tooltip.",
 }, { __index = english })
 
 addon.L = {}
