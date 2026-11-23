@@ -1,49 +1,9 @@
 local _, addon = ...
 local L = addon.L
 local dashboard, accessWindow, preview
-local panelSerial = 0
 
-local function Panel(width, height, title)
-    panelSerial = panelSerial + 1
-    local name = "ForeverQuestNavigatorPanel" .. panelSerial
-    local frame = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
-    if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, name) end
-    frame:SetSize(width, height)
-    frame:SetPoint("CENTER")
-    frame:SetFrameStrata("DIALOG")
-    frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
-    addon.UI.Theme.WatchFrame(frame)
-    frame.heading = addon.UI.CreateLabel(frame, "GameFontNormal")
-    frame.heading:SetPoint("TOPLEFT", 16, -14)
-    frame.heading:SetPoint("TOPRIGHT", -45, -14)
-    frame.heading:SetJustifyH("LEFT")
-    frame.heading:SetText(title)
-    local close = addon.UI.MakeButton(frame)
-    close:SetSize(25, 24)
-    close:SetPoint("TOPRIGHT", -8, -8)
-    close:SetText("X")
-    close:SetScript("OnClick", function() frame:Hide() end)
-    addon.UI.ExpandHitArea(close, 3)
-    frame.closeButton = close
-    frame:Hide()
-    if addon.UI.ToolHub then addon.UI.ToolHub.Attach(frame, title) end
-    return frame
-end
-
-local function Button(parent, text, width, action)
-    local button = addon.UI.MakeButton(parent)
-    button:SetSize(width, 24)
-    button:SetText(text)
-    button:SetScript("OnClick", action)
-    addon.UI.ExpandHitArea(button, 2)
-    return button
-end
+local Panel = addon.UI.CreateWindow
+local Button = addon.UI.CreateWindowButton
 
 function addon.ShowSessionDashboard(getSession, now)
     if not dashboard then
@@ -110,11 +70,7 @@ function addon.ShowSessionDashboard(getSession, now)
                 end
             end
         end
-        dashboard:SetScript("OnUpdate", function(self, elapsed)
-            if not self:IsShown() then return end
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(dashboard, 1)
     end
     dashboard.getSession, dashboard.now = getSession, now
     dashboard:Refresh()
@@ -239,8 +195,6 @@ function addon.ShowAccessManager(actions)
     addon.UI.ShowUtilityPanel(accessWindow)
 end
 
-addon.UI.CreateUtilityPanel = Panel
-addon.UI.CreateUtilityButton = Button
 function addon.RefreshAccessManager()
     if accessWindow and accessWindow:IsShown() then accessWindow:Refresh() end
 end

@@ -178,10 +178,7 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
             self.pageLabel:SetText(#entries > 0 and (self.page .. " / " .. pages) or L.NoPlanningStops)
         end
-        window:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(window, 1)
     end
     window.getModel, window.openStop = getModel, openStop
     window.mode, window.page = window.mode or "bundles", window.page or 1

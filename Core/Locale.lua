@@ -473,7 +473,6 @@ local english = {
     WhatsNew = "What's new in FQN?",
     ShowUpdateNotes = "Show update notes",
     ShowUpdateNotesHelp = "Show a short overview once after an addon update. /fqn whatsnew always opens it.",
-    UpdateNotesText = "• Fixed tool/settings windows not reopening after closing.\n• One tool window: Quests, Planning, Activity, Settings and Help.\n• Back restores your previous view; searches, filters and selected planning views are retained while navigating.\n• Settings use checkboxes, explicit number controls and direct selection menus. Advanced options remain searchable.\n• Finder filters show counts, priorities and tour membership. Empty views explain the next step.\n• Tour actions appear when relevant; previews can be applied or closed without changing the active plan.\n• Routine tracker explanations move out of the way; important hints and objective progress remain visible.\n• /fqn tools opens the last tool view. Existing commands still work.\n\nThis local beta still needs in-game visual testing.",
     PerformanceTitle = "FQN performance measurements",
     PerformanceEnabled = "Local timing measurements enabled",
     PerformanceDisabled = "Local timing measurements disabled",
@@ -977,6 +976,7 @@ local english = {
     CmdPerf = "Performance report",
     CmdPerfOn = "Start performance measurement",
     CmdPerfOff = "Stop performance measurement",
+    LanguageCode = "en",
 }
 
 local german = setmetatable({
@@ -1454,7 +1454,6 @@ local german = setmetatable({
     WhatsNew = "Was ist neu in FQN?",
     ShowUpdateNotes = "Update-Hinweise anzeigen",
     ShowUpdateNotesHelp = "Zeigt nach einem Addon-Update einmal eine kurze Übersicht. /fqn whatsnew öffnet sie jederzeit.",
-    UpdateNotesText = "• Einstellungs- und Werkzeugfenster lassen sich nach dem Schließen wieder öffnen.\n• Ein Werkzeugfenster: Quests, Planung, Aktivität, Einstellungen und Hilfe.\n• Zurück führt zur vorherigen Ansicht; Suche, Filter und Planungsansicht bleiben beim Wechsel erhalten.\n• Einstellungen mit Checkboxen, Zahlenreglern und direkter Auswahl. Erweiterte Optionen bleiben durchsuchbar.\n• Quest-Filter zeigen Anzahlen, Prioritäten und Tour-Zugehörigkeit. Leere Ansichten erklären den nächsten Schritt.\n• Tour-Aktionen erscheinen passend zum Zustand; Vorschauen lassen sich übernehmen oder unverändert schließen.\n• Weniger Standarderklärungen im Tracker; wichtige Hinweise und Questfortschritt bleiben sichtbar.\n• /fqn tools öffnet das zuletzt genutzte Werkzeug. Bisherige Befehle funktionieren weiter.\n\nDiese lokale Beta benötigt noch einen optischen Test im Spiel.",
     PerformanceTitle = "FQN-Leistungsmessung",
     PerformanceEnabled = "Lokale Zeitmessung eingeschaltet",
     PerformanceDisabled = "Lokale Zeitmessung ausgeschaltet",
@@ -1957,49 +1956,8 @@ local german = setmetatable({
     CmdPerf = "Leistungsbericht",
     CmdPerfOn = "Leistungsmessung starten",
     CmdPerfOff = "Leistungsmessung beenden",
+    LanguageCode = "de",
 }, { __index = english })
-
-english.UpdateNotesText = "• Clearer navigator with separate quest details and explicit skip actions.\n• The screen arrow emphasizes the current objective; hover for the quest name.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Übersichtlicher Navigator mit separaten Questdetails und eigenen Aktionen zum Überspringen.\n• Der Richtungspfeil zeigt vorrangig das aktuelle Ziel; beim Darüberfahren erscheint der Questname.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Labelled current objectives and separate progress counters replace repeated > indicators.\n• Compact view can disclose additional objectives; priority controls sit beside their status.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Beschriftete aktuelle Ziele und eigene Fortschrittszähler ersetzen die doppelten >-Zeichen.\n• Weitere Ziele lassen sich in der Kompaktansicht öffnen; Prioritätsaktionen stehen beim Status.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Right-click the navigator title to change views. Quest title and priority stay pinned while content scrolls.\n• Consistent information lines, marked open details and live appearance preview with Restore.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Rechtsklick auf den Navigator-Titel wechselt die Ansicht. Questtitel und Priorität bleiben beim Scrollen sichtbar.\n• Einheitliche Informationszeilen, markierte geöffnete Details und Darstellungsvorschau mit Rücksetzen.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Quest-item actions with count/cooldown outside combat; clearer destination and arrival labels.\n• /fqn arrange positions both displays with guides; Done locks, Cancel restores.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Questgegenstände mit Anzahl/Abklingzeit außerhalb des Kampfes; klarere Ziel- und Ankunftshinweise.\n• /fqn arrange ordnet beide Anzeigen mit Hilfslinien an; Fertig sperrt, Abbrechen stellt wieder her.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Fixed section headings overlapping quest and XP lines in the scroll area.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Überlagerte Listenüberschriften im Scrollbereich korrigiert; Abstände berücksichtigen die Texthöhe.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Show more appends quests; the mouse wheel only scrolls.\n• Combined objective/destination labels, short XP forecasts, Turn in badges and a fixed notice area.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Weitere anzeigen ergänzt Quests; das Mausrad scrollt ausschließlich.\n• Zusammengefasste Zielhinweise, kurze EP-Prognosen, Abgeben-Kennzeichen und ein fester Hinweisbereich.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Hid empty area summaries and tightened quest-card spacing.\n• Full-width XP information, actions underneath and a compact notice area that shows quest progress when idle.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Leere Gebietsübersichten ausgeblendet und Questkarten gestrafft.\n• EP-Zeile in voller Breite, Aktionen darunter und kompakter Hinweisbereich mit Questübersicht im Ruhezustand.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• New Now / Next / Surroundings layout; full lists remain expandable or selectable in settings.\n• Three color designs, reduced colors and theme preview/reset.\n• Advisory round progress, grouped hand-ins, session-closing suggestions and decision explanations.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Neuer Aufbau Jetzt / Danach / Umgebung; vollständige Listen bleiben aufklappbar oder in den Einstellungen auswählbar.\n• Drei Farbdesigns, reduzierte Farben und Designvorschau mit Zurücksetzen.\n• Rundenfortschritt, Abgaben nach Ort, Abschlussvorschläge und verständliche Empfehlungsbegründungen.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Reviewed outings: pickups, objectives and known hand-ins; explicit start/pause/resume.\n• Compare stable spawn areas; known access lengths influence ranking.\n• Repeatable filters, starter requirements, personal notes, map legend and clearer settings.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Geprüfte Ausflüge mit Annahmen, Zielen und bekannten Abgaben; ausdrücklich starten, pausieren und fortsetzen.\n• Stabile Spawngebiete vergleichen; bekannte Zugangswege zählen bei der Bewertung.\n• Wiederholungsfilter, Annahmevoraussetzungen, persönliche Notizen, Kartenlegende und klarere Einstellungen.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Review area tours directly; pickups must fit the round to earn a strong highlight.\n• One Next action, contextual return advice and a dismissible recap with actual quest XP.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Gebietstouren direkt prüfen; starke Annahmeempfehlungen berücksichtigen die Runde.\n• Ein nächster Schritt, passende Rückkehrhinweise und schließbarer Rückblick mit tatsächlich erhaltenen Quest-EP.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Tour assistant: departure checks, alternatives, optional native group checks, level-up review and explicit tour revisions.\n• Optional timed previews, resettable personal targets, direct action text and difficulty words.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Tourhelfer: Abreiseprüfung, Ausweichziele, freiwillige Gruppenprüfung, Aufstiegsübersicht und ausdrückliche Touränderungen.\n• Zeitlich begrenzte Vorschauen, zurücksetzbare eigene Ziele, klare Handlungstexte und Schwierigkeitswörter.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Hand-ins on the way with explicit detour previews; contextual reminders and tour comparisons.\n• Bag/visited-merchant checks, clearer item actions and expandable chains.\n• Simpler navigation, grouped tools, explicit Details and content-sized panels.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Abgaben unterwegs mit Umwegvorschau; passende Vormerkungen und Tourvergleiche.\n• Taschen- und Händlerprüfung, klarere Gegenstandsaktionen und aufklappbare Questketten.\n• Einfacher Navigator, gruppierte Werkzeuge, sichtbare Details und Fenster passend zum Inhalt.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Mixed rounds place pickups between objectives and hand-ins, with known coordinate detours and quest-log capacity.\n• Skip one pickup, remind later or hide per character; restore hidden pickups separately and undo unchanged plans.\n• Actual acceptance pauses for a target review before explicit resume.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Gemischte Runden ordnen Annahmen zwischen Zielen und Abgaben ein; bekannte Umwege und Questplätze zählen mit.\n• Annahme auslassen, später merken oder pro Charakter ausblenden; getrennt wieder aufnehmen und unveränderte Pläne rückgängig machen.\n• Nach tatsächlicher Annahme Ziele prüfen und ausdrücklich fortsetzen.\n" .. german.UpdateNotesText
-
-english.UpdateNotesText = "• Recognize local Questie spawn neighborhoods and matching enemies you are fighting when their identity is public.\n• Death/ghost navigation prioritizes a stable corpse destination; unknown corpse data never falls back to quests.\n" .. english.UpdateNotesText
-german.UpdateNotesText = "• Lokale Questie-Spawngebiete und passende Kampfgegner erkennen, soweit deren Identität öffentlich verfügbar ist.\n• Tot / als Geist hat ein stabiles Leichnam-Ziel Vorrang; unbekannte Leichnamdaten führen nicht zu Questpfeilen.\n" .. german.UpdateNotesText
 
 addon.L = {}
 

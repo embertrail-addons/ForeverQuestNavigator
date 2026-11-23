@@ -134,10 +134,7 @@ function addon.ShowExcursion(plan, actions)
             self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
             self.start:SetEnabled(#p.stops > 0 and p.index <= #p.stops and not p.running and not p.needsReview and not p.unverified) self.pause:SetEnabled(p.running)
         end
-        window:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(window, 1)
     end
     window.plan, window.actions, window.status = plan, actions, nil
     window.page = window.page or 1

@@ -201,10 +201,7 @@ function addon.ShowQuestWorkbench(controller, mode)
             self.status:SetText(self.controller.status or (model.preview and L.TourPreviewHelp or model.running and L.TourRunning or ""))
             addon.QuestHover.Refresh()
         end
-        frame:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(frame, 1)
     end
     local changed = window.controller ~= controller
     window.controller = controller

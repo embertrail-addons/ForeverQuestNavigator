@@ -146,10 +146,7 @@ function addon.ShowAdventure(getModel, actions, mode)
             self.previous:SetShown(#entries > 4) self.next:SetShown(#entries > 4)
             self.pageText:SetText(#entries == 0 and L.NoPlanningStops or self.page .. " / " .. math.ceil(#entries / 4))
         end
-        window:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(window, 1)
     end
     window.getModel, window.actions = getModel, actions
     window:SelectMode(mode or window.mode or "departure") addon.UI.ShowUtilityPanel(window)

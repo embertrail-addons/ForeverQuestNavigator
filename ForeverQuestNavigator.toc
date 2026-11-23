@@ -69,6 +69,7 @@ Core\Commands.lua
 UI\NavigationDisplay.lua
 UI\Theme.lua
 UI\QuestWidgets.lua
+UI\Window.lua
 UI\Diagnostics.lua
 UI\ManagementWindows.lua
 UI\ToolHub.lua

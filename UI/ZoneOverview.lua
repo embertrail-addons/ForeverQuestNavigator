@@ -40,10 +40,7 @@ function addon.ShowZoneOverview(getGroups, openMap)
             self.next:SetEnabled(self.page < pages)
             self.pageLabel:SetText(#groups > 0 and (self.page .. " / " .. pages) or L.NoZoneQuests)
         end
-        window:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(window, 1)
     end
     window.getGroups, window.openMap, window.page = getGroups, openMap, 1
     window:Refresh()

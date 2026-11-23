@@ -59,6 +59,19 @@ return function(test, addon, equal)
         equal(calls.group, 1) equal(calls.refresh, 2)
     end)
 
+    test("Update notes show only the newest versions in the chosen language", function()
+        local notes = addon.ReleaseNotes
+        local english, german = notes.Text("9.9.9", "en"), notes.Text("9.9.9", "de")
+        assert(english:find("Forever Quest Navigator 9.9.9", 1, true))
+        assert(english:find(notes.history[1].version, 1, true)) assert(english:find(notes.history[1].en, 1, true))
+        assert(german:find(notes.history[1].de, 1, true))
+        local saved = notes.history
+        notes.history = {{version = "4", en = "d", de = "d"}, {version = "3", en = "c", de = "c"},
+            {version = "2", en = "b", de = "b"}, {version = "1", en = "OLDEST", de = "OLDEST"}}
+        assert(not notes.Text("4", "en"):find("OLDEST", 1, true))
+        notes.history = saved
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

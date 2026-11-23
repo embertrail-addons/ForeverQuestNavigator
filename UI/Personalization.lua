@@ -52,10 +52,7 @@ function addon.ShowFeedbackManager(actions)
             self.all:SetEnabled(#entries > 0)
             self.status:SetText(#entries == 0 and L.NoFeedback or (self.page .. " / " .. pages))
         end
-        frame:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then self.elapsed = 0 self:Refresh() end
-        end)
+        addon.UI.RefreshWhileShown(frame, 1)
     end
     feedbackWindow.actions, feedbackWindow.page = actions, 1
     feedbackWindow:Refresh() addon.UI.ShowUtilityPanel(feedbackWindow)

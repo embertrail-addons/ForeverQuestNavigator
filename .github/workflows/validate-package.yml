@@ -26,7 +26,9 @@ jobs:
       - name: Install Lua 5.1
         run: |
           sudo apt-get update
-          sudo apt-get install -y lua5.1
+          sudo apt-get install -y lua5.1 lua-check
+      - name: Lint globals (luacheck)
+        run: luacheck Core Navigation UI
       - name: Test addon
         run: lua5.1 tests/run.lua
       - name: Replay regression fixtures
