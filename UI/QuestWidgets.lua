@@ -227,6 +227,16 @@ local actionIcons = {
     access = "Interface\\Icons\\INV_Misc_Map_01",
 }
 addon.UI.iconLabels = true
+
+-- Share of the way to the current target already covered, measured from the
+-- distance when this target was first shown. Moving away raises the start.
+-- memory keeps {key, start}; returns nil when unknown or the leg is very short.
+function addon.UI.DistanceProgress(memory, key, yards)
+    if not key or type(yards) ~= "number" or yards ~= yards or yards < 0 then memory.key, memory.start = nil, nil return end
+    if memory.key ~= key or yards > memory.start then memory.key, memory.start = key, yards end
+    if memory.start < 40 then return end
+    return math.max(0, math.min(1, 1 - yards / memory.start))
+end
 function addon.UI.ActionIcon(action, size)
     local texture = actionIcons[action] or actionIcons.objective
     return ("|T%s:%d|t"):format(texture, size or 14)

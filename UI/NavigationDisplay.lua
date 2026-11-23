@@ -113,6 +113,22 @@ function addon.CreateNavigationDisplay(settings)
     navigation.title:SetMaxLines(1)
     navigation.distance = addon.UI.CreateLabel(navigation, "GameFontHighlightSmall")
     navigation.distance:SetPoint("TOPRIGHT", navigation.title, "BOTTOMRIGHT", 0, -3)
+    -- Thin progress bar under the distance: share of the current leg already covered.
+    navigation.progressTrack = navigation:CreateTexture(nil, "ARTWORK")
+    navigation.progressTrack:SetSize(70, 3)
+    navigation.progressTrack:SetPoint("TOPRIGHT", navigation.distance, "BOTTOMRIGHT", 0, -2)
+    navigation.progressTrack:SetColorTexture(1, 1, 1, .18)
+    navigation.progressFill = navigation:CreateTexture(nil, "OVERLAY")
+    navigation.progressFill:SetHeight(3)
+    navigation.progressFill:SetPoint("TOPLEFT", navigation.progressTrack, "TOPLEFT")
+    navigation.progressFill:SetColorTexture(1, .82, .34, .95)
+    navigation.progressTrack:Hide() navigation.progressFill:Hide()
+    function navigation:SetProgress(fraction)
+        self.progress = fraction
+        local shown = type(fraction) == "number"
+        self.progressTrack:SetShown(shown) self.progressFill:SetShown(shown)
+        if shown then self.progressFill:SetWidth(math.max(1, 70 * fraction)) end
+    end
     navigation.goal = addon.UI.CreateLabel(navigation, "GameFontHighlightSmall")
     navigation.goal:SetPoint("TOPLEFT", navigation.title, "BOTTOMLEFT", 0, -3)
     navigation.goal:SetPoint("TOPRIGHT", navigation.distance, "TOPLEFT", -7, 0)
@@ -156,7 +172,7 @@ function addon.CreateNavigationDisplay(settings)
             self.title:SetPoint("TOPLEFT", 47, -26)
             self.title:SetPoint("TOPRIGHT", -9, -26)
         end
-        local bottom = math.max(26, 10 + math.max(primary:GetStringHeight(), self.distance:GetStringHeight()))
+        local bottom = math.max(26, 10 + math.max(primary:GetStringHeight(), self.distance:GetStringHeight() + (self.progress and 5 or 0)))
         if hasGoal and self.expanded then bottom = math.max(bottom, 30 + self.title:GetStringHeight()) end
         self.status:ClearAllPoints()
         self.status:SetPoint("TOPLEFT", 47, -bottom)

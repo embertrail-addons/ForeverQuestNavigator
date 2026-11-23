@@ -1,4 +1,4 @@
-return function(test, addon, equal)
+return function(test, addon, equal, near)
     local limits = {DEFAULT_OPACITY = 80, DEFAULT_OFFER_RADIUS = 350, MAX_OFFER_RADIUS = 1000}
 
     test("Settings normalization starts new installs simple and keeps existing players' choices", function()
@@ -165,6 +165,18 @@ return function(test, addon, equal)
         Sync.MarkDirty()
         equal(Sync.ReadyToSend(12, false), false) equal(Sync.ReadyToSend(13, false), true)
         Sync.Reset()
+    end)
+
+    test("Distance progress measures the covered share of the current leg", function()
+        local memory, P = {}, addon.UI.DistanceProgress
+        equal(P(memory, "q1", 400), 0)
+        near(P(memory, "q1", 100), .75)
+        equal(P(memory, "q1", 500), 0)
+        near(P(memory, "q1", 250), .5)
+        equal(P(memory, "q2", 30), nil)
+        equal(P(memory, "q3", 200), 0)
+        equal(P(memory, nil, 100), nil) equal(memory.key, nil)
+        equal(P(memory, "q3", 0 / 0), nil)
     end)
 
     test("Flight hints use measured distance and the step text follows the selected objective", function()

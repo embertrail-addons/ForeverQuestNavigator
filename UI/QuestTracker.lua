@@ -1141,6 +1141,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         MigrateTrackerAnchor()
     end
 
+    local progressMemory = {}
     function frame:RenderDistances(measurements)
         latestMeasurements = measurements
         self:UpdateTargetLabel()
@@ -1177,6 +1178,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         navigation.title:SetText(L.RecoveryTitle)
         navigation.goal:SetText(status)
         navigation.distance:SetText(measured and FormatDistance(measured) or "")
+        if navigation.SetProgress then navigation:SetProgress(nil) end
         if not measured or measured.yards <= 12 or not state.ghost then right, forward = nil, nil end
         navigation.arrow:SetDirection(right, forward)
         navigation:SetStatus(state.ghost and measured and measured.yards <= 12 and L.RecoveryAtBody or status)
@@ -1210,6 +1212,12 @@ function addon.CreateQuestTracker(settings, actions, version)
                 UpdateHeight()
             end
             navigation.distance:SetText(distance)
+            local leg = latestMeasurements[quest.id]
+            local marker = leg and leg.marker
+            local key = marker and (quest.id .. ":" .. tostring(marker.mapID) .. ":" .. tostring(marker.x) .. ":" .. tostring(marker.y))
+            local fraction = addon.UI.DistanceProgress(progressMemory, not arrived and not flightMode and key or nil, leg and leg.yards)
+            if navigation.SetProgress then navigation:SetProgress(not self.detour and fraction or nil) end
+        elseif navigation.SetProgress then navigation:SetProgress(nil)
         end
         if settings.showScreenArrow then
             arrow:SetDirection()
