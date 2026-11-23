@@ -160,15 +160,28 @@ local function ClearTemporaryFeedback(id)
     outing = nil ScheduleRefresh()
 end
 
+local function WallClock() return GetServerTime and GetServerTime() or nil end
+
 local function CaptureSessionXP()
     if session and UnitXP and UnitXPMax and UnitLevel then
         session:CaptureXP(UnitLevel("player"), UnitXP("player"), UnitXPMax("player"))
-        session:Save(SessionTime())
+        session:Save(SessionTime(), WallClock())
     end
 end
 
+-- Zone with the most nearby open quests, as a "next time" suggestion for the recap.
+local function SuggestZone()
+    if not eligibleQuests then return end
+    local ok, zones = pcall(addon.BuildZoneOverview, C_Map, Enum and Enum.UIMapType, eligibleQuests, navigationSnapshot)
+    local best
+    for _, zone in ipairs(ok and zones or {}) do
+        if zone.id and (not best or zone.quests > best.quests) then best = zone end
+    end
+    return best and best.name
+end
+
 local function ShowSession()
-    if session then addon.ShowSessionDashboard(function() return session end, SessionTime) end
+    if session then addon.ShowSessionDashboard(function() return session end, SessionTime, SuggestZone) end
 end
 
 local function ClearMapMarker()
@@ -2591,6 +2604,7 @@ local function AddonLoaded(name)
         insights.laterQuests, insights.knownVendors = character.laterQuests, character.knownVendors
         insights.hiddenOffers, savedAccessPoints = character.hiddenOffers, character.accessPoints
         session = addon.Session.New(character.session, SessionTime())
+        insights.offerRecap = session:ShouldOfferRecap(WallClock(), 1800)
         character.session = session.data
         flight.confirmedPoints, flight.routes = character.confirmedFlightPoints, character.flightRoutes
 
@@ -2670,10 +2684,10 @@ addon.EventController.Bind(events, {
         if not session then return end
         local title
         for _, quest in ipairs(eligibleQuests or {}) do if quest.id == arg then title = quest.title break end end
-        session:TurnIn(arg, title, rewardXP)
-        session:Save(SessionTime())
+        session:TurnIn(arg, title, rewardXP, GetRealZoneText and GetRealZoneText() or nil, WallClock())
+        session:Save(SessionTime(), WallClock())
     end,
-    saveSession = function() if session then session:Save(SessionTime()) end if workspace then workspace:Save() end end,
+    saveSession = function() if session then session:Save(SessionTime(), WallClock()) end if workspace then workspace:Save() end end,
     loaded = AddonLoaded,
     hasMeasurements = function() return measurableQuestIDs ~= nil end,
     visible = TrackingVisible,
@@ -2689,6 +2703,13 @@ addon.EventController.Bind(events, {
         end
     end,
     enterWorld = function()
+        if insights.offerRecap and session and not (InCombatLockdown and InCombatLockdown()) then
+            insights.offerRecap = nil
+            addon.ShowSessionRecapNotice(session:Recap(SessionTime(), SuggestZone()), {
+                open = ShowSession,
+                reset = function() addon.Commands.Dispatch("session reset") end,
+            })
+        end
         AddQuestLogButton()
         if not minimapButton then
             minimapButton = addon.CreateMinimapButton(settings, CycleDisplayMode, OpenSettings)

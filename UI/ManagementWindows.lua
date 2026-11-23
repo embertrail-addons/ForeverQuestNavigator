@@ -5,9 +5,32 @@ local dashboard, accessWindow, preview
 local Panel = addon.UI.CreateWindow
 local Button = addon.UI.CreateWindowButton
 
-function addon.ShowSessionDashboard(getSession, now)
+local recapNotice
+-- Small standalone notice after returning: last session recap or start a new one.
+function addon.ShowSessionRecapNotice(text, actions)
+    if not recapNotice then
+        recapNotice = Panel(440, 190, L.RecapWelcome, {hub = false})
+        recapNotice.body = addon.UI.CreateLabel(recapNotice, "GameFontHighlightSmall")
+        recapNotice.body:SetPoint("TOPLEFT", 16, -44) recapNotice.body:SetPoint("TOPRIGHT", -16, -44)
+        recapNotice.body:SetJustifyH("LEFT") recapNotice.body:SetMaxLines(6)
+        recapNotice.open = Button(recapNotice, L.RecapOpen, 196, function()
+            recapNotice:Hide() if recapNotice.actions.open then recapNotice.actions.open() end
+        end)
+        recapNotice.open:SetPoint("BOTTOMLEFT", 16, 14)
+        recapNotice.reset = Button(recapNotice, L.RecapNewSession, 196, function()
+            recapNotice:Hide() if recapNotice.actions.reset then recapNotice.actions.reset() end
+        end)
+        recapNotice.reset:SetPoint("BOTTOMRIGHT", -16, 14)
+    end
+    recapNotice.actions = actions or {}
+    recapNotice.body:SetText(text)
+    recapNotice:Show()
+    return recapNotice
+end
+
+function addon.ShowSessionDashboard(getSession, now, suggest)
     if not dashboard then
-        dashboard = Panel(570, 480, L.SessionTitle)
+        dashboard = Panel(570, 540, L.SessionTitle)
         dashboard.cards, dashboard.rows = {}, {}
         local labels = { L.StatTime, L.StatXP, L.StatTurnIns, L.StatQuestXP, L.StatLevels, L.StatUnknownRewards }
         for index, text in ipairs(labels) do
@@ -43,6 +66,9 @@ function addon.ShowSessionDashboard(getSession, now)
             end)
             dashboard.rows[index] = row
         end
+        dashboard.recap = addon.UI.CreateLabel(dashboard, "GameFontHighlightSmall")
+        dashboard.recap:SetPoint("TOPLEFT", 16, -420) dashboard.recap:SetPoint("TOPRIGHT", -16, -420)
+        dashboard.recap:SetJustifyH("LEFT") dashboard.recap:SetMaxLines(4)
         dashboard.copy = Button(dashboard, L.CopySummary, 160, function()
             dashboard:Refresh()
             addon.ShowTextWindow("session-copy", dashboard.copyText, L.CopySummary, L.DebugCopyHint)
@@ -60,6 +86,11 @@ function addon.ShowSessionDashboard(getSession, now)
                 tostring(data.questXP), tostring(data.levels), tostring(data.unknownRewards) }
             for index, value in ipairs(values) do self.cards[index]:SetText(value) end
             self.copyText = session:Describe(current)
+            if session.Recap then
+                local recap = session:Recap(current, self.suggest and self.suggest())
+                self.recap:SetText(L.RecapTitle .. "\n" .. recap)
+                self.copyText = self.copyText .. "\n\n" .. recap
+            end
             self.offset = math.min(self.offset, math.max(0, #data.recent - 5))
             for index, row in ipairs(self.rows) do
                 local entry = data.recent[index + self.offset]
@@ -72,7 +103,7 @@ function addon.ShowSessionDashboard(getSession, now)
         end
         addon.UI.RefreshWhileShown(dashboard, 1)
     end
-    dashboard.getSession, dashboard.now = getSession, now
+    dashboard.getSession, dashboard.now, dashboard.suggest = getSession, now, suggest
     dashboard:Refresh()
     addon.UI.ShowUtilityPanel(dashboard)
 end

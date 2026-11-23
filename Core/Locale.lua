@@ -1012,6 +1012,15 @@ local english = {
     RouteLine = "Connect route stops with a line",
     RouteLineHelp = "Draws a line on the world map between the numbered stops of the current route or outing. Gold is the next leg.",
     RouteLineShort = "Route line",
+    RecapTitle = "Recap",
+    RecapWelcome = "Welcome back",
+    RecapHeadline = "This session so far: %d quests turned in, %d XP in %d h %d min.",
+    RecapRate = "About %d XP per hour.",
+    RecapLevels = "Levels gained: %d.",
+    RecapZone = "Most turn-ins in %s (%d).",
+    RecapNext = "Next time: %s has the most open quests nearby.",
+    RecapOpen = "Show session overview",
+    RecapNewSession = "Start a new session",
 }
 
 local german = setmetatable({
@@ -2027,6 +2036,15 @@ local german = setmetatable({
     RouteLine = "Routenstopps mit einer Linie verbinden",
     RouteLineHelp = "Zeichnet auf der Weltkarte eine Linie zwischen den nummerierten Stopps der aktuellen Route oder des Ausflugs. Gold ist der nächste Abschnitt.",
     RouteLineShort = "Routenlinie",
+    RecapTitle = "Rückblick",
+    RecapWelcome = "Willkommen zurück",
+    RecapHeadline = "Diese Sitzung bisher: %d Quests abgegeben, %d EP in %d Std. %d Min.",
+    RecapRate = "Etwa %d EP pro Stunde.",
+    RecapLevels = "Stufenaufstiege: %d.",
+    RecapZone = "Die meisten Abgaben in %s (%d).",
+    RecapNext = "Nächstes Mal: In %s liegen die meisten offenen Quests.",
+    RecapOpen = "Sitzungsübersicht anzeigen",
+    RecapNewSession = "Neue Sitzung beginnen",
 }, { __index = english })
 
 addon.L = {}
