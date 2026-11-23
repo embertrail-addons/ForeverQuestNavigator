@@ -3988,4 +3988,19 @@ assert(loadfile("tests/adventure_support.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/journey_planning.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/mixed_quest_plan.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/presence_recovery.lua"))()(test, addon, equal, near)
+test("Every addon file keeps headroom below Lua 5.1's 200 locals per main chunk", function()
+    -- The WoW client refuses a file that exceeds the limit, which disables the whole addon.
+    local minimum = 30
+    for line in io.lines(addonName .. ".toc") do
+        if line:match("%.lua$") then
+            local path = line:gsub("\\", "/")
+            local file = assert(io.open(path)) local source = file:read("*a") file:close()
+            local names = {}
+            for index = 1, minimum do names[index] = "headroomProbe" .. index end
+            local _, problem = loadstring(source .. "\nlocal " .. table.concat(names, ", ") .. "\n", "=" .. path)
+            assert(not problem, ("%s has fewer than %d free top-level locals; group state into tables: %s")
+                :format(path, minimum, tostring(problem)))
+        end
+    end
+end)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

@@ -1,3 +1,6 @@
 dist/
 __pycache__/
 *.py[cod]
+
+# Local archives, tools, packages and installation backups
+/.local/

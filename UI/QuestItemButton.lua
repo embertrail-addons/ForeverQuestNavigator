@@ -85,16 +85,31 @@ function addon.CreateQuestItemButton(owner, parent)
         end
         if (previous ~= (hint and hint.id) or previousHeight ~= host:GetHeight()) and owner.UpdateNavigatorLayout then owner:UpdateNavigatorLayout() end
     end
-    function controller:SetQuest(quest) self.quest = quest self:Refresh() end
+    -- Position polling only runs while a quest is shown in a visible navigator;
+    -- a hidden controller still receives events, so combat cleanup keeps working.
+    function controller:UpdatePolling()
+        self:SetShown(self.quest ~= nil and owner:IsVisible())
+    end
+    function controller:SetQuest(quest) self.quest = quest self:Refresh() self:UpdatePolling() end
     controller:RegisterEvent("PLAYER_REGEN_ENABLED")
     controller:RegisterEvent("BAG_UPDATE_DELAYED")
     controller:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-    controller:SetScript("OnEvent", function(self) self:Refresh() end)
+    controller:SetScript("OnEvent", function(self, event)
+        if event == "SPELL_UPDATE_COOLDOWN" then
+            -- Fires very often in combat: only matters with an item shown, and is
+            -- folded into the next polling tick instead of a refresh per event.
+            if self.hint and self:IsShown() then self.elapsed = math.max(self.elapsed or 0, .2) end
+            return
+        end
+        self:Refresh()
+    end)
     controller:SetScript("OnUpdate", function(self, elapsed)
         self.elapsed = (self.elapsed or 0) + elapsed
         if self.elapsed < .25 then return end
         self.elapsed = 0 self:Refresh()
     end)
-    owner:HookScript("OnHide", function() controller:Refresh() end)
+    owner:HookScript("OnHide", function() controller:Refresh() controller:UpdatePolling() end)
+    owner:HookScript("OnShow", function() controller:UpdatePolling() controller:Refresh() end)
+    controller:Hide()
     return controller
 end

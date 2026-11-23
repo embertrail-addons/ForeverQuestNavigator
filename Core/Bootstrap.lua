@@ -9,22 +9,19 @@ local questLogButton, questLogDetails
 local skippedQuestIDs = {}
 local skipOrder = 0
 local refreshPending = false
-local questMarkers, measurableQuestIDs, distanceTicker, distanceMaps
+local questMarkers, measurableQuestIDs, distanceMaps
 local questMeasurements, questTargetMaps
-local playerZoneID, questDestinations, shownZones = nil, {}, {}
-local activeDirection, directionTicker
+local playerZoneID, questDestinations = nil, {}
+local activeDirection
 local eligibleQuests, shownQuests, distanceOrder
-local shownObjectives, shownReason
-local shownObjectiveTargets
 local objectiveDistances, objectiveLock
 local previousObjectives = {}
 local avoidedObjectives = {}
 local integration = addon.QuestieIntegration
-local objectiveMarkers, killMarkers, questieTicker, questieReadyRegistered
+local objectiveMarkers, killMarkers, questieReadyRegistered
 local questieTrackerMenuHooked
 local nearbyOffers
-local routeChains, shownRouteNote, shownRouteDetails, shownMapAvailable
-local shownRewards = {}
+local routeChains
 local outing
 local ScheduleRefresh
 local SetDisplayMode
@@ -45,22 +42,18 @@ function addon.UpdateRecovery(event)
     return state
 end
 local markedQuestID
-local MINIMUM_FLIGHT_HINT_DISTANCE = 1500
-local DEFAULT_OPACITY = 80
-local DEFAULT_OFFER_RADIUS = 350
-local MAX_OFFER_RADIUS = 1000
-local shownAlternativeRoutes = {}
-local shownNearbyStops
-local shownApproachStops
-local shownRoutePreview
-local shownAreaOverview
-local confirmedFlightPoints, flightRoutes, taxiMapOpen
+-- Grouped state keeps the main chunk well below Lua 5.1's 200-local limit.
+-- shown: last rendered navigator content (used to skip identical re-renders).
+local shown = {zones = {}, rewards = {}, alternativeRoutes = {}}
+local tickers = {} -- distance, direction, questie
+local flight = {active = false} -- active, questID, confirmedPoints, routes, taxiMapOpen
+local LIMITS = {MINIMUM_FLIGHT_HINT_DISTANCE = 1500, DEFAULT_OPACITY = 80,
+    DEFAULT_OFFER_RADIUS = 350, MAX_OFFER_RADIUS = 1000}
 local questJourneys, turnInLocations = nil, {}
 local savedAccessPoints, passedAccessPoints = {}, {}
 local session
 local questNotes = {}
 local targetCorrections = {}
-local isFlying, flightQuestID = false, nil
 local combatQuestID, ShowPlanning, RefreshNearbyOffers
 local temporaryFeedback = {}
 local campAvoidance = {}
@@ -93,7 +86,7 @@ local function BuildDecisionBrief(snapshot, mapType)
 end
 
 local function CurrentMapRoute(id)
-    if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return shownRoutePreview end
+    if settings.showRouteMarkers ~= false and shownQuests and shownQuests[1].id == id then return shown.routePreview end
     local destination = GetQuestDestination and GetQuestDestination(id)
     if destination and destination.target then
         for _, quest in ipairs(eligibleQuests or {}) do
@@ -196,7 +189,7 @@ end
 
 local function ConfirmFlightPoints()
     local states = Enum and Enum.FlightPathState
-    if not (confirmedFlightPoints and states and GetTaxiMapID and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes) then return end
+    if not (flight.confirmedPoints and states and GetTaxiMapID and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes) then return end
     local mapID = GetTaxiMapID()
     if type(mapID) ~= "number" or mapID <= 0 then return end
     local ok, nodes = pcall(C_TaxiMap.GetAllTaxiNodes, mapID)
@@ -205,7 +198,7 @@ local function ConfirmFlightPoints()
     for _, node in ipairs(nodes or {}) do
         if type(node.nodeID) == "number" and node.nodeID > 0 and not node.isMapLayerTransition then
             if node.state == states.Current or node.state == states.Reachable then
-                confirmedFlightPoints[node.nodeID] = true
+                flight.confirmedPoints[node.nodeID] = true
             end
             local slot = node.slotIndex
             if type(slot) == "number" and slot > 0 then
@@ -229,12 +222,12 @@ local function ConfirmFlightPoints()
             end
         end
     end
-    flightRoutes[origin.id] = { origin = origin, stops = stops }
+    flight.routes[origin.id] = { origin = origin, stops = stops }
 end
 
 local function GetFlightHint(questID, destination, flightContext)
     local measurement = questMeasurements and questMeasurements[questID]
-    if not measurement or measurement.yards < MINIMUM_FLIGHT_HINT_DISTANCE then return end
+    if not measurement or measurement.yards < LIMITS.MINIMUM_FLIGHT_HINT_DISTANCE then return end
 
     local plan = addon.QuestLocation.GetFlightPlan(C_Map, destination.target, flightContext)
     if plan then
@@ -247,7 +240,7 @@ local function GetFlightHint(questID, destination, flightContext)
         local faction = UnitFactionGroup and UnitFactionGroup("player")
         destination.flight, destination.flightDistance = addon.QuestLocation.GetNearbyFlightPoint(
             C_Map, C_TaxiMap, Enum and Enum.UIMapType, Enum and Enum.FlightPathFaction,
-            faction, destination.zoneID, destination.target, confirmedFlightPoints)
+            faction, destination.zoneID, destination.target, flight.confirmedPoints)
     end
     if destination.flight then
         return L.UnlockedFlightPoint:format(
@@ -342,7 +335,7 @@ local function BuildDiagnostics()
         playerLevel = UnitLevel and UnitLevel("player"), mapID = playerZoneID,
         manual = manualQuestID ~= nil, objectiveLock = objectiveLock ~= nil, held = heldQuest ~= nil,
         activeID = active and active.id, quests = shownQuests or eligibleQuests,
-        measurements = questMeasurements, reason = shownReason, route = shownRouteDetails, journeys = questJourneys,
+        measurements = questMeasurements, reason = shown.reason, route = shown.routeDetails, journeys = questJourneys,
         adjustments = navigationSnapshot and navigationSnapshot.adjustments,
     })
     local marker = addon.GetMapMarkerStatus()
@@ -447,8 +440,8 @@ end
 local function SameAdditionalQuests(alternatives, zones, routes, rewards)
     if not shownQuests or #shownQuests ~= #alternatives + 1 then return false end
     for index, quest in ipairs(alternatives) do
-        if shownQuests[index + 1] ~= quest or shownZones[index + 1] ~= zones[index + 1]
-            or shownAlternativeRoutes[index] ~= routes[index] or shownRewards[index + 1] ~= rewards[index + 1] then
+        if shownQuests[index + 1] ~= quest or shown.zones[index + 1] ~= zones[index + 1]
+            or shown.alternativeRoutes[index] ~= routes[index] or shown.rewards[index + 1] ~= rewards[index + 1] then
             return false
         end
     end
@@ -551,7 +544,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local tourID = workspace and workspace:Current()
     local excursionStop = addon.ExcursionPlan.Current(insights.excursion)
     local levelHold = insights.levelHold and SessionTime() <= insights.levelHold.untilTime and insights.levelHold.id
-    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or addon.RecoveryQuestID or flightQuestID or combatQuestID
+    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or addon.RecoveryQuestID or flight.questID or combatQuestID
         or (excursionStop and excursionStop.action ~= "accept" and excursionStop.quest.id) or tourID or (temporaryDetour and temporaryDetour.questID) or levelHold
     if selectedQuestID then
         local manualQuest
@@ -568,11 +561,11 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
             manualQuestID = nil
             heldQuest = nil
             objectiveLock = nil
-            flightQuestID = nil
+            flight.questID = nil
             combatQuestID = nil
         end
     end
-    if not (manualQuestID or objectiveLock or addon.RecoveryQuestID or flightQuestID or combatQuestID or levelHold or excursionStop or tourID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
+    if not (manualQuestID or objectiveLock or addon.RecoveryQuestID or flight.questID or combatQuestID or levelHold or excursionStop or tourID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
         quest = routeQuest
     else
         routeNote = manualQuestID and (heldQuest and L.HeldQuestReason or L.ManualSelection)
@@ -642,7 +635,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     if routeNote == L.LevelUpOnTurnIn and settings.showQuestXP and reward and reward >= xpNeeded then routeNote = nil end
     local nearbyStops = GetNearbyStops(quest, destination, ranked, playerLevel)
     local approachStops
-    local flightContext = addon.QuestLocation.GetFlightContext(C_Map, distanceMaps, flightRoutes)
+    local flightContext = addon.QuestLocation.GetFlightContext(C_Map, distanceMaps, flight.routes)
     local zones, alternativeRoutes = {}, {}
     if destination then
         local nextStop = DescribeDestination(quest, destination)
@@ -724,11 +717,11 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     reason = reason .. "\n" .. explanation .. "\n" .. quality
     routeDetails = (routeDetails and routeDetails .. "\n" or "") .. quality
     local measured = questMeasurements and questMeasurements[quest.id]
-    local travelTime = not isFlying and addon.TravelTime.Describe(measured and measured.yards, settings)
+    local travelTime = not flight.active and addon.TravelTime.Describe(measured and measured.yards, settings)
     if travelTime then routeDetails = routeDetails .. "\n" .. travelTime reason = reason .. "\n" .. travelTime end
     local overview = addon.BuildZoneOverview(C_Map, Enum and Enum.UIMapType, eligibleQuests, navigationSnapshot)
     local suggestion = addon.ZoneSuggestion.Find(overview, playerZoneID, manualQuestID or heldQuest
-        or (settings.quietNavigation and (isFlying or (InCombatLockdown and InCombatLockdown()))), measured and measured.yards)
+        or (settings.quietNavigation and (flight.active or (InCombatLockdown and InCombatLockdown()))), measured and measured.yards)
     if suggestion then
         local advisory = L.ZoneSuggestion:format(suggestion.name, suggestion.clusterSuitable, suggestion.clusterYards or suggestion.yards)
         routeDetails = routeDetails .. "\n" .. advisory reason = reason .. "\n" .. advisory
@@ -759,7 +752,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
             noteText = addon.GetQuestNoteText(quest.id),
             nearbyStops = nearbyStops, rewards = rewards, targets = targets, hasMap = hasMap,
             approachStops = approachStops, area = area }
-        navigationSnapshot.flying = isFlying
+        navigationSnapshot.flying = flight.active
         navigationSnapshot.excursionStep = excursionStop
         navigationSnapshot.excursionPlan = insights.excursion
         if excursionStop and excursionStop.action == "accept" then
@@ -771,36 +764,36 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         tracker:SetDecisionBrief(navigationSnapshot.brief)
     end
     if shownQuests and shownQuests[1] == quest and shownQuests[2] == alternatives[1]
-        and shownQuests[3] == alternatives[2] and shownRouteNote == routeNote and shownRouteDetails == routeDetails
-        and shownObjectives == text
+        and shownQuests[3] == alternatives[2] and shown.routeNote == routeNote and shown.routeDetails == routeDetails
+        and shown.objectives == text
         and SameAdditionalQuests(alternatives, zones, alternativeRoutes, rewards)
-        and shownReason == reason
+        and shown.reason == reason
         and (tracker.noteRevision or 0) == (insights.noteRevision or 0)
         and (rewardDetails or "") == (tracker.rewardDetails and tracker.rewardDetails:GetText() or "")
-        and SameRoutePreview(shownRoutePreview, preview)
-        and SameAreaOverview(shownAreaOverview, area)
-        and shownMapAvailable == hasMap
-        and SameObjectiveTargets(shownObjectiveTargets, targets)
-        and zones[1] == shownZones[1] and zones[2] == shownZones[2] and zones[3] == shownZones[3]
-        and alternativeRoutes[1] == shownAlternativeRoutes[1] and alternativeRoutes[2] == shownAlternativeRoutes[2]
-        and rewards[1] == shownRewards[1] and rewards[2] == shownRewards[2] and rewards[3] == shownRewards[3]
-        and SameNearbyStops(shownNearbyStops, nearbyStops) and SameApproachStops(shownApproachStops, approachStops) then
+        and SameRoutePreview(shown.routePreview, preview)
+        and SameAreaOverview(shown.areaOverview, area)
+        and shown.mapAvailable == hasMap
+        and SameObjectiveTargets(shown.objectiveTargets, targets)
+        and zones[1] == shown.zones[1] and zones[2] == shown.zones[2] and zones[3] == shown.zones[3]
+        and alternativeRoutes[1] == shown.alternativeRoutes[1] and alternativeRoutes[2] == shown.alternativeRoutes[2]
+        and rewards[1] == shown.rewards[1] and rewards[2] == shown.rewards[2] and rewards[3] == shown.rewards[3]
+        and SameNearbyStops(shown.nearbyStops, nearbyStops) and SameApproachStops(shown.approachStops, approachStops) then
         return
     end
 
-    shownObjectives = text
-    shownReason = reason
-    shownRoutePreview = preview
-    shownAreaOverview = area
-    shownMapAvailable = hasMap
-    shownObjectiveTargets = targets
+    shown.objectives = text
+    shown.reason = reason
+    shown.routePreview = preview
+    shown.areaOverview = area
+    shown.mapAvailable = hasMap
+    shown.objectiveTargets = targets
     shownQuests = { quest }
     for _, alternative in ipairs(alternatives) do shownQuests[#shownQuests + 1] = alternative end
-    shownRouteNote, shownRouteDetails = routeNote, routeDetails
-    shownZones, shownAlternativeRoutes = zones, alternativeRoutes
-    shownNearbyStops = nearbyStops
-    shownApproachStops = approachStops
-    shownRewards = rewards
+    shown.routeNote, shown.routeDetails = routeNote, routeDetails
+    shown.zones, shown.alternativeRoutes = zones, alternativeRoutes
+    shown.nearbyStops = nearbyStops
+    shown.approachStops = approachStops
+    shown.rewards = rewards
     tracker:RenderSnapshot(navigationSnapshot, skippedQuestIDs)
 end
 
@@ -879,9 +872,9 @@ local function UpdateFlightState()
     if recovery and recovery.active then combatQuestID = nil tracker:SetCombatView(false) return end
     local onTaxi = UnitOnTaxi and UnitOnTaxi("player")
     local flying = onTaxi == true or onTaxi == 1
-    if flying ~= isFlying then
-        isFlying = flying
-        flightQuestID = flying and shownQuests and shownQuests[1] and shownQuests[1].id or nil
+    if flying ~= flight.active then
+        flight.active = flying
+        flight.questID = flying and shownQuests and shownQuests[1] and shownQuests[1].id or nil
     end
     tracker:SetFlightView(flying, FlightStep(shownQuests and shownQuests[1]))
     local fighting = InCombatLockdown and InCombatLockdown() == true
@@ -920,14 +913,14 @@ local function UpdateDirection()
         return
     end
     local returnPoint = workspace and workspace:ReturnTarget()
-    if returnPoint and not temporaryDetour and not manualQuestID and not combatQuestID and not isFlying
+    if returnPoint and not temporaryDetour and not manualQuestID and not combatQuestID and not flight.active
         and addon.TemporaryDetour.IsOutdoor(C_Map, Enum and Enum.UIMapType, returnPoint.mapID) then
         temporaryDetour = addon.TemporaryDetour.New(returnPoint.mapID, returnPoint.x, returnPoint.y, returnPoint.name)
         temporaryDetour.tourReturn = true
     end
     if temporaryDetour then
         detourMeasurement = addon.TemporaryDetour.Measure(C_Map, temporaryDetour)
-        if detourMeasurement and detourMeasurement.yards <= 12 and not temporaryDetour.excursion and not isFlying and not (IsInInstance and IsInInstance()) then
+        if detourMeasurement and detourMeasurement.yards <= 12 and not temporaryDetour.excursion and not flight.active and not (IsInInstance and IsInInstance()) then
             if temporaryDetour.tourReturn and workspace then workspace:Arrived() end
             temporaryDetour, detourMeasurement = nil, nil
             tracker:SetDetour(nil)
@@ -939,7 +932,7 @@ local function UpdateDirection()
     end
     local facing
     local inInstance = IsInInstance and IsInInstance()
-    if not inInstance and not isFlying and GetPlayerFacing then
+    if not inInstance and not flight.active and GetPlayerFacing then
         facing = GetPlayerFacing()
     end
     local right, forward = addon.QuestLocation.GetRelativeDirection(temporaryDetour and detourMeasurement or activeDirection, facing)
@@ -951,7 +944,7 @@ local function UpdateDirection()
     local engaged = active and insights.engagement and insights.engagement.questID == active.id
     local working = here ~= nil or engaged
     local status
-    if isFlying then
+    if flight.active then
         status, arrived, arrivalState = FlightStep(active), false, nil
     elseif inInstance then
         status = L.NavigationInstance
@@ -966,19 +959,19 @@ local function UpdateDirection()
     end
     if temporaryDetour then
         arrived = false
-        status = isFlying and L.FlightGeneric or inInstance and L.NavigationInstance or not detourMeasurement and L.NavigationUnknown
+        status = flight.active and L.FlightGeneric or inInstance and L.NavigationInstance or not detourMeasurement and L.NavigationUnknown
             or temporaryDetour.tourReturn and L.ReturnJourney
             or temporaryDetour.excursion and (L.ExcursionCurrent .. ": " .. temporaryDetour.name) or L.DetourActive
     end
-    if arrived or working or inInstance or isFlying then right, forward = nil, nil end
-    if navigationSnapshot then navigationSnapshot.arrived, navigationSnapshot.flying = arrived or working, isFlying end
-    tracker:SetJourneyPhase(isFlying and "flight" or active and active.readyToTurnIn and "turnIn" or (arrived or working) and "work" or "travel")
+    if arrived or working or inInstance or flight.active then right, forward = nil, nil end
+    if navigationSnapshot then navigationSnapshot.arrived, navigationSnapshot.flying = arrived or working, flight.active end
+    tracker:SetJourneyPhase(flight.active and "flight" or active and active.readyToTurnIn and "turnIn" or (arrived or working) and "work" or "travel")
     tracker:RenderDirection(right, forward, status, arrived and not inInstance, working)
     tracker:RenderRowDirections(facing)
     local report = insights.levelReport
     if report and not report.notified and #report.entries > 0 then
         if settings.showLevelHints == false or SessionTime() > report.deadline then report.notified = true
-        elseif not isFlying and not (InCombatLockdown and InCombatLockdown())
+        elseif not flight.active and not (InCombatLockdown and InCombatLockdown())
             and (tracker:IsVisible() or settings.displayMode == "arrow") then
             report.notified = true
             addon.ShowLevelNotice(#report.entries, function() addon.OpenAdventure("level") end,
@@ -997,19 +990,19 @@ local function UpdateDirectionTicker()
         UpdateDirection()
         local canRotate = addon.RecoveryState and addon.RecoveryState.active or
             ((settings.showDirectionArrow and GetPlayerFacing and (measurableQuestIDs or nearbyOffers) or temporaryDetour)
-                and not isFlying and not (IsInInstance and IsInInstance()))
-        if canRotate and not directionTicker then
-            directionTicker = C_Timer.NewTicker(0.2, UpdateDirection)
-        elseif not canRotate and directionTicker then
-            directionTicker:Cancel()
-            directionTicker = nil
+                and not flight.active and not (IsInInstance and IsInInstance()))
+        if canRotate and not tickers.direction then
+            tickers.direction = C_Timer.NewTicker(0.2, UpdateDirection)
+        elseif not canRotate and tickers.direction then
+            tickers.direction:Cancel()
+            tickers.direction = nil
         end
         return
     end
 
-    if directionTicker then
-        directionTicker:Cancel()
-        directionTicker = nil
+    if tickers.direction then
+        tickers.direction:Cancel()
+        tickers.direction = nil
     end
     tracker:RenderDirection()
     tracker:RenderRowDirections()
@@ -1019,7 +1012,7 @@ local function UpdateDistances(force)
     UpdateFlightState()
     if addon.RecoveryState and addon.RecoveryState.active then return end
     local origin = addon.MovementGate.Sample(C_Map)
-    local phase = tostring(isFlying) .. ":" .. tostring(combatQuestID) .. ":" .. tostring(IsInInstance and IsInInstance())
+    local phase = tostring(flight.active) .. ":" .. tostring(combatQuestID) .. ":" .. tostring(IsInInstance and IsInInstance())
     if insights.levelHold and SessionTime() >= insights.levelHold.untilTime then insights.levelHold = nil end
     local deadline = insights.levelHold and insights.levelHold.untilTime
     for _, entry in pairs(temporaryFeedback) do if not deadline or entry.untilTime < deadline then deadline = entry.untilTime end end
@@ -1039,8 +1032,8 @@ local function UpdateDistances(force)
             mapAPI = C_Map, mapType = Enum and Enum.UIMapType, questAPI = C_QuestLog,
             playerLevel = UnitLevel and UnitLevel("player"), questieReady = integration.IsReady(),
             distanceOrder = distanceOrder,
-            flying = isFlying or combatQuestID ~= nil, manual = manualQuestID ~= nil or addon.ExcursionPlan.Current(insights.excursion) ~= nil, routeChains = routeChains,
-            onTaxi = isFlying, detour = temporaryDetour ~= nil,
+            flying = flight.active or combatQuestID ~= nil, manual = manualQuestID ~= nil or addon.ExcursionPlan.Current(insights.excursion) ~= nil, routeChains = routeChains,
+            onTaxi = flight.active, detour = temporaryDetour ~= nil,
             feedback = temporaryFeedback, now = SessionTime(),
             campAvoidance = campAvoidance,
             previousCamps = insights.previousCamps,
@@ -1067,15 +1060,15 @@ local function UpdateDistances(force)
         previousObjectives, objectiveLock = snapshot.previousObjectives, snapshot.objectiveLock
         questJourneys, distanceOrder = snapshot.journeys, snapshot.distanceOrder
         local measurements, ranked, playerLevel = snapshot.measurements, snapshot.ranked, snapshot.playerLevel
-        if isFlying then
+        if flight.active then
             local found
-            for _, candidate in ipairs(ranked) do if candidate.id == flightQuestID then found = true break end end
-            if not found then flightQuestID = ranked[1] and ranked[1].id end
+            for _, candidate in ipairs(ranked) do if candidate.id == flight.questID then found = true break end end
+            if not found then flight.questID = ranked[1] and ranked[1].id end
         end
         local routeQuest, route = snapshot.routeQuest, snapshot.route
         local xpNeeded, levelUpQuest, nextQuest = snapshot.xpNeeded, snapshot.levelUpQuest, snapshot.nextQuest
         local note, details
-        local trip = not (isFlying or combatQuestID) and UpdateOuting(snapshot.planningRanked, measurements, playerLevel, levelUpQuest or routeQuest or objectiveLock)
+        local trip = not (flight.active or combatQuestID) and UpdateOuting(snapshot.planningRanked, measurements, playerLevel, levelUpQuest or routeQuest or objectiveLock)
         if levelUpQuest then
             routeQuest, note = levelUpQuest, L.LevelUpOnTurnIn
         elseif trip then
@@ -1098,7 +1091,7 @@ local function UpdateDistances(force)
         snapshot.decision = levelUpQuest and "levelUp" or trip and "outing" or route and "followUp" or "ranking"
         snapshot.decisionSaving = not levelUpQuest and ((trip and trip.saving) or (route and route.saving)) or nil
         RenderQuestList(ranked, routeQuest, note, details, playerLevel, xpNeeded, nextQuest, forecast)
-        tracker:SetFlightView(isFlying, FlightStep(shownQuests[1]))
+        tracker:SetFlightView(flight.active, FlightStep(shownQuests[1]))
         UpdateMapMarker()
         local activeMeasurement = snapshot.activeMeasurement
         activeDirection = activeMeasurement and activeMeasurement.east and activeMeasurement or nil
@@ -1114,13 +1107,13 @@ local function UpdateDistanceTicker()
     UpdateFlightState()
     if TrackingVisible() and measurableQuestIDs then
         UpdateDistances()
-        if not distanceTicker then
-            distanceTicker = C_Timer.NewTicker(1, function() UpdateDistances(false) end)
+        if not tickers.distance then
+            tickers.distance = C_Timer.NewTicker(1, function() UpdateDistances(false) end)
         end
     else
-        if distanceTicker then
-            distanceTicker:Cancel()
-            distanceTicker = nil
+        if tickers.distance then
+            tickers.distance:Cancel()
+            tickers.distance = nil
         end
         activeDirection = nil
         UpdateDirectionTicker()
@@ -1135,9 +1128,9 @@ local function RenderEmpty(message)
     combatQuestID = nil
     eligibleQuests, shownQuests, distanceOrder, measurableQuestIDs = nil, nil, nil, nil
     outing = nil
-    shownReason, shownRouteDetails, questMeasurements = nil, nil, nil
+    shown.reason, shown.routeDetails, questMeasurements = nil, nil, nil
     arrivalState = nil
-    flightQuestID = nil
+    flight.questID = nil
     questJourneys = nil
     objectiveLock, previousObjectives = nil, {}
     UpdateMapMarker()
@@ -1148,13 +1141,13 @@ end
 
 local function UpdateQuestieTicker()
     if TrackingVisible() and integration.IsReady() and (settings.useQuestieKillLocations or settings.showQuestieOffers) then
-        if not questieTicker then
-            questieTicker = C_Timer.NewTicker(5, ScheduleRefresh)
+        if not tickers.questie then
+            tickers.questie = C_Timer.NewTicker(5, ScheduleRefresh)
             ScheduleRefresh()
         end
-    elseif questieTicker then
-        questieTicker:Cancel()
-        questieTicker = nil
+    elseif tickers.questie then
+        tickers.questie:Cancel()
+        tickers.questie = nil
     end
 end
 
@@ -1427,12 +1420,12 @@ end
 local function ApplyQuestAction(action, value)
     if action == "prioritize" then addon.PauseExcursion() end
     local state = { held = heldQuest, manual = manualQuestID, lock = objectiveLock, outing = outing,
-        flying = isFlying, flightID = flightQuestID, quest = shownQuests and shownQuests[1],
+        flying = flight.active, flightID = flight.questID, quest = shownQuests and shownQuests[1],
         distances = objectiveDistances, avoided = avoidedObjectives, previous = previousObjectives,
         skipped = skippedQuestIDs, order = skipOrder }
     local effect = addon.QuestActions.Apply(state, action, value)
     heldQuest, manualQuestID, objectiveLock, outing = state.held, state.manual, state.lock, state.outing
-    flightQuestID, avoidedObjectives, skipOrder = state.flightID, state.avoided, state.order
+    flight.questID, avoidedObjectives, skipOrder = state.flightID, state.avoided, state.order
     if workspace then
         if effect.selection then
             workspace.pending = nil
@@ -1836,7 +1829,7 @@ local function OpenQuestMenu(owner, questID, isOffer)
                         print(L.AccessAppendUnavailable) return
                     end
                     local route = savedAccessPoints[questID][key]
-                    if isFlying then passedAccessPoints[questID .. ":" .. key] = nil
+                    if flight.active then passedAccessPoints[questID .. ":" .. key] = nil
                     else passedAccessPoints[questID .. ":" .. key] = {entry = route, revision = route.revision,
                         index = #addon.TravelSupport.AccessSteps(route) + 1} end
                     outing = nil
@@ -2442,9 +2435,9 @@ local function RegisterSettings()
         UpdateDirectionTicker = UpdateDirectionTicker,
         RestoreAvoidedObjectives = RestoreAvoidedObjectives,
         ShowDiagnostics = ShowDiagnostics,
-        DEFAULT_OPACITY = DEFAULT_OPACITY,
-        DEFAULT_OFFER_RADIUS = DEFAULT_OFFER_RADIUS,
-        MAX_OFFER_RADIUS = MAX_OFFER_RADIUS,
+        DEFAULT_OPACITY = LIMITS.DEFAULT_OPACITY,
+        DEFAULT_OFFER_RADIUS = LIMITS.DEFAULT_OFFER_RADIUS,
+        MAX_OFFER_RADIUS = LIMITS.MAX_OFFER_RADIUS,
     })
 end
 
@@ -2572,7 +2565,7 @@ local function AddonLoaded(name)
         settings.showTurnInStar = nil
         local radius = settings.questieOfferRadius
         settings.questieOfferRadius = type(radius) == "number" and radius >= 50
-            and radius <= MAX_OFFER_RADIUS and radius or DEFAULT_OFFER_RADIUS
+            and radius <= LIMITS.MAX_OFFER_RADIUS and radius or LIMITS.DEFAULT_OFFER_RADIUS
         settings.showDirectionArrow = settings.showDirectionArrow ~= false
         if settings.displayMode == "arrow" and not settings.showDirectionArrow then settings.displayMode = "full" end
         settings.hidden = settings.displayMode ~= "full"
@@ -2586,7 +2579,7 @@ local function AddonLoaded(name)
         settings.difficultyWords = settings.difficultyWords ~= false
         settings.sortByDistance = nil
         local opacity = settings.opacityPercent
-        settings.opacityPercent = type(opacity) == "number" and opacity >= 0 and opacity <= 100 and opacity or DEFAULT_OPACITY
+        settings.opacityPercent = type(opacity) == "number" and opacity >= 0 and opacity <= 100 and opacity or LIMITS.DEFAULT_OPACITY
         LoadSkippedQuests()
         local character = ForeverQuestNavigatorCharacterDB
         settings.rememberNavigation = settings.rememberNavigation ~= false
@@ -2605,9 +2598,9 @@ local function AddonLoaded(name)
         session = addon.Session.New(character.session, SessionTime())
         character.session = session.data
         if type(character.confirmedFlightPoints) ~= "table" then character.confirmedFlightPoints = {} end
-        confirmedFlightPoints = character.confirmedFlightPoints
+        flight.confirmedPoints = character.confirmedFlightPoints
         if type(character.flightRoutes) ~= "table" then character.flightRoutes = {} end
-        flightRoutes = character.flightRoutes
+        flight.routes = character.flightRoutes
 
         settingsCategory = RegisterSettings()
         local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
@@ -2802,9 +2795,9 @@ addon.EventController.Bind(events, {
         end
     end,
     taxi = function(event)
-        if event == "TAXIMAP_OPENED" then taxiMapOpen = true end
-        if event == "TAXIMAP_CLOSED" or event == "PLAYER_ENTERING_WORLD" then taxiMapOpen = false end
-        if taxiMapOpen and (event == "TAXIMAP_OPENED" or event == "TAXI_NODE_STATUS_CHANGED") then
+        if event == "TAXIMAP_OPENED" then flight.taxiMapOpen = true end
+        if event == "TAXIMAP_CLOSED" or event == "PLAYER_ENTERING_WORLD" then flight.taxiMapOpen = false end
+        if flight.taxiMapOpen and (event == "TAXIMAP_OPENED" or event == "TAXI_NODE_STATUS_CHANGED") then
             ConfirmFlightPoints()
         end
     end,

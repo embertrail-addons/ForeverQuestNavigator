@@ -356,6 +356,32 @@ return function(test, equal, near, mockUI, loadAddon)
         count = 0 controller:Refresh()
         equal(controller.hint, nil) equal(button.attributes.item, nil) equal(button:IsShown(), false)
     end)
+    test("Quest item polling stops while hidden and folds cooldown bursts into one refresh", function()
+        local _, tracker, _, _, _, render, _, _, _, env = Fixture()
+        env.InCombatLockdown = function() return false end
+        env.C_QuestLog = {GetLogIndexForQuestID = function() return 3 end, IsComplete = function() return false end}
+        env.GetQuestLogSpecialItemInfo = function() return "|Hitem:123|h[Signal]|h", 1234, nil, false end
+        env.GetItemCount = function() return 1 end
+        env.IsQuestLogSpecialItemInRange = function() return 1 end
+        env.GetQuestLogSpecialItemCooldown = function() return 0, 0 end
+        env.RegisterStateDriver = function() end
+        render()
+        local controller = tracker.questItem
+        assert(controller.hint) equal(controller:IsShown(), true)
+        local refreshes, refresh = 0, controller.Refresh
+        controller.Refresh = function(self) refreshes = refreshes + 1 return refresh(self) end
+        for _ = 1, 20 do controller.scripts.OnEvent(controller, "SPELL_UPDATE_COOLDOWN") end
+        equal(refreshes, 0)
+        controller.scripts.OnUpdate(controller, .05) equal(refreshes, 1)
+        tracker:Hide()
+        equal(controller:IsShown(), false)
+        refreshes = 0
+        for _ = 1, 5 do controller.scripts.OnEvent(controller, "SPELL_UPDATE_COOLDOWN") end
+        equal(refreshes, 0)
+        controller.scripts.OnEvent(controller, "PLAYER_REGEN_ENABLED") equal(refreshes, 1)
+        tracker:Show()
+        equal(controller:IsShown(), true)
+    end)
     test("Arrival instructions require evidence for item use and preserve entrance and turn-in actions", function()
         local addon = Fixture()
         local hints = addon.NavigationHints
