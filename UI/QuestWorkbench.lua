@@ -17,16 +17,23 @@ function addon.ShowQuestWorkbench(controller, mode)
         frame.help:SetPoint("TOPLEFT", 18, -88) frame.help:SetPoint("TOPRIGHT", -18, -88)
         frame.help:SetJustifyH("LEFT") frame.help:SetMaxLines(3)
         frame.search = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-        frame.search:SetSize(600, 24) frame.search:SetPoint("TOPLEFT", 23, -152)
+        frame.search:SetSize(600, 24) frame.search:SetPoint("TOPLEFT", 23, -136)
         frame.search:SetAutoFocus(false) frame.search:SetMaxLetters(120)
-        frame.search:SetScript("OnTextChanged", function() frame.page = 1 if frame.controller then frame:Refresh() end end)
+        frame.search:SetScript("OnTextChanged", function() frame.offset = 0 if frame.controller then frame:Refresh() end end)
+        frame.search:SetScript("OnEditFocusGained", function() frame.placeholder:Hide() end)
+        frame.search:SetScript("OnEditFocusLost", function() if frame.controller then frame:Refresh() end end)
+        frame.placeholder = addon.UI.CreateLabel(frame.search, "GameFontDisableSmall")
+        frame.placeholder:SetPoint("LEFT", 6, 0) frame.placeholder:SetText(L.FinderSearchPlaceholder)
+        frame:EnableMouseWheel(true)
+        frame:SetScript("OnMouseWheel", function(_, delta) frame:Scroll(-delta) end)
+        function frame:Scroll(delta) self.offset = (self.offset or 0) + delta self:Refresh() end
         frame.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
         addon.UI.BindTooltip(frame.search, function() return L.QuestFinder, L.FinderHelp end)
         frame.filters = {}
         for index, entry in ipairs({{"all", L.FinderAll}, {"active", L.FinderActive}, {"offer", L.FinderOffers}, {"skipped", L.FinderSkipped}}) do
             local kind = entry[1]
             frame.filters[index] = Button(frame, entry[2], 148, 18 + (index - 1) * 155, -185,
-                function() frame.kind, frame.page = kind, 1 frame:Refresh() end)
+                function() frame.kind, frame.offset = kind, 0 frame:Refresh() end)
             frame.filters[index].filterKind, frame.filters[index].filterLabel = kind, entry[2]
             frame.filters[index].selected = frame.filters[index]:CreateTexture(nil, "ARTWORK")
             frame.filters[index].selected:SetPoint("BOTTOMLEFT") frame.filters[index].selected:SetPoint("BOTTOMRIGHT")
@@ -39,6 +46,8 @@ function addon.ShowQuestWorkbench(controller, mode)
             row.textLabel:ClearAllPoints() row.textLabel:SetPoint("LEFT", 6, 0) row.textLabel:SetPoint("RIGHT", -220, 0)
             row.textLabel:SetJustifyH("LEFT") row.textLabel:SetMaxLines(2)
             row:SetScript("OnClick", function(self) if self.entry then frame.controller:Action("map", self.entry) end end)
+            row:EnableMouseWheel(true)
+            row:SetScript("OnMouseWheel", function(_, delta) frame:Scroll(-delta) end)
             local function RowAction(action)
                 return function() if row.entry then frame.controller:Action(action, frame.mode == "tour" and row.entry.index or row.entry) frame:Refresh() end end
             end
@@ -67,16 +76,16 @@ function addon.ShowQuestWorkbench(controller, mode)
             addon.UI.LinkQuestHover(row, function(self) return self.entry and self.entry.quest.id end)
             frame.rows[index] = row
         end
-        frame.previous = Button(frame, "<", 35, 18, -495, function() frame.page = math.max(1, frame.page - 1) frame:Refresh() end)
-        frame.next = Button(frame, ">", 35, 597, -495, function() frame.page = frame.page + 1 frame:Refresh() end)
-        frame.pageLabel = addon.UI.CreateLabel(frame, "GameFontHighlightSmall") frame.pageLabel:SetPoint("TOP", 0, -501)
+        frame.previous = Button(frame, "^", 26, 564, -471, function() frame:Scroll(-4) end)
+        frame.next = Button(frame, "v", 26, 596, -471, function() frame:Scroll(4) end)
+        frame.pageLabel = addon.UI.CreateLabel(frame, "GameFontDisableSmall") frame.pageLabel:SetPoint("TOPRIGHT", -80, -477)
         frame.start = Button(frame, L.StartTour, 148, 18, -539, function()
             frame.controller:Action(frame.model.running and "pause" or "start") frame:Refresh()
         end)
         frame.optimize = Button(frame, L.PreviewTourOrder, 148, 173, -539, function() frame.controller:Action("preview") frame:Refresh() end)
         frame.apply = Button(frame, L.ApplyTourOrder, 148, 328, -539, function() frame.controller:Action("apply") frame:Refresh() end)
         frame.cancelPreview = Button(frame, L.CancelPreview, 148, 483, -539, function() frame.controller:Action("cancelPreview") frame:Refresh() end)
-        frame.closing = Button(frame, L.PlanClosingRound, 148, 483, -539, function() frame.controller:Action("closing") frame.page = 1 frame:Refresh() end)
+        frame.closing = Button(frame, L.PlanClosingRound, 148, 483, -539, function() frame.controller:Action("closing") frame.offset = 0 frame:Refresh() end)
         frame.returnHere = Button(frame, L.ReturnHere, 200, 18, -578, function() frame.controller:Action("returnHere") frame:Refresh() end)
         frame.returnMap = Button(frame, L.ShowReturnPoint, 200, 225, -578, function()
             if frame.model.returnPoint then frame.controller:Action("map", {target = frame.model.returnPoint}) end
@@ -103,12 +112,12 @@ function addon.ShowQuestWorkbench(controller, mode)
             if frame.mode == "tour" and frame.model.preview then frame.controller:Action("cancelPreview") frame:Refresh()
             elseif frame.mode == "tour" then frame:SelectMode("finder")
             elseif frame.model.missingData then frame.controller.context.changed() frame:Refresh()
-            else frame.search:SetText("") frame.kind, frame.page = "all", 1 frame:Refresh() end
+            else frame.search:SetText("") frame.kind, frame.offset = "all", 0 frame:Refresh() end
         end)
         function frame:SelectMode(mode)
             self.pages = self.pages or {}
-            if self.mode then self.pages[self.mode] = self.page end
-            self.mode, self.page = mode, self.pages[mode] or 1
+            if self.mode then self.pages[self.mode] = self.offset end
+            self.mode, self.offset = mode, self.pages[mode] or 0
             self.hubPage = mode == "finder" and "finder" or "tour"
             self:Refresh()
             if self.embedded and addon.UI.ToolHub then addon.UI.ToolHub.Present(self, self.hubPage) end
@@ -124,14 +133,14 @@ function addon.ShowQuestWorkbench(controller, mode)
             local compactHeader = self.embedded and not model.pending and 40 or 0
             local layoutKey = self.mode .. ":" .. compactHeader
             if self.layoutMode ~= layoutKey then
-                self.layoutMode = layoutKey self:SetHeight((tour and 575 or 650) - compactHeader)
+                self.layoutMode = layoutKey self:SetHeight((tour and 575 or 610) - compactHeader)
                 self.help:ClearAllPoints() self.help:SetPoint("TOPLEFT", 18, -88 + compactHeader) self.help:SetPoint("TOPRIGHT", -18, -88 + compactHeader)
-                self.search:ClearAllPoints() self.search:SetPoint("TOPLEFT", 23, -152 + compactHeader)
-                for index, button in ipairs(self.filters) do button:ClearAllPoints() button:SetPoint("TOPLEFT", 18 + (index - 1) * 155, -185 + compactHeader) end
-                for index, row in ipairs(self.rows) do row:ClearAllPoints() row:SetPoint("TOPLEFT", 18, -(tour and 150 or 225) + compactHeader - (index - 1) * 52) end
-                self.previous:ClearAllPoints() self.previous:SetPoint("TOPLEFT", 18, (tour and -420 or -495) + compactHeader)
-                self.next:ClearAllPoints() self.next:SetPoint("TOPLEFT", 597, (tour and -420 or -495) + compactHeader)
-                self.pageLabel:ClearAllPoints() self.pageLabel:SetPoint("TOP", 0, (tour and -426 or -501) + compactHeader)
+                self.search:ClearAllPoints() self.search:SetPoint("TOPLEFT", 23, -136 + compactHeader)
+                for index, button in ipairs(self.filters) do button:ClearAllPoints() button:SetPoint("TOPLEFT", 18 + (index - 1) * 155, -169 + compactHeader) end
+                for index, row in ipairs(self.rows) do row:ClearAllPoints() row:SetPoint("TOPLEFT", 18, -(tour and 150 or 209) + compactHeader - (index - 1) * 52) end
+                self.previous:ClearAllPoints() self.previous:SetPoint("TOPLEFT", 564, (tour and -414 or -471) + compactHeader)
+                self.next:ClearAllPoints() self.next:SetPoint("TOPLEFT", 596, (tour and -414 or -471) + compactHeader)
+                self.pageLabel:ClearAllPoints() self.pageLabel:SetPoint("TOPRIGHT", -80, (tour and -420 or -477) + compactHeader)
                 self.returnHere:ClearAllPoints() self.returnHere:SetPoint("TOPLEFT", 18, (tour and -503 or -578) + compactHeader)
                 self.returnMap:ClearAllPoints() self.returnMap:SetPoint("TOPLEFT", 18, (tour and -503 or -578) + compactHeader)
                 self.returnMap:SetWidth(480)
@@ -141,6 +150,7 @@ function addon.ShowQuestWorkbench(controller, mode)
             end
             self.help:SetText(tour and (L.TourEditorHelp .. (model.returnPoint and ("\n" .. L.ReturnPointSaved:format(model.returnPoint.name)) or "")) or L.FinderHelp)
             self.search:SetShown(not tour)
+            self.placeholder:SetShown(not tour and (self.search:GetText() or "") == "" and not (self.search.HasFocus and self.search:HasFocus()))
             for _, button in ipairs(self.filters) do
                 button:SetShown(not tour) button.selected:SetShown(self.kind == button.filterKind)
                 button:SetText(button.filterLabel .. " (" .. model.counts[button.filterKind] .. ")")
@@ -148,19 +158,23 @@ function addon.ShowQuestWorkbench(controller, mode)
             self.resume:SetShown(model.pending)
             self.dismiss:SetShown(model.pending)
             local entries = tour and model.tour or model.entries
-            local pages = math.max(1, math.ceil(#entries / 5)) self.page = math.min(self.page, pages)
+            self.offset = math.max(0, math.min(self.offset or 0, #entries - #self.rows))
             for index, row in ipairs(self.rows) do
-                local entry = entries[(self.page - 1) * 5 + index]
+                local entry = entries[self.offset + index]
                 row.entry = entry row:SetShown(entry ~= nil)
                 if entry then
                     local symbol, state = addon.QuestState.Read(entry.quest, entry.kind == "offer", entry.quest.id == model.manualID)
                     local prefix = tour and (entry.index .. ". ") or entry.kind == "skipped" and "- " or (symbol .. " ")
+                    if not tour and entry.kind ~= "skipped" and addon.UI.iconLabels then
+                        prefix = addon.UI.ActionIcon(entry.kind == "offer" and "accept" or entry.quest.readyToTurnIn and "turnIn" or "objective") .. " "
+                    end
                     local stage = tour and (entry.stage == "turnIn" and L.StateTurnIn or L.StateObjective) or entry.kind == "skipped" and L.FinderSkipped or state
                     if not tour and entry.kind ~= "skipped" then
                         stage = entry.quest.failed and L.FinderFailed or entry.quest.disabled and L.FinderDisabled
                             or entry.quest.special and not entry.quest.readyToTurnIn and L.FinderSpecial or stage
                     end
-                    row:SetText(prefix .. addon.UI.FormatQuestTitle(entry.quest) .. "\n" .. stage .. " · " .. (entry.zone or L.UnknownZone))
+                    if addon.UI.iconLabels then stage = stage:gsub("^[>?!*] ", "") end
+                    row:SetText(prefix .. addon.UI.FormatQuestTitle(entry.quest, nil, nil, true) .. "\n" .. stage .. " · " .. (entry.zone or L.UnknownZone))
                     row.up:SetShown(tour) row.down:SetShown(tour) row.remove:SetShown(tour)
                     row.up:SetEnabled(tour and not model.preview and entry.index > 1)
                     row.down:SetEnabled(tour and not model.preview and entry.index < #entries)
@@ -174,9 +188,10 @@ function addon.ShowQuestWorkbench(controller, mode)
                     row.add:SetEnabled(usable and not model.inTour[entry.quest.id])
                 end
             end
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
-            self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
-            self.pageLabel:SetText(#entries > 0 and (self.page .. " / " .. pages) or "")
+            local scrolls = #entries > #self.rows
+            self.previous:SetEnabled(self.offset > 0) self.next:SetEnabled(self.offset + #self.rows < #entries)
+            self.previous:SetShown(scrolls) self.next:SetShown(scrolls)
+            self.pageLabel:SetText(scrolls and L.ListCount:format(self.offset + 1, math.min(#entries, self.offset + #self.rows), #entries) or "")
             self.start:SetShown(tour and not model.preview and (#model.tour > 0 or model.returnPoint ~= nil))
             self.optimize:SetShown(tour and #model.tour > 1 and not model.running and not model.preview)
             self.apply:SetShown(tour and model.preview) self.cancelPreview:SetShown(tour and model.preview)
@@ -205,7 +220,7 @@ function addon.ShowQuestWorkbench(controller, mode)
     end
     local changed = window.controller ~= controller
     window.controller = controller
-    if changed then window.pages, window.kind = {}, "all" window.mode, window.page = mode or "tour", 1 window.search:SetText("") end
+    if changed then window.pages, window.kind = {}, "all" window.mode, window.offset = mode or "tour", 0 window.search:SetText("") end
     window:SelectMode(mode or window.mode or "tour")
     addon.UI.ShowUtilityPanel(window, window.hubPage) return window
 end

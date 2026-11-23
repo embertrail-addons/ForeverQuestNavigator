@@ -56,24 +56,24 @@ function addon.ShowExcursion(plan, actions)
             window.rows[index] = row
         end
         window.previous = addon.UI.CreateUtilityButton(window, "<", 32, function() window.page = math.max(1, window.page - 1) window:Refresh() end)
-        window.previous:SetPoint("BOTTOMLEFT", 18, 87)
+        window.previous:SetPoint("BOTTOMRIGHT", -60, 120)
         window.next = addon.UI.CreateUtilityButton(window, ">", 32, function() window.page = window.page + 1 window:Refresh() end)
-        window.next:SetPoint("BOTTOMRIGHT", -18, 87)
+        window.next:SetPoint("BOTTOMRIGHT", -18, 120)
         window.dismiss = addon.UI.CreateUtilityButton(window, L.RoundDismiss, 280, function()
             if window.actions.dismiss then window.actions.dismiss() end
             window:Hide()
         end)
-        window.dismiss:SetPoint("BOTTOM", 0, 87)
+        window.dismiss:SetPoint("BOTTOMLEFT", 18, 120)
         window.budget = addon.UI.CreateUtilityButton(window, "", 280, function()
             local current = window.plan.budget or 0
             local value = current == 0 and 15 or current == 15 and 30 or current == 30 and 60 or 0
             if window.actions.budget then window.actions.budget(value, window.plan.excludedOffers) end
         end)
-        window.budget:SetPoint("BOTTOM", 0, 87)
+        window.budget:SetPoint("BOTTOMLEFT", 18, 120)
         window.timeHelp = addon.UI.CreateUtilityButton(window, L.DetailsShort, 75, function()
             addon.ShowTextWindow("timeBudget", L.AdventureTimeHelp, L.AdventureTimeTitle, L.AdventureReadOnly)
         end)
-        window.timeHelp:SetPoint("BOTTOMRIGHT", -60, 87)
+        window.timeHelp:SetPoint("LEFT", window.budget, "RIGHT", 8, 0)
         window.start = addon.UI.CreateUtilityButton(window, L.ExcursionStart, 280, function()
             local ok, message = window.actions.start(window.plan)
             window.status = message window:Refresh()
@@ -85,7 +85,7 @@ function addon.ShowExcursion(plan, actions)
         window.pause:SetPoint("BOTTOMRIGHT", -18, 16)
         window.info = addon.UI.CreateLabel(window, "GameFontDisableSmall")
         window.info:SetPoint("BOTTOMLEFT", 18, 50) window.info:SetPoint("BOTTOMRIGHT", -18, 50)
-        window.info:SetMaxLines(2) window.info:SetJustifyH("LEFT")
+        window.info:SetMaxLines(4) window.info:SetJustifyH("LEFT")
         window.undo = addon.UI.CreateUtilityButton(window, L.OfferUndoShort, 120, function()
             local ok, message = window.actions.undo()
             window.status = ok and L.UndoDone or message window:Refresh()
@@ -94,7 +94,11 @@ function addon.ShowExcursion(plan, actions)
         function window:Refresh()
             local p = self.plan
             local pages = math.max(1, math.ceil(#p.stops / 6)) self.page = math.min(self.page, pages)
-            self.summary:SetText(L.ExcursionSummary:format(#p.stops, p.xp, p.unknownXP, p.missing))
+            -- Only name what matters: zero counts are left out.
+            local parts = {(#p.stops == 1 and L.ExcursionStopOne or L.ExcursionStopMany):format(#p.stops), L.ExcursionKnownXP:format(p.xp or 0)}
+            if (p.unknownXP or 0) > 0 then parts[#parts + 1] = L.ExcursionUnknownRewards:format(p.unknownXP) end
+            if (p.missing or 0) > 0 then parts[#parts + 1] = L.ExcursionUnplanned:format(p.missing) end
+            self.summary:SetText(table.concat(parts, " · "))
             if (p.omittedPickups or 0) > 0 then self.summary:SetText(self.summary:GetText() .. "\n" .. L.MixedDetourOmitted:format(p.omittedPickups)) end
             if p.budget then self.summary:SetText(L.AdventureTimeRange:format(p.lowerMinutes, p.upperMinutes, p.budget, p.omitted)
                 .. "\n" .. self.summary:GetText()) end
@@ -111,7 +115,7 @@ function addon.ShowExcursion(plan, actions)
             if p.mixed and not p.started and not self.status then self.info:SetText(p.orderKnown and L.MixedRouteHelp or L.MixedUnknownRoute) end
             self.undo:SetShown(self.actions.canUndo and self.actions.canUndo() or false)
             self.info:SetPoint("BOTTOMRIGHT", self.undo:IsShown() and -150 or -18, 50)
-            local top, rowHeight = math.max(120, self.summary:GetStringHeight() + 64), 44
+            local top, rowHeight = math.max(76, self.summary:GetStringHeight() + 60), 30
             for index, row in ipairs(self.rows) do
                 local stop = p.stops[(self.page - 1) * 6 + index]
                 row.stop = stop row:SetShown(stop ~= nil)
@@ -119,7 +123,9 @@ function addon.ShowExcursion(plan, actions)
                 row.skip:SetShown(skippable == true) row.choices:SetShown(skippable == true)
                 row.skip:SetHeight(math.max(24, row.skip.textLabel:GetStringHeight() + 8))
                 row.textLabel:SetPoint("RIGHT", skippable and -135 or -8, 0)
-                if stop then row:SetText((stop.done and "[x] " or "") .. L["ExcursionAction_" .. stop.action] .. ": " .. addon.UI.FormatQuestTitle(stop.quest)
+                local icon = stop and addon.UI.iconLabels and (addon.UI.ActionIcon(stop.action) .. " ") or ""
+                if stop then row:SetText((stop.done and "[x] " or "") .. icon .. L["ExcursionAction_" .. stop.action] .. ": "
+                    .. addon.UI.FormatQuestTitle(stop.quest, nil, nil, stop.action == "turnIn")
                     .. (p.running and (self.page - 1) * 6 + index == p.index and ("\n" .. L.ExcursionCurrent) or ""))
                     rowHeight = math.max(rowHeight, row.textLabel:GetStringHeight() + 12)
                     if skippable then rowHeight = math.max(rowHeight, row.skip:GetHeight() + 8) end
@@ -129,7 +135,7 @@ function addon.ShowExcursion(plan, actions)
             for index, row in ipairs(self.rows) do
                 row:ClearAllPoints() row:SetPoint("TOPLEFT", 18, -top - (index - 1) * (rowHeight + 6)) row:SetHeight(rowHeight)
             end
-            self:SetHeight(math.max(350, top + visible * (rowHeight + 6) + 130))
+            self:SetHeight(math.max(330, top + visible * (rowHeight + 6) + 160))
             self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
             self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
             self.start:SetEnabled(#p.stops > 0 and p.index <= #p.stops and not p.running and not p.needsReview and not p.unverified) self.pause:SetEnabled(p.running)

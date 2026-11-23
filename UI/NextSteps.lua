@@ -99,7 +99,7 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
         self.caption:SetText(L.BriefNext)
         self.caption:SetShown(#model.steps > 0)
         self.caption:SetHeight(math.max(18, self.caption:GetStringHeight()))
-        y = #model.steps > 0 and self.caption:GetHeight() + 6 or 0
+        y = #model.steps > 0 and self.caption:GetHeight() + 2 or 0
         for index, row in ipairs(self.rows) do
             local step = index == 1 and model.steps[index] or nil
             row.step = step row:SetShown(step ~= nil)

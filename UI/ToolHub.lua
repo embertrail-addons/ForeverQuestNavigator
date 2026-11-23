@@ -71,7 +71,7 @@ function Hub.Resize()
         ratio = (root.GetEffectiveScale and root:GetEffectiveScale() or 1) / parentScale
         if left and top then left, top = left * ratio, top * ratio end
     end
-    local width, height = frame:GetWidth() + 190, math.max(430, frame:GetHeight() + 70)
+    local width, height = frame:GetWidth() + 190, math.max(430, frame:GetHeight() + 46)
     root:SetSize(width, height)
     local availableWidth = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 1024
     local availableHeight = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 768
@@ -189,7 +189,8 @@ function Hub.Present(frame, key)
     Hub.active, Hub.key = frame, key
     Hub.lastPages = Hub.lastPages or {} Hub.lastPages[page.group.key] = key
     frame.hubPage, frame.embedded = key, true
-    frame:SetParent(Hub.root) frame:ClearAllPoints() frame:SetPoint("TOPLEFT", 174, -56)
+    -- Embedded pages hide their own heading, so they start 24 px higher, right below the tabs.
+    frame:SetParent(Hub.root) frame:ClearAllPoints() frame:SetPoint("TOPLEFT", 174, -32)
     if frame.closeButton then frame.closeButton:Hide() end
     -- The tab already names the page; the panel's own heading would repeat it.
     if frame.heading then frame.heading:Hide() end

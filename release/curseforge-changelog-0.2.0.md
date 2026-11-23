@@ -16,6 +16,8 @@ Larger update: easier first steps, one tool window, new planning aids and option
 - **Settings:** compact rows with a short help line, eight at once, scrolling with the mouse wheel instead of pages; search field with placeholder; buttons read "Show all settings" and "Area: ...".
 - **Tool window:** Back is a small link, embedded pages no longer repeat their title, and every window closes with the same "×".
 - **Direction display:** the objective text uses all space left of the distance.
+- **Tool pages:** embedded pages start right below the tabs; zone overview and quest search scroll with the mouse wheel (7 zones at once) instead of pages; quest search has a placeholder and quest symbols instead of ">" and "?"; outing rows are compact with symbols, the summary leaves out zero counts and its help text is no longer cut off; the session recap shows in full under a gold heading.
+- **Texts:** "Next" no longer repeats in "Then work on"; singular/plural in zone counts.
 
 ## Planning
 

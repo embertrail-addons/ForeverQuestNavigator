@@ -30,7 +30,7 @@ end
 
 function addon.ShowSessionDashboard(getSession, now, suggest)
     if not dashboard then
-        dashboard = Panel(570, 540, L.SessionTitle)
+        dashboard = Panel(570, 580, L.SessionTitle)
         dashboard.cards, dashboard.rows = {}, {}
         local labels = { L.StatTime, L.StatXP, L.StatTurnIns, L.StatQuestXP, L.StatLevels, L.StatUnknownRewards }
         for index, text in ipairs(labels) do
@@ -66,9 +66,11 @@ function addon.ShowSessionDashboard(getSession, now, suggest)
             end)
             dashboard.rows[index] = row
         end
+        dashboard.recapTitle = addon.UI.CreateLabel(dashboard, "GameFontNormalSmall")
+        dashboard.recapTitle:SetPoint("TOPLEFT", 16, -420) dashboard.recapTitle:SetText(L.RecapTitle)
         dashboard.recap = addon.UI.CreateLabel(dashboard, "GameFontHighlightSmall")
-        dashboard.recap:SetPoint("TOPLEFT", 16, -420) dashboard.recap:SetPoint("TOPRIGHT", -16, -420)
-        dashboard.recap:SetJustifyH("LEFT") dashboard.recap:SetMaxLines(4)
+        dashboard.recap:SetPoint("TOPLEFT", 16, -440) dashboard.recap:SetPoint("TOPRIGHT", -16, -440)
+        dashboard.recap:SetJustifyH("LEFT") dashboard.recap:SetMaxLines(8)
         dashboard.copy = Button(dashboard, L.CopySummary, 160, function()
             dashboard:Refresh()
             addon.ShowTextWindow("session-copy", dashboard.copyText, L.CopySummary, L.DebugCopyHint)
@@ -88,7 +90,7 @@ function addon.ShowSessionDashboard(getSession, now, suggest)
             self.copyText = session:Describe(current)
             if session.Recap then
                 local recap = session:Recap(current, self.suggest and self.suggest())
-                self.recap:SetText(L.RecapTitle .. "\n" .. recap)
+                self.recap:SetText(recap)
                 self.copyText = self.copyText .. "\n\n" .. recap
             end
             self.offset = math.min(self.offset, math.max(0, #data.recent - 5))

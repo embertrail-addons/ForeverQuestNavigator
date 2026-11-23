@@ -217,7 +217,7 @@ function addon.UI.FlowLinks(links, y, width, scale)
             local label = button.textLabel
             label:ClearAllPoints() label:SetPoint("LEFT", 0, 0) label:SetMaxLines(1) label:SetJustifyH("LEFT")
             local linkWidth = math.min(width, (label:GetStringWidth() or 0) + 4)
-            if x > 0 and x + linkWidth > width then x, y = 0, y + lineHeight + 4 end
+            if x > 0 and x + linkWidth > width then x, y = 0, y + lineHeight + 2 end
             button:ClearAllPoints() button:SetPoint("TOPLEFT", x, -y) button:SetSize(linkWidth, lineHeight)
             x, any = x + linkWidth + 16, true
         end

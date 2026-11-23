@@ -56,6 +56,43 @@ function addon.UI.RefreshWhileShown(frame, interval)
     end)
 end
 
+-- Turns a fixed set of rows into a mouse-wheel scrolled list with ^ / v buttons and
+-- an "a-b of n" label. window.offset is the first shown entry (0-based).
+-- Call scroller:Clamp(count) before filling rows and scroller:Update(count) afterwards.
+function addon.UI.AttachScroller(window, rows, refresh, bottom)
+    window.offset = window.offset or 0
+    local function Scroll(delta)
+        window.offset = (window.offset or 0) + delta
+        refresh()
+    end
+    window:EnableMouseWheel(true)
+    window:SetScript("OnMouseWheel", function(_, delta) Scroll(-delta) end)
+    for _, row in ipairs(rows) do
+        if row.EnableMouseWheel then row:EnableMouseWheel(true) end
+        row:SetScript("OnMouseWheel", function(_, delta) Scroll(-delta) end)
+    end
+    local scroller = {}
+    scroller.up = addon.UI.CreateWindowButton(window, "^", 26, function() Scroll(-(#rows - 1)) end)
+    scroller.up:SetPoint("BOTTOMRIGHT", -50, bottom or 14)
+    scroller.down = addon.UI.CreateWindowButton(window, "v", 26, function() Scroll(#rows - 1) end)
+    scroller.down:SetPoint("BOTTOMRIGHT", -18, bottom or 14)
+    scroller.label = addon.UI.CreateLabel(window, "GameFontDisableSmall")
+    scroller.label:SetPoint("RIGHT", scroller.up, "LEFT", -10, 0)
+    function scroller:Clamp(count)
+        window.offset = math.max(0, math.min(window.offset or 0, count - #rows))
+        return window.offset
+    end
+    function scroller:Update(count)
+        local scrolls = count > #rows
+        self.up:SetShown(scrolls) self.down:SetShown(scrolls)
+        self.up:SetEnabled(window.offset > 0) self.down:SetEnabled(window.offset + #rows < count)
+        self.label:SetText(scrolls and addon.L.ListCount:format(window.offset + 1, math.min(count, window.offset + #rows), count) or "")
+    end
+    function scroller:Scroll(delta) Scroll(delta) end
+    window.scroller = scroller
+    return scroller
+end
+
 -- Compatibility names used across the UI files.
 addon.UI.CreateUtilityPanel = addon.UI.CreateWindow
 addon.UI.CreateUtilityButton = addon.UI.CreateWindowButton
