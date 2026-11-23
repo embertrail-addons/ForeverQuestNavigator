@@ -636,7 +636,7 @@ return function(test, equal, near, mockUI, loadAddon)
         for _, locale in ipairs({"enUS", "deDE"}) do
             for _, width in ipairs({330, 440, 640}) do
                 for _, size in ipairs({80, 140}) do
-                    local _, tracker, settings, _, _, _, b = Fixture(locale)
+                    local addon, tracker, settings, _, _, _, b = Fixture(locale)
                     settings.navigatorLayout, settings.fontPercent = "guided", size
                     tracker:SetWidth(width) tracker:UpdateFontSize()
                     b.title = string.rep("Long quest title with words ", 8)
@@ -645,9 +645,11 @@ return function(test, equal, near, mockUI, loadAddon)
                     row.label.GetStringHeight = function() return 44 end
                     board.plan.textLabel.GetStringHeight = function() return 40 end
                     tracker:UpdateNavigatorLayout()
-                    assert(row:GetHeight() >= 44 + 24 + 10)
-                    assert(board.plan:GetHeight() >= 48)
-                    assert(-row.detail.points.TOPRIGHT[2] >= 86 * size / 100 + row.distance:GetStringWidth() + 8)
+                    local scale = size / 100
+                    assert(row:GetHeight() >= 44 + addon.UI.ButtonHeight(scale) + 6)
+                    if board.plan:IsShown() then near(board.plan:GetHeight(), math.max(18, 18 * scale)) end
+                    local menuWidth = row.menu:IsShown() and 26 * scale + 4 or 0
+                    assert(-row.detail.points.TOPRIGHT[2] >= 48 * scale + menuWidth + row.distance:GetStringWidth() + 16)
                     equal(row.parent, board) equal(board.parent, tracker.scrollBody)
                     assert(tracker:GetHeight() <= (settings.trackerMaxHeight or 600))
                 end
@@ -792,7 +794,8 @@ return function(test, equal, near, mockUI, loadAddon)
                 equal(board.rows[2]:IsShown(), false) equal(board.closing:IsShown(), false)
                 board.tour:Click() equal(preview, quest.id) equal(#skipped, 0)
                 board.review:Click() equal(recap, true)
-                assert(board.tour:GetHeight() > 20)
+                assert(board.tourInfo:IsShown()) assert(board.tourInfo:GetText():find("Camp", 1, true))
+                assert(board.tourInfo:GetText():find(addon.L.TourCardPickupMany:format(2), 1, true))
                 tracker:SetDecisionBrief({steps = {}, closing = {}})
                 equal(board.tour:IsShown(), false) equal(board.plan:IsShown(), false)
                 equal(board.caption:IsShown(), false) equal(board.review:IsShown(), false)
@@ -942,6 +945,39 @@ return function(test, equal, near, mockUI, loadAddon)
         window.filterScope = "logic" window:Refresh()
         equal(window.rows[1].entry.key, "repeatablePolicy") equal(window.rows[2]:IsShown(), false)
         assert(window.examples:IsShown())
+    end)
+    test("Settings list scrolls compact rows with help text instead of paging", function()
+        local addon, _, settings = Fixture()
+        local entries = {}
+        for index = 1, 12 do
+            entries[index] = {key = "k" .. index, name = "Setting " .. index, help = "Help " .. index, basic = true,
+                effect = "view", kind = "boolean", control = {SetValue = function() end}}
+        end
+        local window = addon.ShowQuickSettings(entries, settings, function() end)
+        equal(#window.rows, 8) equal(window.rows[1].help.text, "Help 1") equal(window.rows[8]:IsShown(), true)
+        assert(window.placeholder:IsShown()) assert(window.pageLabel.text:find("12", 1, true))
+        window.scripts.OnMouseWheel(window, -1)
+        equal(window.rows[1].entry.key, "k2")
+        window:Scroll(50) equal(window.rows[1].entry.key, "k5") equal(window.next.enabled, false)
+        window.search:SetText("Setting 1") window.search.scripts.OnTextChanged(window.search)
+        equal(window.offset, 0) equal(window.placeholder:IsShown(), false)
+    end)
+    test("Text links wrap into new lines and turn-in steps do not repeat the state word", function()
+        local addon = Fixture()
+        local links = {}
+        for index = 1, 3 do
+            local link = addon.UI.StyleLink(addon.UI.MakeButton(addon.UI.CreateWindow(100, 100, "x", {hub = false})))
+            link:Show() link.textLabel.GetStringWidth = function() return 100 end
+            links[index] = link
+        end
+        local y = addon.UI.FlowLinks(links, 0, 250, 1)
+        equal(links[1].point[2], 0) equal(links[2].point[2], 120) equal(links[3].point[2], 0)
+        equal(links[3].point[3], -22) equal(y, 22 + 18 + 6)
+        links[2]:Hide()
+        addon.UI.FlowLinks(links, 0, 250, 1) equal(links[3].point[2], 120)
+        local summary = addon.PickupPlanning.AreaSummary({active = 1, pickups = 1, handIns = 2, xp = 10})
+        assert(summary:find(addon.L.TourCardPickupOne:format(1), 1, true))
+        assert(summary:find(addon.L.TourCardHandInMany:format(2), 1, true))
     end)
     test("Setup applies only clicked choices on Finish and Skip changes nothing", function()
         local addon = Fixture()

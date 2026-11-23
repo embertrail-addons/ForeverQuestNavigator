@@ -111,7 +111,7 @@ local function EnsureRoot()
     addon.UI.Theme.WatchFrame(root)
     root.heading = addon.UI.CreateLabel(root, "GameFontNormal")
     root.heading:SetPoint("TOPLEFT", 18, -16) root.heading:SetText("Forever Quest Navigator")
-    root.close = addon.UI.CreateUtilityButton(root, "X", 28, function() root:Hide() end)
+    root.close = addon.UI.CreateUtilityButton(root, "×", 28, function() root:Hide() end)
     root.close:SetPoint("TOPRIGHT", -10, -10)
     root.back = addon.UI.CreateUtilityButton(root, L.HubBack, 140, function()
         local entry = table.remove(Hub.history)
@@ -122,7 +122,9 @@ local function EnsureRoot()
             Hub.restoring = nil
         end
     end)
-    root.back:SetPoint("TOPLEFT", 18, -49)
+    root.back:SetPoint("TOPLEFT", 14, -42) root.back:SetSize(90, 20)
+    -- Back is navigation history, not a section: show it as a quiet link.
+    if addon.UI.StyleLink then addon.UI.StyleLink(root.back) end
     root.navigation = {}
     for index, group in ipairs(Hub.groups) do
         local key = group.key
@@ -189,6 +191,8 @@ function Hub.Present(frame, key)
     frame.hubPage, frame.embedded = key, true
     frame:SetParent(Hub.root) frame:ClearAllPoints() frame:SetPoint("TOPLEFT", 174, -56)
     if frame.closeButton then frame.closeButton:Hide() end
+    -- The tab already names the page; the panel's own heading would repeat it.
+    if frame.heading then frame.heading:Hide() end
     frame:SetScript("OnDragStart", function() Hub.root:StartMoving() end)
     frame:SetScript("OnDragStop", function() Hub.root:StopMovingOrSizing() end)
     addon.UI.Theme.Frame(frame, 0)

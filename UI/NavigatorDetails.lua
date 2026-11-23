@@ -91,6 +91,7 @@ function addon.CreateNavigatorDetails(owner, settings)
                 hub.switching = true hub.Hide() hub.active, hub.key = nil, nil hub.switching = nil
             end
             self.hubStandalone, self.embedded = true, false
+            if self.heading then self.heading:Show() end
             -- A drawer follows its owner. Free dragging here would be undone by
             -- the next snapshot; embedded mode gets the hub's drag handlers.
             self:SetScript("OnDragStart", function() end)

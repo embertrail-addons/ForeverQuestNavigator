@@ -1267,7 +1267,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     local content = frames[6]
     local title, objective = content.labels[1], content.labels[2]
     equal(reads, 1)
-    equal(header.labels[2].text, "v0.1.54")
+    equal(header.labels[2], nil) equal(tracker.version, "0.1.54")
     equal(table.concat(sections, ", "), "General, Recommendations, Navigation, Appearance, Diagnostics")
     equal(tracker.backdropAlpha, 0.8)
     equal(env.ForeverQuestNavigatorDB.questieOfferRadius, 350)

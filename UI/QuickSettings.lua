@@ -1,6 +1,7 @@
 local _, addon = ...
 local L = addon.L
 local window
+local ROWS, ROW_HEIGHT, ROW_GAP, ROWS_TOP = 8, 38, 4, 112
 local function Fold(text)
     return (text:gsub("[A-Z]", function(letter) return string.char(letter:byte() + 32) end)
         :gsub("Ä", "ä"):gsub("Ö", "ö"):gsub("Ü", "ü"):gsub("ẞ", "ß"))
@@ -27,19 +28,23 @@ local function Display(entry, value)
 end
 function addon.ShowQuickSettings(catalog, settings, advancedAction)
     if not window then
-        window = addon.UI.CreateUtilityPanel(570, 430, L.QuickSettings)
+        window = addon.UI.CreateUtilityPanel(570, ROWS_TOP + ROWS * (ROW_HEIGHT + ROW_GAP) + 64, L.QuickSettings)
         window.search = CreateFrame("EditBox", nil, window, "InputBoxTemplate")
         window.search:SetSize(340, 24) window.search:SetPoint("TOPLEFT", 23, -52)
         window.search:SetAutoFocus(false) window.search:SetMaxLetters(80)
         window.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
         addon.UI.BindTooltip(window.search, function() return L.SearchSettings, L.SearchSettingsHelp end)
-        window.search:SetScript("OnTextChanged", function() window.page = 1 if window.catalog then window:Refresh() end end)
+        window.search:SetScript("OnTextChanged", function() window.offset = 0 if window.catalog then window:Refresh() end end)
+        window.search:SetScript("OnEditFocusGained", function() window.placeholder:Hide() end)
+        window.search:SetScript("OnEditFocusLost", function() window:Refresh() end)
+        window.placeholder = addon.UI.CreateLabel(window.search, "GameFontDisableSmall")
+        window.placeholder:SetPoint("LEFT", 6, 0) window.placeholder:SetText(L.SearchSettings)
         window.search:SetText("")
-        window.clearQuery = addon.UI.CreateUtilityButton(window, "X", 18, function() window.search:SetText("") window.page = 1 window:Refresh() end)
+        window.clearQuery = addon.UI.CreateUtilityButton(window, "×", 18, function() window.search:SetText("") window.offset = 0 window:Refresh() end)
         window.clearQuery:SetPoint("TOPLEFT", 365, -52)
         addon.UI.BindTooltip(window.clearQuery, function() return L.ClearSearch end)
         window.advanced = addon.UI.CreateUtilityButton(window, L.AdvancedSettings, 165, function()
-            window.showAdvanced = not window.showAdvanced window.page = 1 window:Refresh()
+            window.showAdvanced = not window.showAdvanced window.offset = 0 window:Refresh()
         end)
         window.advanced:SetPoint("TOPRIGHT", -18, -52)
         window.searchHint = addon.UI.CreateLabel(window, "GameFontDisableSmall")
@@ -52,7 +57,7 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
                 menu:CreateTitle(L.SettingsScope)
                 for _, key in ipairs({"all", "view", "logic"}) do
                     local scope = key
-                    menu:CreateButton(L["SettingsScope_" .. key], function() window.filterScope, window.page = scope, 1 window:Refresh() end)
+                    menu:CreateButton(L["SettingsScope_" .. key], function() window.filterScope, window.offset = scope, 0 window:Refresh() end)
                 end
             end)
         end)
@@ -62,11 +67,17 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
         end)
         window.examples:SetPoint("TOPRIGHT", -18, -80)
         window.rows = {}
-        for index = 1, 5 do
+        for index = 1, ROWS do
             local row = addon.UI.CreateUtilityButton(window, "", 534, function() end)
-            row:SetHeight(42) row:SetPoint("TOPLEFT", 18, -108 - (index - 1) * 48)
-            row.textLabel:ClearAllPoints() row.textLabel:SetPoint("LEFT", 8, 0) row.textLabel:SetPoint("RIGHT", -168, 0)
-            row.textLabel:SetJustifyH("LEFT") row.textLabel:SetMaxLines(2)
+            row:SetHeight(ROW_HEIGHT) row:SetPoint("TOPLEFT", 18, -ROWS_TOP - (index - 1) * (ROW_HEIGHT + ROW_GAP))
+            row.textLabel:ClearAllPoints() row.textLabel:SetPoint("TOPLEFT", 8, -5) row.textLabel:SetPoint("TOPRIGHT", -168, -5)
+            row.textLabel:SetJustifyH("LEFT") row.textLabel:SetMaxLines(1)
+            -- Short help under the name, so the meaning is visible without hovering.
+            row.help = addon.UI.CreateLabel(row, "GameFontDisableSmall")
+            row.help:SetPoint("BOTTOMLEFT", 8, 5) row.help:SetPoint("BOTTOMRIGHT", -168, 5)
+            row.help:SetJustifyH("LEFT") row.help:SetMaxLines(1)
+            row:EnableMouseWheel(true)
+            row:SetScript("OnMouseWheel", function(_, delta) window:Scroll(-delta) end)
             row.value = addon.UI.CreateLabel(row, "GameFontNormalSmall")
             row.value:SetPoint("RIGHT", -40, 0) row.value:SetWidth(66) row.value:SetJustifyH("CENTER")
             row.minus = addon.UI.CreateUtilityButton(row, "-", 28, function() window:Change(row.entry, -1) end)
@@ -91,17 +102,24 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
             end
             window.rows[index] = row
         end
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 30, function() window.page = math.max(1, window.page - 1) window:Refresh() end)
-        window.previous:SetPoint("BOTTOMLEFT", 18, 52)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 30, function() window.page = window.page + 1 window:Refresh() end)
-        window.next:SetPoint("BOTTOMRIGHT", -18, 52)
-        window.pageLabel = addon.UI.CreateLabel(window, "GameFontHighlightSmall") window.pageLabel:SetPoint("BOTTOM", 0, 58)
+        window:EnableMouseWheel(true)
+        window:SetScript("OnMouseWheel", function(_, delta) window:Scroll(-delta) end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 26, function() window:Scroll(-ROWS + 1) end)
+        window.previous:SetPoint("BOTTOMRIGHT", -50, 18)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 26, function() window:Scroll(ROWS - 1) end)
+        window.next:SetPoint("BOTTOMRIGHT", -18, 18)
+        window.pageLabel = addon.UI.CreateLabel(window, "GameFontDisableSmall")
+        window.pageLabel:SetPoint("RIGHT", window.previous, "LEFT", -10, 0)
+        function window:Scroll(delta)
+            self.offset = (self.offset or 0) + delta
+            self:Refresh()
+        end
         window.native = addon.UI.CreateUtilityButton(window, L.AllSettings, 250, function() window:Hide() window.advancedAction() end)
         window.native:SetPoint("BOTTOMLEFT", 18, 14)
         window.empty = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.empty:SetPoint("TOPLEFT", 24, -130) window.empty:SetPoint("TOPRIGHT", -24, -130)
         window.empty:SetJustifyH("CENTER") window.empty:SetText(L.NoSettingsMatch)
-        window.clear = addon.UI.CreateUtilityButton(window, L.ClearSearch, 220, function() window.search:SetText("") window.page = 1 window:Refresh() end)
+        window.clear = addon.UI.CreateUtilityButton(window, L.ClearSearch, 220, function() window.search:SetText("") window.offset = 0 window:Refresh() end)
         window.clear:SetPoint("TOP", 0, -175)
         function window:Choose(entry)
             if not entry or not entry.choices then return end
@@ -125,15 +143,18 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
         end
         function window:Refresh()
             local entries = addon.FilterSettings(self.catalog, self.search:GetText(), self.showAdvanced, self.filterScope)
-            self.scope:SetText(L["SettingsScope_" .. (self.filterScope or "all")])
-            local pages = math.max(1, math.ceil(#entries / 5)) self.page = math.min(self.page, pages)
-            self.advanced:SetText((self.showAdvanced and "[-] " or "[+] ") .. L.AdvancedSettings)
+            self.scope:SetText(L.SettingsScopeLabel:format(L["SettingsScope_" .. (self.filterScope or "all")]))
+            self.offset = math.max(0, math.min(self.offset or 0, #entries - ROWS))
+            self.advanced:SetText(self.showAdvanced and L.SettingsShowEssential or L.SettingsShowAll)
+            local query = self.search:GetText() or ""
+            self.placeholder:SetShown(query == "" and not (self.search.HasFocus and self.search:HasFocus()))
             for index, row in ipairs(self.rows) do
-                local entry = entries[(self.page - 1) * 5 + index]
+                local entry = entries[self.offset + index]
                 row.entry = entry row:SetShown(entry ~= nil)
                 if entry then
                     local value = self.settings[entry.key]
                     row:SetText(entry.name)
+                    row.help:SetText(entry.help or "")
                     row.toggle:SetShown(entry.kind == "boolean") row.toggle:SetChecked(value == true)
                     row.choose:SetShown(entry.choices ~= nil)
                     row.choose:SetText(Display(entry, value) .. " v")
@@ -142,15 +163,16 @@ function addon.ShowQuickSettings(catalog, settings, advancedAction)
                     if entry.minimum then row.minus:SetEnabled(value > entry.minimum) row.plus:SetEnabled(value < entry.maximum) end
                 end
             end
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
-            self.clearQuery:SetShown((self.search:GetText() or "") ~= "")
-            self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
+            local scrolls = #entries > ROWS
+            self.previous:SetEnabled(self.offset > 0) self.next:SetEnabled(self.offset + ROWS < #entries)
+            self.clearQuery:SetShown(query ~= "")
+            self.previous:SetShown(scrolls) self.next:SetShown(scrolls)
             self.empty:SetShown(#entries == 0) self.clear:SetShown(#entries == 0)
-            self.pageLabel:SetText(#entries > 0 and (self.page .. " / " .. pages) or "")
+            self.pageLabel:SetText(scrolls and L.SettingsCount:format(self.offset + 1, math.min(#entries, self.offset + ROWS), #entries) or "")
         end
     end
     window.catalog, window.settings, window.advancedAction = catalog, settings, advancedAction
-    window.page = window.page or 1
+    window.offset = window.offset or 0
     window:Refresh() addon.UI.ShowUtilityPanel(window)
     return window
 end

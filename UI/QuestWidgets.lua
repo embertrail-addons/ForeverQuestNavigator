@@ -143,7 +143,8 @@ function addon.UI.SetFontSize(percent)
     end
 end
 
-local function FormatQuestTitle(quest, colored, playerLevel)
+-- omitState: leave out the trailing state word when the caller already names it (e.g. "Turn in: ...").
+local function FormatQuestTitle(quest, colored, playerLevel, omitState)
     local title = quest.title
     if not title or title == "" then
         title = L.QuestNumber:format(quest.id)
@@ -158,7 +159,9 @@ local function FormatQuestTitle(quest, colored, playerLevel)
         result = ("|cff%02x%02x%02x[%d]|r %s"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), level, title)
     end
     if (quest.elite or quest.group) and not colored then result = result .. " |cffffc447+|r" end
-    if settings and settings.difficultyWords and difficulty then result = result .. " · " .. (quest.readyToTurnIn and L.TurnInAction or L["DifficultyShort_" .. difficulty]) end
+    if settings and settings.difficultyWords and difficulty and not (omitState and quest.readyToTurnIn) then
+        result = result .. " · " .. (quest.readyToTurnIn and L.TurnInAction or L["DifficultyShort_" .. difficulty])
+    end
     if quest.progress and quest.progress.nearly then result = result .. " (" .. L.NearlyDone .. ")" end
     return result
 end
@@ -189,8 +192,37 @@ local function MakeButton(parent)
     local background = button:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
     addon.UI.Theme.Bind(background, "button")
+    button.background = background
     addon.UI.AddRowHighlight(button)
     return button
+end
+
+-- One height for small action buttons (Map, ..., Why) so a row never mixes sizes.
+function addon.UI.ButtonHeight(scale) return math.max(22, 20 * (scale or 1)) end
+
+-- Text link: no button background, theme accent colour, sized to its text.
+function addon.UI.StyleLink(button)
+    if button.background then button.background:Hide() end
+    button.isLink = true
+    button:SetNormalFontObject(addon.UI.GetFont("GameFontNormalSmall"))
+    addon.UI.Theme.Bind(button.textLabel, "heading", nil, "text")
+    return button
+end
+
+-- Lays out shown link buttons left to right, wrapping into new lines. Returns the new y.
+function addon.UI.FlowLinks(links, y, width, scale)
+    local x, lineHeight, any = 0, math.max(18, 18 * (scale or 1)), false
+    for _, button in ipairs(links) do
+        if button:IsShown() then
+            local label = button.textLabel
+            label:ClearAllPoints() label:SetPoint("LEFT", 0, 0) label:SetMaxLines(1) label:SetJustifyH("LEFT")
+            local linkWidth = math.min(width, (label:GetStringWidth() or 0) + 4)
+            if x > 0 and x + linkWidth > width then x, y = 0, y + lineHeight + 4 end
+            button:ClearAllPoints() button:SetPoint("TOPLEFT", x, -y) button:SetSize(linkWidth, lineHeight)
+            x, any = x + linkWidth + 16, true
+        end
+    end
+    return any and (y + lineHeight + 6) or y
 end
 
 local function AddRowBackground(row, index)

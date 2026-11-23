@@ -209,7 +209,11 @@ end
 function Planning.AreaSummary(area)
     local xp = (area.unknownXP or 0) > 0 and (area.xp or 0) == 0 and addon.L.UnknownXP
         or addon.L.QuestXPReward:format(area.xp or 0) .. ((area.unknownXP or 0) > 0 and " + ?" or "")
-    return addon.L.TourCard:format(area.active or 0, area.pickups or 0, area.handIns or 0, xp)
+    local L = addon.L
+    local function Count(value, one, many) value = value or 0 return (value == 1 and one or many):format(value) end
+    return table.concat({Count(area.active, L.TourCardActiveOne, L.TourCardActiveMany),
+        Count(area.pickups, L.TourCardPickupOne, L.TourCardPickupMany),
+        Count(area.handIns, L.TourCardHandInOne, L.TourCardHandInMany), xp}, " · ")
 end
 
 function Planning.ClassLabel(offer)

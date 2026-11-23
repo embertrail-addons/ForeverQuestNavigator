@@ -11,6 +11,11 @@ Larger update: easier first steps, one tool window, new planning aids and option
 - **Distance bar:** a thin bar under the distance in the direction display shows how much of the way to the current target is already covered.
 - **Symbols instead of words:** route stops, area overview and pickup plans show quest symbols for accept, objective and turn-in. The full word is in the tooltip. You can switch this off in the settings.
 - Text and diagnostics windows now close with Escape.
+- **Calmer navigator:** below "Next", tour, compare, return, Tour assistant and Surroundings are one row of text links instead of five large buttons; the tour summary is a quiet info line. Map, "..." and "Why this quest?" share one height. Less empty space below the quest card and in the compact view. The version number moved out of the header.
+- **Clearer texts:** "Turn in: ..." no longer repeats "turn in quest"; singular/plural for pickups and hand-ins; step details may use two lines.
+- **Settings:** compact rows with a short help line, eight at once, scrolling with the mouse wheel instead of pages; search field with placeholder; buttons read "Show all settings" and "Area: ...".
+- **Tool window:** Back is a small link, embedded pages no longer repeat their title, and every window closes with the same "×".
+- **Direction display:** the objective text uses all space left of the distance.
 
 ## Planning
 
@@ -40,6 +45,7 @@ These were checked with automated tests and mocks only, not yet in the real clie
 - Outing and Tour assistant inside the tool window, including closing and Back.
 - Route line rendering, thickness and zoom on the world map; legend toggle.
 - Distance bar while walking towards a target, and after changing targets.
+- Navigator link row, button heights and spacing (full and compact view), settings list scrolling and the tool window's Back link.
 - Quest context menus, planning, outing, access points and notepad after the module split (behaviour should be unchanged).
 - Recap notice after a re-login more than 30 minutes later.
 - Group sync with a second player using FQN 0.2.0 (party and raid), including a member leaving.

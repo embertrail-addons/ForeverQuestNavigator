@@ -164,7 +164,7 @@ function addon.CreateNavigationDisplay(settings)
         if not hasGoal then self.title:Show() end
         primary:ClearAllPoints()
         primary:SetPoint("TOPLEFT", self.state:IsShown() and 61 or 47, -6)
-        primary:SetPoint("TOPRIGHT", -90, -6)
+        primary:SetPoint("TOPRIGHT", -math.max(52, (self.distance:GetStringWidth() or 0) + 20), -6)
         self.distance:ClearAllPoints()
         self.distance:SetPoint("TOPRIGHT", -9, -6)
         if hasGoal and self.expanded then

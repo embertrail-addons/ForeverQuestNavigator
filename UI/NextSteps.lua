@@ -17,6 +17,8 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
         local area = board.model and board.model.area
         return L.TourPreview, area and (addon.PickupPlanning.AreaSummary(area) .. "\n" .. L.PickupAreaHelp) or L.PickupAreaHelp
     end)
+    board.tourInfo = addon.UI.CreateLabel(board, "GameFontDisableSmall")
+    board.tourInfo:SetJustifyH("LEFT") board.tourInfo:SetMaxLines(2)
     board.rows = {}
     for index = 1, 3 do
         local row = CreateFrame("Button", nil, board)
@@ -24,7 +26,7 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
         row.label = addon.UI.CreateLabel(row, "GameFontHighlightSmall")
         row.label:SetJustifyH("LEFT") row.label:SetMaxLines(2)
         row.detail = addon.UI.CreateLabel(row, "GameFontDisableSmall")
-        row.detail:SetJustifyH("LEFT") row.detail:SetMaxLines(1)
+        row.detail:SetJustifyH("LEFT") row.detail:SetMaxLines(2)
         row.distance = addon.UI.CreateLabel(row, "GameFontDisableSmall")
         row.distance:SetJustifyH("RIGHT")
         row.map = addon.UI.MakeButton(row) row.map:SetText(L.Map)
@@ -81,6 +83,7 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
     end)
     board.undoOffer = addon.UI.MakeButton(board) board.undoOffer:SetText(L.OfferUndo)
     board.undoOffer:SetScript("OnClick", function() if addon.UndoLastChange then addon.UndoLastChange() end end)
+    for _, link in ipairs({board.tour, board.plan, board.closing, board.assist, board.environment}) do addon.UI.StyleLink(link) end
     addon.UI.BindTooltip(board.plan, function() return L.BriefPlan, L.PickupPlanningHelp end)
     addon.UI.BindTooltip(board.closing, function() return L.BriefClosing, L.BriefClosingHelp end)
     addon.UI.BindTooltip(board.environment, function() return L.BriefEnvironment, L.BriefEnvironmentHelp end)
@@ -104,20 +107,24 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
             if step then
                 row:ClearAllPoints() row:SetPoint("TOPLEFT", 0, -y) row:SetPoint("TOPRIGHT", 0, -y)
                 row.label:ClearAllPoints() row.label:SetPoint("TOPLEFT", 0, -2) row.label:SetPoint("TOPRIGHT", -8, -2)
-                row.label:SetText(L["BriefAction_" .. step.kind]:format(addon.UI.FormatQuestTitle(step.quest, true, model.playerLevel)))
+                row.label:SetText(L["BriefAction_" .. step.kind]:format(
+                    addon.UI.FormatQuestTitle(step.quest, true, model.playerLevel, step.kind == "turnIn")))
                 local line = math.max(18 * scale, row.label:GetStringHeight())
-                row.detail:ClearAllPoints() row.detail:SetPoint("TOPLEFT", 0, -line - 4)
-                row.detail:SetText(step.detail or "")
-                row.distance:ClearAllPoints() row.distance:SetPoint("TOPRIGHT", -86 * scale, -line - 4)
-                row.distance:SetText(addon.UI.FormatDistance(step))
-                row.detail:SetPoint("TOPRIGHT", -86 * scale - row.distance:GetStringWidth() - 8, -line - 4)
-                row.map:ClearAllPoints() row.map:SetPoint("TOPRIGHT", -27 * scale, -line)
-                row.map:SetSize(48 * scale, math.max(24, 24 * scale))
-                row.map:SetEnabled(step.target ~= nil)
-                row.menu:ClearAllPoints() row.menu:SetPoint("TOPRIGHT", 0, -line)
-                row.menu:SetSize(24 * scale, math.max(24, 24 * scale))
+                local buttonHeight = addon.UI.ButtonHeight(scale)
                 row.menu:SetShown(actions.openQuestMenu ~= nil)
-                row:SetHeight(line + math.max(24, row.detail:GetStringHeight() + 6, 24 * scale) + 10)
+                row.menu:ClearAllPoints() row.menu:SetPoint("TOPRIGHT", 0, -line - 2)
+                row.menu:SetSize(26 * scale, buttonHeight)
+                row.map:ClearAllPoints()
+                row.map:SetPoint("TOPRIGHT", row.menu:IsShown() and -(26 * scale + 4) or 0, -line - 2)
+                row.map:SetSize(48 * scale, buttonHeight)
+                row.map:SetEnabled(step.target ~= nil)
+                row.distance:SetText(addon.UI.FormatDistance(step))
+                row.distance:ClearAllPoints() row.distance:SetPoint("RIGHT", row.map, "LEFT", -8, 0)
+                local reserved = 48 * scale + (row.menu:IsShown() and 26 * scale + 4 or 0) + row.distance:GetStringWidth() + 16
+                row.detail:SetText(step.detail or "")
+                row.detail:ClearAllPoints() row.detail:SetPoint("TOPLEFT", 0, -line - 4)
+                row.detail:SetPoint("TOPRIGHT", -reserved, -line - 4)
+                row:SetHeight(line + math.max(buttonHeight + 2, row.detail:GetStringHeight() + 6) + 6)
                 if row.skip:IsShown() then
                     row.skip:ClearAllPoints() row.skip:SetPoint("BOTTOMLEFT", 0, 0)
                     row.skip:SetSize(120 * scale, 26 * scale) row:SetHeight(row:GetHeight() + 28 * scale)
@@ -126,52 +133,41 @@ function addon.CreateNextSteps(owner, parent, settings, actions)
             end
         end
         local area = model.area
-        self.tour:SetShown(area ~= nil and not settings.simpleNavigator)
-        if self.tour:IsShown() then
-            self.tour:SetText(L.TourPreview .. ": " .. area.zone .. "\n" .. addon.PickupPlanning.AreaSummary(area))
-            addon.UI.LayoutActionRow(self.tour, y, width, scale, 2)
-            y = y + self.tour:GetHeight() + 8
-        end
-        self.review:SetShown(model.review ~= nil and not settings.simpleNavigator)
+        local simple = settings.simpleNavigator
+        self.review:SetShown(model.review ~= nil and not simple)
         if self.review:IsShown() then
             addon.UI.LayoutActionRow(self.review, y, width, scale, 1)
             y = y + self.review:GetHeight() + 8
         end
-        self.progress:SetShown(self.progress:GetText() ~= "" and not settings.simpleNavigator)
+        self.progress:SetShown(self.progress:GetText() ~= "" and not simple)
         if self.progress:IsShown() then
             self.progress:ClearAllPoints() self.progress:SetPoint("TOPLEFT", 0, -y) self.progress:SetPoint("TOPRIGHT", 0, -y)
             y = y + self.progress:GetStringHeight() + 8
         end
-        local half, height = math.max(90, (width - 8) / 2), math.max(26, 26 * scale)
-        self.closing:SetText(model.returnAdvice and L.ReturnToArea:format(model.returnAdvice.zone, #model.closing) or L.BriefClosing)
-        self.plan:ClearAllPoints() self.plan:SetPoint("TOPLEFT", 0, -y) self.plan:SetSize(half, height)
-        self.closing:ClearAllPoints() self.closing:SetPoint("TOPRIGHT", 0, -y) self.closing:SetSize(half, height)
-        for _, button in ipairs({self.plan, self.closing}) do
-            button.textLabel:ClearAllPoints() button.textLabel:SetPoint("LEFT", 5, 0) button.textLabel:SetPoint("RIGHT", -5, 0)
-            button.textLabel:SetJustifyH("CENTER") button.textLabel:SetMaxLines(2)
-            height = math.max(height, button.textLabel:GetStringHeight() + 8)
+        self.undoOffer:SetShown(model.offerUndo == true)
+        if self.undoOffer:IsShown() then addon.UI.LayoutActionRow(self.undoOffer, y, width, scale, 1) y = y + self.undoOffer:GetHeight() + 8 end
+        -- Tour summary as a quiet info line; all further actions are one row of text links.
+        self.tourInfo:SetShown(area ~= nil and not simple)
+        if self.tourInfo:IsShown() then
+            self.tourInfo:SetText(area.zone .. ": " .. addon.PickupPlanning.AreaSummary(area))
+            self.tourInfo:ClearAllPoints() self.tourInfo:SetPoint("TOPLEFT", 0, -y) self.tourInfo:SetPoint("TOPRIGHT", 0, -y)
+            y = y + self.tourInfo:GetStringHeight() + 4
         end
-        self.plan:SetHeight(height) self.closing:SetHeight(height)
-        self.plan:SetShown(area ~= nil and not settings.simpleNavigator)
-        self.closing:SetShown(#(model.closing or {}) > 0 and not settings.simpleNavigator)
-        if not area then self.closing:SetWidth(width) end
-        if #(model.closing or {}) == 0 then self.plan:SetWidth(width) end
+        self.tour:SetText(L.TourPreview)
+        self.tour:SetShown(area ~= nil and not simple)
+        self.plan:SetText(L.JourneyCompare)
+        self.plan:SetShown(area ~= nil and not simple)
+        self.closing:SetText(model.returnAdvice and L.ReturnToArea:format(model.returnAdvice.zone, #model.closing) or L.BriefClosing)
+        self.closing:SetShown(#(model.closing or {}) > 0 and not simple)
         self.closing:SetEnabled(#(model.closing or {}) > 0)
-        if self.plan:IsShown() or self.closing:IsShown() then y = y + height + 8 end
         self.assist:SetText(model.acceptanceReview and L.MixedAcceptedReview or model.bagsWarning or #(model.changes or {}) > 0 and L.AdventureChangesCount:format(#model.changes)
             or (model.laterCount or 0) > 0 and L.JourneyLaterCount:format(model.laterCount)
             or (model.departureCount or 0) > 0 and L.AdventureDepartureCount:format(model.departureCount) or L.AdventureTitle)
-        self.assist:SetShown(not settings.simpleNavigator or model.acceptanceReview or model.bagsWarning ~= nil or (model.laterCount or 0) > 0 or #(model.changes or {}) > 0)
-        addon.UI.LayoutActionRow(self.assist, y, width, scale, 1)
-        if self.assist:IsShown() then y = y + self.assist:GetHeight() + 8 end
-        self.undoOffer:SetShown(model.offerUndo == true)
-        if self.undoOffer:IsShown() then addon.UI.LayoutActionRow(self.undoOffer, y, width, scale, 1) y = y + self.undoOffer:GetHeight() + 8 end
-        self.environment:ClearAllPoints() self.environment:SetPoint("TOPLEFT", 0, -y) self.environment:SetPoint("TOPRIGHT", 0, -y)
-        self.environment:SetText(settings.simpleNavigator and L.JourneyMore or (owner.environmentExpanded and "− " or "+ ") .. L.BriefEnvironment)
-        self.environment.textLabel:ClearAllPoints() self.environment.textLabel:SetPoint("LEFT", 5, 0)
-        self.environment.textLabel:SetPoint("RIGHT", -5, 0) self.environment.textLabel:SetMaxLines(2)
-        self.environment:SetHeight(math.max(height, self.environment:GetFontString():GetStringHeight() + 8))
-        self:SetHeight(y + self.environment:GetHeight())
+        self.assist:SetShown(not simple or model.acceptanceReview or model.bagsWarning ~= nil or (model.laterCount or 0) > 0 or #(model.changes or {}) > 0)
+        self.environment:SetText(simple and L.JourneyMore or (owner.environmentExpanded and "− " or "+ ") .. L.BriefEnvironment)
+        self.environment:Show()
+        y = addon.UI.FlowLinks({self.tour, self.plan, self.closing, self.assist, self.environment}, y, width, scale)
+        self:SetHeight(y)
         return self:GetHeight()
     end
     return board

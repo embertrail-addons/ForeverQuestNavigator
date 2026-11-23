@@ -201,12 +201,8 @@ function addon.CreateQuestTracker(settings, actions, version)
     heading:SetMaxLines(1)
     heading:SetText("Forever Quest Navigator")
 
-    if version then
-        local versionLabel = addon.UI.CreateLabel(header, "GameFontDisableSmall")
-        versionLabel:SetPoint("RIGHT", -4, 0)
-        heading:SetPoint("RIGHT", versionLabel, "LEFT", -8, 0)
-        versionLabel:SetText("v" .. version)
-    end
+    heading:SetPoint("RIGHT", -4, 0)
+    frame.version = version
 
     local settingsButton = MakeButton(frame)
     settingsButton:SetSize(20, 20)
@@ -460,8 +456,9 @@ function addon.CreateQuestTracker(settings, actions, version)
             routeNote:Hide()
         end
         resetObjective:SetSize(134 * scale, math.max(16, 16 * scale))
-        routeMap:SetSize(42 * scale, math.max(16, 16 * scale))
-        routeToggle:SetSize((settings.navigatorLayout == "guided" and 120 or 60) * scale, math.max(24, 22 * scale))
+        local buttonHeight = addon.UI.ButtonHeight(scale)
+        routeMap:SetSize(48 * scale, buttonHeight)
+        routeToggle:SetSize((settings.navigatorLayout == "guided" and 120 or 60) * scale, buttonHeight)
         disclosure:SetText(settings.navigatorLayout == "guided" and L.BriefWhy or L.DetailsShort)
         undoSkip:SetHeight(math.max(22, undoSkip:GetFontString():GetStringHeight() + 6))
         history:SetSize(116 * scale, math.max(22, 22 * scale))
@@ -593,20 +590,20 @@ function addon.CreateQuestTracker(settings, actions, version)
             metaY = metaY + activeReward:GetStringHeight() + 6
         end
         routeToggle:ClearAllPoints()
-        routeToggle:SetPoint("TOPRIGHT", routeMap:IsShown() and -14 - 47 * scale or -14, -metaY + 2)
+        routeToggle:SetPoint("TOPRIGHT", routeMap:IsShown() and -14 - 48 * scale - 6 or -14, -metaY)
         if holdButton then
             holdButton:SetSize(20 * scale, 18 * scale)
             holdButton:ClearAllPoints()
             holdButton:SetPoint("TOPRIGHT", -14 - actionsWidth + pinWidth, -metaY + 2)
         end
         routeMap:ClearAllPoints()
-        routeMap:SetPoint("TOPRIGHT", -14, -metaY + 1)
+        routeMap:SetPoint("TOPRIGHT", -14, -metaY)
         if frame.activeMenu then
             frame.activeMenu:SetShown(settings.navigatorLayout == "guided" and activeCheckbox.quest ~= nil)
             frame.activeMenu:ClearAllPoints() frame.activeMenu:SetPoint("TOPLEFT", 14, -metaY)
-            frame.activeMenu:SetSize(28 * scale, math.max(24, 24 * scale))
+            frame.activeMenu:SetSize(26 * scale, buttonHeight)
         end
-        local previewY = metaY + (actionsWidth > 0 and math.max(24, 24 * scale) or 0) + 2
+        local previewY = metaY + (actionsWidth > 0 and buttonHeight or 0) + 4
         local activeBottom = math.max(viewport and 0 or 68, previewY + 2)
         if nearbyStopsButton:IsShown() then
             nearbyStopsButton:ClearAllPoints()
@@ -629,9 +626,9 @@ function addon.CreateQuestTracker(settings, actions, version)
         if frame.nextBoard then
             frame.nextBoard:SetShown(showLists)
             if frame.nextBoard:IsShown() then
-                frame.nextBoard:ClearAllPoints() frame.nextBoard:SetPoint("TOPLEFT", 14, -listTop - 14)
-                frame.nextBoard:SetPoint("TOPRIGHT", -14, -listTop - 14)
-                listTop = listTop + frame.nextBoard:Layout(math.max(280, frame:GetWidth() - 28), scale) + 24
+                frame.nextBoard:ClearAllPoints() frame.nextBoard:SetPoint("TOPLEFT", 14, -listTop - 8)
+                frame.nextBoard:SetPoint("TOPRIGHT", -14, -listTop - 8)
+                listTop = listTop + frame.nextBoard:Layout(math.max(280, frame:GetWidth() - 28), scale) + 14
             end
         end
         local y = LayoutSection(alternativesToggle, alternativesLabel, L.Alternatives,
@@ -651,6 +648,10 @@ function addon.CreateQuestTracker(settings, actions, version)
         local footer = history:IsShown() and 22 + math.max(22, 22 * scale) or bottomPadding
         if frame.noticeSlot then
             local hasContext = activeCheckbox.quest ~= nil or frame.detour ~= nil
+            local fullView = not settings.collapsed and not IsQuiet() and (settings.navigatorView or "all") == "all"
+            local hasMessage = (frame.statusMessage and frame.statusMessage ~= "") or (frame.noticeMessage and frame.noticeMessage ~= "")
+            frame.noticeCompact = not fullView
+            hasContext = hasContext and (fullView or hasMessage == true)
             frame.noticeSlot:SetShown(hasContext)
             if hasContext then
                 local slotHeight = math.max(20, 18 * scale + 4)
@@ -1510,6 +1511,11 @@ function addon.CreateQuestTracker(settings, actions, version)
         local message = self.statusMessage ~= "" and self.statusMessage or nil
         message = message or self.noticeMessage or ""
         changeNotice:SetText(message) changeNotice:SetShown(message ~= "")
+        -- In compact views the notice area appears only with a message; relayout when that changes.
+        if self.noticeCompact and (message ~= "") ~= (self.noticeSlot:IsShown() == true)
+            and not self.noticeRelayout and self.UpdateNavigatorLayout then
+            self.noticeRelayout = true self:UpdateNavigatorLayout() self.noticeRelayout = nil
+        end
         progressLine:SetShown(message == "" and progressData ~= nil and activeCheckbox.quest ~= nil
             and not IsQuiet() and not settings.collapsed and (settings.navigatorView or "all") == "all")
         changeNotice:SetTextColor(addon.UI.Theme.Color(self.statusMessage and self.statusMessage ~= "" and "heading" or "muted"))

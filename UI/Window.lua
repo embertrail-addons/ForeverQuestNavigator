@@ -29,7 +29,7 @@ function addon.UI.CreateWindow(width, height, title, options)
     local close = addon.UI.MakeButton(frame)
     close:SetSize(25, 24)
     close:SetPoint("TOPRIGHT", -8, -8)
-    close:SetText("X")
+    close:SetText("×")
     close:SetScript("OnClick", function() frame:Hide() end)
     addon.UI.ExpandHitArea(close, 3)
     frame.closeButton = close
