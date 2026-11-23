@@ -21,7 +21,8 @@ function addon.SettingsController.Register(context)
     local currentSection
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
-        theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true }
+        theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true, fontPercent = true,
+        showQuestieOffers = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},

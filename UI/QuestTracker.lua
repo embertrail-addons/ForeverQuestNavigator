@@ -90,7 +90,7 @@ function addon.CreateMinimapButton(settings, cycleDisplayMode, openSettings)
     button:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "RightButton" then
             GameTooltip:Hide()
-            openSettings()
+            if addon.ShowCommandContextMenu then addon.ShowCommandContextMenu(self, settings, openSettings) else openSettings() end
         elseif not dragged then
             cycleDisplayMode()
             ShowTooltip(self)

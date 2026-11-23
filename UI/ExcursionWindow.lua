@@ -28,7 +28,7 @@ end
 function addon.ShowExcursion(plan, actions)
     if not window then
         window = addon.UI.CreateUtilityPanel(610, 555, L.ExcursionTitle)
-        window.hubStandalone = true
+        window.hubPage = "outing"
         window.summary = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.summary:SetPoint("TOPLEFT", 18, -48) window.summary:SetPoint("TOPRIGHT", -18, -48)
         window.summary:SetJustifyH("LEFT") window.summary:SetMaxLines(3)
@@ -138,6 +138,6 @@ function addon.ShowExcursion(plan, actions)
     end
     window.plan, window.actions, window.status = plan, actions, nil
     window.page = window.page or 1
-    window:Refresh() window:Show()
+    window:Refresh() addon.UI.ShowUtilityPanel(window, "outing")
     return window
 end

@@ -129,4 +129,20 @@ return function(test, addon, equal, near)
         hub.root:Hide() hub.Open("automatic") assert(automatic:IsVisible())
         hub.root:Hide() hub.Open("settings") assert(settings:IsVisible())
     end)
+    test("Simple mode hides advanced tool pages but keeps an explicitly opened page reachable", function()
+        local hub, _, _, automatic = Fixture()
+        local simple, store = true, {}
+        hub.Configure(hub.actions, {simple = function() return simple end, settings = store})
+        hub.Open("settings")
+        equal(hub.root.navigation.outing:IsShown(), false) assert(hub.root.navigation.planning:IsShown())
+        hub.Open("automatic") assert(automatic:IsShown())
+        local tabs = 0
+        for _, tab in ipairs(hub.root.tabs) do if tab:IsShown() then tabs = tabs + 1 end end
+        equal(tabs, 2)
+        simple = false hub.Open("settings")
+        assert(hub.root.navigation.outing:IsShown())
+        hub.root.GetLeft, hub.root.GetTop = function() return 120 end, function() return 640 end
+        hub.root.scripts.OnDragStop(hub.root)
+        equal(store.hubX, 120) equal(store.hubY, 640)
+    end)
 end

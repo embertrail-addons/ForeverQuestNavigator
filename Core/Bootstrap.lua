@@ -2423,6 +2423,10 @@ local function OpenSettings()
         function() addon.ShowUndoHistory(addon.Undo) end)
 end
 
+local function AddonVersion()
+    return C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
+end
+
 function addon.ConfigureUXHub()
     addon.UI.ToolHub.Configure({
         finder = function() addon.OpenWorkspace("finder") end, tour = function() addon.OpenWorkspace("tour") end,
@@ -2432,10 +2436,14 @@ function addon.ConfigureUXHub()
         session = ShowSession, changes = function() addon.ShowUndoHistory(addon.Undo) end,
         settings = OpenSettings, profiles = ShowProfiles,
         share = function() addon.ShowDisplayTransfer(settings, addon.SettingsController.catalog) end,
+        outing = function() addon.OpenExcursionFromArea(nil, insights.excursion ~= nil) end,
+        adventure = function() addon.OpenAdventure() end,
+        commands = function() addon.ShowCommandMenu(settings) end,
+        whatsnew = function() addon.ShowReleaseNotes(settings, AddonVersion()) end,
         help = function() addon.ShowUXHelp({problem = addon.OpenProblemReport, diagnostic = ShowDiagnostics,
             guide = function() addon.ShowIntroduction(settings) end,
-            updates = function() addon.ShowReleaseNotes(settings, C_AddOns.GetAddOnMetadata(addonName, "Version")) end}) end,
-    })
+            updates = function() addon.ShowReleaseNotes(settings, AddonVersion()) end}) end,
+    }, {simple = function() return settings and settings.simpleNavigator == true end, settings = settings})
 end
 
 local function InitializeWorkspace(character)
@@ -2461,10 +2469,6 @@ local function InitializeWorkspace(character)
     })
 end
 
-local function AddonVersion()
-    return C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")
-end
-
 local function RegisterCommands()
     local C = addon.Commands
     C.Reset()
@@ -2478,6 +2482,7 @@ local function RegisterCommands()
     Add("settings", "settings", "CmdSettings", function() OpenSettings() end)
     Add("arrange", "settings", "CmdArrange", function() tracker:ArrangeUI() end)
     Add("tools", "navigation", "CmdTools", function() addon.UI.ToolHub.Open(addon.UI.ToolHub.key or "finder") end)
+    Add("menu", "navigation", "CmdMenu", function() addon.ShowCommandMenu(settings) end)
     Add("find", "quests", "CmdFind", function(text)
         local panel = addon.OpenWorkspace("finder")
         if panel then panel.search:SetText(text or "") end

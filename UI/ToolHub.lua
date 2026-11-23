@@ -4,26 +4,55 @@ local Hub = {actions = {}, history = {}, pages = {}, groups = {}}
 addon.UI.ToolHub = Hub
 
 local function Demo() return addon.DemoMode and addon.DemoMode.IsActive() end
-local function Definition(key, label, title) return {key = key, label = label, title = title} end
-function Hub.Configure(actions)
+-- advanced pages are hidden in simple mode unless they are the page being shown.
+local function Definition(key, label, title, advanced) return {key = key, label = label, title = title, advanced = advanced} end
+-- options.simple(): true while the simple experience is active; options.settings stores the window position.
+function Hub.Configure(actions, options)
     Hub.actions = actions
+    Hub.options = options or {}
     Hub.groups = {
         {key = "quests", label = L.HubQuests, pages = {
             Definition("finder", L.HubFind, L.QuestWorkspace), Definition("notes", L.HubNotes, L.QuestNotepad),
-            Definition("feedback", L.HubFeedback, L.FeedbackManager), Definition("details", L.DetailsShort, L.NavigatorDetails)}},
+            Definition("details", L.DetailsShort, L.NavigatorDetails),
+            Definition("feedback", L.HubFeedback, L.FeedbackManager, true)}},
         {key = "planning", label = L.HubPlanning, pages = {
-            Definition("tour", L.HubTour, L.QuestWorkspace), Definition("automatic", L.HubAutomatic, L.PlanningOverview),
-            Definition("zones", L.HubZones, L.ZoneOverview), Definition("access", L.HubAccess, L.AccessManager),
-            Definition("detour", L.HubDetour, L.TemporaryDetour)}},
+            Definition("zones", L.HubZones, L.ZoneOverview), Definition("tour", L.HubTour, L.QuestWorkspace, true),
+            Definition("automatic", L.HubAutomatic, L.PlanningOverview, true)}},
+        {key = "outing", label = L.HubOuting, pages = {
+            Definition("outing", L.HubOutingPage, L.ExcursionTitle, true), Definition("adventure", L.HubAdventure, L.AdventureTitle, true),
+            Definition("detour", L.HubDetour, L.TemporaryDetour, true), Definition("access", L.HubAccess, L.AccessManager, true)}},
         {key = "history", label = L.HubHistory, pages = {
-            Definition("session", L.HubSession, L.SessionTitle), Definition("changes", L.HubChanges, L.ChangeHistory)}},
+            Definition("session", L.HubSession, L.SessionTitle), Definition("changes", L.HubChanges, L.ChangeHistory, true)}},
         {key = "settings", label = L.Settings, pages = {
             Definition("settings", L.HubOptions, L.QuickSettings), Definition("profiles", L.HubProfiles, L.AppearanceProfiles),
-            Definition("share", L.HubShare, L.DisplayTransfer)}},
-        {key = "help", label = L.HubHelp, pages = {Definition("help", L.HubOverview, L.HubHelpTitle)}},
+            Definition("share", L.HubShare, L.DisplayTransfer, true)}},
+        {key = "help", label = L.HubHelp, pages = {Definition("help", L.HubOverview, L.HubHelpTitle),
+            Definition("commands", L.HubCommands, L.CommandMenuTitle), Definition("whatsnew", L.HubWhatsNew, L.WhatsNew)}},
     }
     for _, group in ipairs(Hub.groups) do for _, page in ipairs(group.pages) do page.group = group Hub.pages[page.key] = page end end
     Hub.ready = true
+end
+local function Simple() return Hub.options and Hub.options.simple and Hub.options.simple() == true end
+-- Pages listed in the current mode; the active page always stays reachable.
+function Hub.VisiblePages(group, activeKey)
+    local pages, simple = {}, Simple()
+    for _, page in ipairs(group.pages) do
+        if not (simple and page.advanced) or page.key == activeKey then pages[#pages + 1] = page end
+    end
+    return pages
+end
+function Hub.LayoutNavigation(activeKey)
+    if not Hub.root then return end
+    local row = 0
+    for _, group in ipairs(Hub.groups) do
+        local button = Hub.root.navigation[group.key]
+        local visible = #Hub.VisiblePages(group, activeKey) > 0
+        button:SetShown(visible)
+        if visible then
+            button:ClearAllPoints() button:SetPoint("TOPLEFT", 18, -95 - row * 39)
+            row = row + 1
+        end
+    end
 end
 local function FindPage(frame)
     if frame.hubPage then return frame.hubPage end
@@ -68,7 +97,16 @@ local function EnsureRoot()
     Hub.root = root root:Hide()
     root:SetPoint("CENTER") root:SetFrameStrata("DIALOG") root:SetClampedToScreen(true)
     root:SetMovable(true) root:EnableMouse(true) root:RegisterForDrag("LeftButton")
-    root:SetScript("OnDragStart", root.StartMoving) root:SetScript("OnDragStop", root.StopMovingOrSizing)
+    root:SetScript("OnDragStart", root.StartMoving)
+    root:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local store = Hub.options and Hub.options.settings
+        if store and self.GetLeft and self.GetTop then store.hubX, store.hubY = self:GetLeft(), self:GetTop() end
+    end)
+    local store = Hub.options and Hub.options.settings
+    if store and store.hubX and store.hubY then
+        root:ClearAllPoints() root:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", store.hubX, store.hubY)
+    end
     root:SetBackdrop({bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1})
     addon.UI.Theme.WatchFrame(root)
     root.heading = addon.UI.CreateLabel(root, "GameFontNormal")
@@ -89,8 +127,11 @@ local function EnsureRoot()
     for index, group in ipairs(Hub.groups) do
         local key = group.key
         local button = addon.UI.CreateUtilityButton(root, group.label, 140, function()
-            local target = Hub.lastPages and Hub.lastPages[key] or group.pages[1].key
-            Hub.Open(target)
+            local visible = Hub.VisiblePages(group)
+            local target = Hub.lastPages and Hub.lastPages[key]
+            local allowed = false
+            for _, page in ipairs(visible) do if page.key == target then allowed = true end end
+            Hub.Open(allowed and target or (visible[1] or group.pages[1]).key)
         end)
         button:SetPoint("TOPLEFT", 18, -95 - (index - 1) * 39)
         button.selection = button:CreateTexture(nil, "ARTWORK")
@@ -156,11 +197,13 @@ function Hub.Present(frame, key)
     for groupKey, button in pairs(Hub.root.navigation) do
         local selected = groupKey == page.group.key button.selection:SetShown(selected)
     end
+    Hub.LayoutNavigation(key)
     Hub.PaintNavigation()
-    local count = #page.group.pages
+    local pages = Hub.VisiblePages(page.group, key)
+    local count = #pages
     local width = (frame:GetWidth() - 20 - (count - 1) * 6) / count
     for index, button in ipairs(Hub.root.tabs) do
-        local entry = page.group.pages[index]
+        local entry = pages[index]
         button:SetShown(entry ~= nil and count > 1)
         if entry then
             button:SetWidth(width) button:ClearAllPoints() button:SetPoint("TOPLEFT", 184 + (index - 1) * (width + 6), -38)

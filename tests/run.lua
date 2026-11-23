@@ -1010,7 +1010,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     navigatorView = "string", trackerMaxHeight = "number", trackerWidth = "number", theme = "string", navigatorLayout = "string", repeatablePolicy = "string" })[key]
                 equal(variableType, expectedType or "boolean")
                 equal(name, ({
-                    simpleNavigator = "Simple navigator",
+                    simpleNavigator = "Simple mode",
                     groupQuestHints = "Show shared group quests",
                     difficultyWords = "Show difficulty as words",
                     language = "Language",
@@ -1330,6 +1330,11 @@ test("TOC startup and quest events update the tracker with or without optional a
     minimapButton:Click()
     equal(tracker:IsShown(), false)
     minimapButton:Click("RightButton")
+    equal(historyMenu.title, "Forever Quest Navigator")
+    local settingsEntry
+    for _, entry in ipairs(historyMenu.entries) do if entry.label == "Quick settings" then settingsEntry = entry end end
+    assert(settingsEntry, "Minimap menu offers quick settings")
+    settingsEntry.restore()
     local quickSettings
     for _, frame in ipairs(frames) do if frame.heading and frame.heading.text == "FQN settings" then quickSettings = frame end end
     assert(quickSettings and quickSettings:IsShown())
@@ -2051,7 +2056,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[hiddenID], nil)
     local hiddenPickups = reloadedAddon.OpenAdventure("hiddenOffers")
     equal(hiddenPickups.rows[1].entry.quest.id, hiddenID)
-    hiddenPickups.rows[1].choose:Click() hiddenPickups.closeButton:Click()
+    hiddenPickups.rows[1].choose:Click() reloadedAddon.UI.ToolHub.root.close:Click()
     flush()
     equal(env.ForeverQuestNavigatorCharacterDB.hiddenOffers[hiddenID], nil)
     equal(firstOffer.measurement.id, hiddenID)
@@ -2075,7 +2080,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(reloadedAddon.OfferUndoAvailable(previewPlan), true)
     for _, stop in ipairs(previewPlan.stops) do assert(stop.quest.id ~= pickupID) end
     assert(reloadedAddon.Undo:Undo()) equal(#previewPlan.stops, previousCount)
-    previewWindow.closeButton:Click()
+    reloadedAddon.UI.ToolHub.root.close:Click()
     flush()
     end
     equal(secondOffer.recommendation:IsShown(), true)
@@ -3023,7 +3028,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(laterPanel.rows[1].entry.quest.id, 1002)
     laterPanel.rows[1].choose:Click()
     equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[1002], nil)
-    laterPanel.closeButton:Click()
+    reloadedAddon.UI.ToolHub.root.close:Click()
     env.MerchantFrame = {IsShown = function() return true end}
     env.GetMerchantNumItems = function() return 2 end
     env.UnitName = function(unit) equal(unit, "npc") return "Visited seller" end
@@ -3032,7 +3037,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(#env.ForeverQuestNavigatorCharacterDB.knownVendors, 1)
     equal(env.ForeverQuestNavigatorCharacterDB.knownVendors[1].name, "Visited seller")
     near(env.ForeverQuestNavigatorCharacterDB.knownVendors[1].point.x, playerX)
-    merchantPanel.closeButton:Click()
+    reloadedAddon.UI.ToolHub.root.close:Click()
     env.MerchantFrame, env.GetMerchantNumItems, env.UnitName = nil, nil, nil
     mainMapButton:Click("RightButton")
     MenuAction("Save my position as this objective's access point")

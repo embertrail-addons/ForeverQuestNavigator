@@ -9,7 +9,7 @@ local groups = {
 function addon.ShowAdventure(getModel, actions, mode)
     if not window then
         window = addon.UI.CreateUtilityPanel(600, 610, L.AdventureTitle)
-        window.hubStandalone = true
+        window.hubPage = "adventure"
         window.tabs = {}
         function window:SelectMode(key)
             self.pages[self.mode or "departure"] = self.page or 1
@@ -149,6 +149,6 @@ function addon.ShowAdventure(getModel, actions, mode)
         addon.UI.RefreshWhileShown(window, 1)
     end
     window.getModel, window.actions = getModel, actions
-    window:SelectMode(mode or window.mode or "departure") addon.UI.ShowUtilityPanel(window)
+    window:SelectMode(mode or window.mode or "departure") addon.UI.ShowUtilityPanel(window, "adventure")
     return window
 end

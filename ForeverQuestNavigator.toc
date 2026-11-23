@@ -73,6 +73,7 @@ UI\Window.lua
 UI\Diagnostics.lua
 UI\ManagementWindows.lua
 UI\ToolHub.lua
+UI\CommandMenu.lua
 UI\NavigatorTools.lua
 UI\ActiveQuestCard.lua
 UI\QuestLists.lua
