@@ -29,6 +29,7 @@ function Hints.Instruction(quest, marker, goal)
 end
 function Hints.Why(snapshot, quest, manual)
     if manual then return addon.L.WhyManual end
+    if snapshot.presence and snapshot.presence[quest.id] then return addon.L.QuestSpawnNeighborhood end
     if snapshot.decision == "levelReview" then return addon.L.AdventureLevelShort end
     if snapshot.decision == "levelUp" then return addon.L.WhyLevelUp end
     if (snapshot.decision == "followUp" or snapshot.decision == "outing") and (snapshot.decisionSaving or 0) > 0 then

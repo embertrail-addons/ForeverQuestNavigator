@@ -8,6 +8,8 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 
 - A configurable tracker shows your active quest, all objective progress, distance and approximate XP when known.
 - A separate, movable direction arrow follows the current target. FQN normally chooses the nearest known unfinished objective; you can select or temporarily avoid a goal yourself.
+- Local Questie spawn neighborhoods and publicly identifiable enemies you are fighting help recognize when you are already working on an unfinished objective.
+- During ghost runs, corpse navigation takes priority and keeps a stable destination. Missing coordinates are shown explicitly; normal quest navigation resumes after resurrection.
 - Clear objective counters, progress bars, short XP forecasts and labelled turn-in/recommendation states keep the next action readable.
 - Open complete quest details beside the navigator. Adjustable height keeps the quest title pinned while content scrolls; Show more appends entries without wheel paging.
 - A compact notice area shows arrival instructions or quest-log progress without moving the lists.

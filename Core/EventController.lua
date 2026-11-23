@@ -1,6 +1,12 @@
 local _, addon = ...
 addon.EventController = {}
 local runtimeEvents = {
+    "PLAYER_DEAD",
+    "PLAYER_ALIVE",
+    "PLAYER_UNGHOST",
+    "PLAYER_TARGET_CHANGED",
+    "UNIT_THREAT_LIST_UPDATE",
+    "UNIT_TARGET",
     "PLAYER_ENTERING_WORLD",
     "PLAYER_CONTROL_LOST",
     "PLAYER_CONTROL_GAINED",
@@ -36,6 +42,16 @@ function addon.EventController.RegisterRuntime(frame)
 end
 
 function addon.EventController.Handle(context, event, arg, rewardXP)
+    if event == "PLAYER_TARGET_CHANGED" or event == "UNIT_THREAT_LIST_UPDATE" or event == "UNIT_TARGET" then
+        if issecretvalue and issecretvalue(arg) then return end
+        if event == "PLAYER_TARGET_CHANGED" or arg == "target" or arg == "player" or arg == "pet" then
+            if context.visible() then context.measure() end
+        end
+        return
+    end
+    if event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" or event == "PLAYER_ENTERING_WORLD" then
+        if context.recovery then context.recovery(event) end
+    end
     if event == "GET_ITEM_INFO_RECEIVED" then
         if context.itemRewardsUpdated and context.itemRewardsUpdated() then context.refresh() end
         return

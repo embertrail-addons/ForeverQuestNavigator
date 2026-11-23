@@ -1869,8 +1869,8 @@ test("TOC startup and quest events update the tracker with or without optional a
     end
     assert(areaHeader)
     equal(areaHeader.text, "+ Here: 1 objective · 0 turn-ins")
-    equal(arrow:IsShown(), true)
-    near(arrow.lines[1].tipX, 8)
+    equal(arrow:IsShown(), false)
+    equal(navigation.status.text, "In a nearby quest spawn area · enemies may be present")
     objectives[7][3] = { type = "item", text = "Supplies collected: 0/3" }
     activeQuest.ObjectiveData[3] = { Type = "item", Id = 8 }
     activeQuest.Objectives[3] = { Type = "item", Id = 8,
@@ -1929,11 +1929,11 @@ test("TOC startup and quest events update the tracker with or without optional a
     playerX = 0.37
     distanceTicker.tick()
     equal(activeDistance.text, "~20 yd")
-    near(arrow.lines[1].tipX, -8)
+    equal(arrow:IsShown(), false)
     playerX = 0.5
     distanceTicker.tick()
     equal(activeDistance.text, "~50 yd")
-    near(arrow.lines[1].tipX, 8)
+    equal(arrow:IsShown(), false)
     Goal(2):Click()
     assert(Goal(2).caption.text:find("Current objective · Fixed · ", 1, true) == 1)
     objectives[7][2].finished = true
@@ -3926,6 +3926,47 @@ test("TOC startup and quest events update the tracker with or without optional a
     end)() end
     end)() end
     env.InCombatLockdown = previousCombat
+    do (function()
+        local dead, ghost, originalX = true, false, playerX
+        env.UnitIsDead = function() return dead end
+        env.UnitIsGhost = function() return ghost end
+        env.UnitIsDeadOrGhost = function() return dead or ghost end
+        env.C_DeathInfo = {GetCorpseMapPosition = function() return {x = .9, y = .5} end}
+        fire("PLAYER_DEAD") flush()
+        assert(updatedTracker.recoveryState and updatedTracker.recoveryState.active)
+        dead, ghost = false, true fire("PLAYER_ALIVE") flush()
+        directionTicker.tick()
+        equal(updatedTracker.navigation.title.text, reloadedAddon.L.RecoveryTitle)
+        equal(reloadedAddon.RecoveryState.target.x, .9)
+        local frozen = reloadedAddon.RecoveryQuestID
+        playerX = .1 fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
+        equal(reloadedAddon.RecoveryQuestID, frozen)
+        equal(updatedTracker.navigation.title.text, reloadedAddon.L.RecoveryTitle)
+        equal(reloadedAddon.RecoveryState.target.x, .9)
+        ghost = false fire("PLAYER_UNGHOST") flush()
+        equal(updatedTracker.recoveryState, nil) equal(reloadedAddon.RecoveryState.target, nil)
+        env.UnitIsDead, env.UnitIsGhost, env.UnitIsDeadOrGhost, env.C_DeathInfo = nil, nil, nil, nil
+        playerX = originalX fire("QUEST_LOG_UPDATE") flush()
+    end)() end
+    do (function()
+        local original = reloadedAddon.QuestieIntegration.GetCombatMarkers
+        reloadedAddon.QuestieIntegration.GetCombatMarkers = function() return {[1002] = {{objectiveIndex = 1, npcID = 123}}} end
+        PinQuest(1002) flush()
+        env.InCombatLockdown = function() return true end
+        env.UnitCanAttack = function(_, unit) return unit == "target" end
+        env.UnitIsDeadOrGhost = function() return false end
+        env.UnitGUID = function(unit) if unit == "target" then return "Creature-0-1-2-3-123-0001" end end
+        env.UnitThreatSituation = function(_, unit) return unit == "target" and 1 or 0 end
+        fire("QUEST_LOG_UPDATE") flush() fire("PLAYER_TARGET_CHANGED") directionTicker.tick()
+        equal(updatedTracker.navigation.status.text, reloadedAddon.L.QuestEnemyEngaged)
+        equal(reloadedAddon.GetNavigationSnapshot().activeQuestID, 1002)
+        env.UnitGUID = function() error("identity unavailable") end
+        fire("PLAYER_TARGET_CHANGED") directionTicker.tick()
+        assert(updatedTracker.navigation.status.text ~= reloadedAddon.L.QuestEnemyEngaged)
+        reloadedAddon.QuestieIntegration.GetCombatMarkers = original
+        env.UnitCanAttack, env.UnitIsDeadOrGhost, env.UnitGUID, env.UnitThreatSituation = nil, nil, nil, nil
+        env.InCombatLockdown = previousCombat fire("PLAYER_REGEN_ENABLED") flush()
+    end)() end
 end)
 
 assert(loadfile("tests/new_features.lua"))()(test, addon, equal, near)
@@ -3946,4 +3987,5 @@ assert(loadfile("tests/tour_experience.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/adventure_support.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/journey_planning.lua"))()(test, addon, equal, near)
 assert(loadfile("tests/mixed_quest_plan.lua"))()(test, addon, equal, near)
+assert(loadfile("tests/presence_recovery.lua"))()(test, addon, equal, near)
 print(("%d tests passed (%s)."):format(testsPassed, _VERSION))

@@ -1164,7 +1164,29 @@ function addon.CreateQuestTracker(settings, actions, version)
         self.detour, self.detourMeasurement = point, measured
         if changed then UpdateHeight() end
     end
-    function frame:RenderDirection(right, forward, status, arrived)
+    function frame:SetRecoveryState(state)
+        local previous = self.recoveryState
+        self.recoveryState = state
+        if previous and not state then self.statusMessage = nil self:RenderDirection() end
+    end
+    function frame:RenderRecovery(state, measured, right, forward)
+        self.recoveryState = state
+        arrow:SetDirection() activeDistance:SetText("")
+        local status = not state.ghost and L.RecoveryWait or not state.target and L.RecoveryUnknown
+            or not measured and L.RecoveryUnmeasurable or state.exact and L.RecoveryWalk or L.RecoveryApproximate
+        navigation.title:SetText(L.RecoveryTitle)
+        navigation.goal:SetText(status)
+        navigation.distance:SetText(measured and FormatDistance(measured) or "")
+        if not measured or measured.yards <= 12 or not state.ghost then right, forward = nil, nil end
+        navigation.arrow:SetDirection(right, forward)
+        navigation:SetStatus(state.ghost and measured and measured.yards <= 12 and L.RecoveryAtBody or status)
+        navigation:UpdateLayout()
+        navigation:SetShown(settings.showDirectionArrow ~= false and (self:IsVisible() or settings.displayMode == "arrow"))
+        self.statusMessage = status .. (measured and (" · " .. FormatDistance(measured)) or "")
+        self:RefreshNotice()
+    end
+    function frame:RenderDirection(right, forward, status, arrived, working)
+        if self.recoveryState then return end
         if flightMode then status, arrived = flightStatus or L.FlightGeneric, false end
         local quest = activeCheckbox.quest
         local target = quest and latestMeasurements and latestMeasurements[quest.id]
@@ -1213,7 +1235,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         end
         navigation:SetStatus(status)
         local measured = quest and latestMeasurements and latestMeasurements[quest.id]
-        local close = not IsQuiet() and measured and measured.yards <= 35
+        local close = not IsQuiet() and measured and (measured.yards <= 35 or working)
         navigation.goal:SetMaxLines(close and 2 or 1)
         navigation.distance:SetFontObject(addon.UI.GetFont(close and "GameFontNormal" or "GameFontHighlightSmall"))
         navigation.distance:SetTextColor(addon.UI.Theme.Color(close and "heading" or "text"))

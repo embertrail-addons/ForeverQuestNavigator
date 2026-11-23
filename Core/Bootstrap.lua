@@ -32,6 +32,18 @@ local GetQuestDestination
 local UpdateQuestLogButton
 local navigationSnapshot
 function addon.GetNavigationSnapshot() return navigationSnapshot end
+function addon.UpdateRecovery(event)
+    if not addon.CorpseNavigation then return end
+    local previous = addon.RecoveryState
+    local wasActive = previous and previous.active
+    local state = addon.CorpseNavigation.Update(previous, C_Map, C_DeathInfo,
+        {dead = UnitIsDead, ghost = UnitIsGhost, either = UnitIsDeadOrGhost}, GetTime and GetTime() or 0, event)
+    addon.RecoveryState = state
+    if state.active and not wasActive then addon.RecoveryQuestID = shownQuests and shownQuests[1] and shownQuests[1].id end
+    if not state.active then addon.RecoveryQuestID = nil end
+    if tracker and tracker.SetRecoveryState then tracker:SetRecoveryState(state.active and state or nil) end
+    return state
+end
 local markedQuestID
 local MINIMUM_FLIGHT_HINT_DISTANCE = 1500
 local DEFAULT_OPACITY = 80
@@ -539,7 +551,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     local tourID = workspace and workspace:Current()
     local excursionStop = addon.ExcursionPlan.Current(insights.excursion)
     local levelHold = insights.levelHold and SessionTime() <= insights.levelHold.untilTime and insights.levelHold.id
-    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or flightQuestID or combatQuestID
+    local selectedQuestID = manualQuestID or (objectiveLock and objectiveLock.questID) or addon.RecoveryQuestID or flightQuestID or combatQuestID
         or (excursionStop and excursionStop.action ~= "accept" and excursionStop.quest.id) or tourID or (temporaryDetour and temporaryDetour.questID) or levelHold
     if selectedQuestID then
         local manualQuest
@@ -560,7 +572,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
             combatQuestID = nil
         end
     end
-    if not (manualQuestID or objectiveLock or flightQuestID or combatQuestID or levelHold or excursionStop or tourID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
+    if not (manualQuestID or objectiveLock or addon.RecoveryQuestID or flightQuestID or combatQuestID or levelHold or excursionStop or tourID or (temporaryDetour and temporaryDetour.questID)) and routeQuest then
         quest = routeQuest
     else
         routeNote = manualQuestID and (heldQuest and L.HeldQuestReason or L.ManualSelection)
@@ -571,6 +583,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         routeNote = L.TourRunning navigationSnapshot.decision = "tour"
     end
     if excursionStop then routeNote = L.ExcursionCurrent navigationSnapshot.decision = "excursion" end
+    if addon.RecoveryState and addon.RecoveryState.active and not addon.RecoveryQuestID then addon.RecoveryQuestID = quest.id end
     if levelHold and quest.id == levelHold and not (manualQuestID or objectiveLock or excursionStop or tourID) then
         routeNote = L.AdventureLevelShort navigationSnapshot.decision, navigationSnapshot.decisionSaving = "levelReview", nil
     end
@@ -862,6 +875,8 @@ local function FlightStep(quest)
 end
 
 local function UpdateFlightState()
+    local recovery = addon.UpdateRecovery()
+    if recovery and recovery.active then combatQuestID = nil tracker:SetCombatView(false) return end
     local onTaxi = UnitOnTaxi and UnitOnTaxi("player")
     local flying = onTaxi == true or onTaxi == 1
     if flying ~= isFlying then
@@ -869,10 +884,23 @@ local function UpdateFlightState()
         flightQuestID = flying and shownQuests and shownQuests[1] and shownQuests[1].id or nil
     end
     tracker:SetFlightView(flying, FlightStep(shownQuests and shownQuests[1]))
-    local fighting = settings.quietNavigation ~= false and InCombatLockdown and InCombatLockdown() == true
-    if fighting and not combatQuestID then combatQuestID = shownQuests and shownQuests[1] and shownQuests[1].id end
+    local fighting = InCombatLockdown and InCombatLockdown() == true
+    insights.engagement = nil
+    if fighting then
+        local matches = addon.ObjectivePresence.Engaged({guid = UnitGUID, canAttack = UnitCanAttack, dead = UnitIsDeadOrGhost,
+            same = UnitIsUnit, threat = UnitThreatSituation}, insights.combatMarkers or questMarkers, eligibleQuests, C_QuestLog, avoidedObjectives, objectiveLock)
+        local current = shownQuests and shownQuests[1] and shownQuests[1].id
+        local selected = current and matches[current] and current or combatQuestID and matches[combatQuestID] and combatQuestID
+        if not selected then for _, q in ipairs(eligibleQuests or {}) do if matches[q.id] then selected = q.id break end end end
+        if selected then insights.engagement = matches[selected] end
+        local explicit = manualQuestID or objectiveLock or addon.ExcursionPlan.Current(insights.excursion) or workspace and workspace:Current() or temporaryDetour
+        if explicit then combatQuestID = nil
+        elseif selected then
+            combatQuestID = selected
+        elseif not combatQuestID and settings.quietNavigation ~= false then combatQuestID = current end
+    end
     if not fighting then combatQuestID = nil end
-    tracker:SetCombatView(fighting == true)
+    tracker:SetCombatView(fighting == true and settings.quietNavigation ~= false)
     if fighting or flying then addon.HideLevelNotice() end
 end
 
@@ -880,6 +908,17 @@ local function UpdateDirection()
     if addon.DemoMode.IsActive() then return end
     local performanceStart = addon.Performance:Begin()
     UpdateFlightState()
+    local recovery = addon.RecoveryState
+    if recovery and recovery.active then
+        local m = recovery.ghost and recovery.target and addon.TemporaryDetour.Measure(C_Map, recovery.target)
+        if recovery.target and not m then recovery.target.world = nil end
+        local facing = GetPlayerFacing and GetPlayerFacing()
+        local right, forward = addon.QuestLocation.GetRelativeDirection(m, facing)
+        tracker:RenderRecovery(recovery, m, right, forward)
+        tracker:RenderRowDirections(nil)
+        addon.Performance:Finish("direction", performanceStart)
+        return
+    end
     local returnPoint = workspace and workspace:ReturnTarget()
     if returnPoint and not temporaryDetour and not manualQuestID and not combatQuestID and not isFlying
         and addon.TemporaryDetour.IsOutdoor(C_Map, Enum and Enum.UIMapType, returnPoint.mapID) then
@@ -908,13 +947,18 @@ local function UpdateDirection()
     local measurement = active and questMeasurements and questMeasurements[active.id]
     local arrived
     arrivalState, arrived = addon.TrackerState.Arrival(arrivalState, active, measurement)
+    local here = active and navigationSnapshot and navigationSnapshot.presence and navigationSnapshot.presence[active.id]
+    local engaged = active and insights.engagement and insights.engagement.questID == active.id
+    local working = here ~= nil or engaged
     local status
     if isFlying then
         status, arrived, arrivalState = FlightStep(active), false, nil
     elseif inInstance then
         status = L.NavigationInstance
+    elseif engaged then status = L.QuestEnemyEngaged
     elseif not measurement then
         status = active and next(avoidedObjectives[active.id] or {}) and L.NavigationAvoided or L.NavigationUnknown
+    elseif here then status = L.QuestSpawnNeighborhood
     elseif arrived then
         status = addon.NavigationHints.NextAction(active, measurement and measurement.marker, tracker:GetQuestItemHint())
     elseif not right then
@@ -926,10 +970,10 @@ local function UpdateDirection()
             or temporaryDetour.tourReturn and L.ReturnJourney
             or temporaryDetour.excursion and (L.ExcursionCurrent .. ": " .. temporaryDetour.name) or L.DetourActive
     end
-    if arrived or inInstance or isFlying then right, forward = nil, nil end
-    if navigationSnapshot then navigationSnapshot.arrived, navigationSnapshot.flying = arrived, isFlying end
-    tracker:SetJourneyPhase(isFlying and "flight" or active and active.readyToTurnIn and "turnIn" or arrived and "work" or "travel")
-    tracker:RenderDirection(right, forward, status, arrived and not inInstance)
+    if arrived or working or inInstance or isFlying then right, forward = nil, nil end
+    if navigationSnapshot then navigationSnapshot.arrived, navigationSnapshot.flying = arrived or working, isFlying end
+    tracker:SetJourneyPhase(isFlying and "flight" or active and active.readyToTurnIn and "turnIn" or (arrived or working) and "work" or "travel")
+    tracker:RenderDirection(right, forward, status, arrived and not inInstance, working)
     tracker:RenderRowDirections(facing)
     local report = insights.levelReport
     if report and not report.notified and #report.entries > 0 then
@@ -949,10 +993,11 @@ local function TrackingVisible()
 end
 
 local function UpdateDirectionTicker()
-    if TrackingVisible() and (settings.showDirectionArrow or temporaryDetour or (workspace and workspace:ReturnTarget())) then
+    if TrackingVisible() and (settings.showDirectionArrow or temporaryDetour or (workspace and workspace:ReturnTarget()) or addon.RecoveryState and addon.RecoveryState.active) then
         UpdateDirection()
-        local canRotate = (settings.showDirectionArrow and GetPlayerFacing and (measurableQuestIDs or nearbyOffers) or temporaryDetour)
-            and not isFlying and not (IsInInstance and IsInInstance())
+        local canRotate = addon.RecoveryState and addon.RecoveryState.active or
+            ((settings.showDirectionArrow and GetPlayerFacing and (measurableQuestIDs or nearbyOffers) or temporaryDetour)
+                and not isFlying and not (IsInInstance and IsInInstance()))
         if canRotate and not directionTicker then
             directionTicker = C_Timer.NewTicker(0.2, UpdateDirection)
         elseif not canRotate and directionTicker then
@@ -972,6 +1017,7 @@ end
 
 local function UpdateDistances(force)
     UpdateFlightState()
+    if addon.RecoveryState and addon.RecoveryState.active then return end
     local origin = addon.MovementGate.Sample(C_Map)
     local phase = tostring(isFlying) .. ":" .. tostring(combatQuestID) .. ":" .. tostring(IsInInstance and IsInInstance())
     if insights.levelHold and SessionTime() >= insights.levelHold.untilTime then insights.levelHold = nil end
@@ -998,6 +1044,7 @@ local function UpdateDistances(force)
             feedback = temporaryFeedback, now = SessionTime(),
             campAvoidance = campAvoidance,
             previousCamps = insights.previousCamps,
+            previousPresence = insights.presence,
             capacity = questCapacity,
             xpNeeded = addon.QuestLog.GetXPToNextLevel(),
             questMarkers = questMarkers,
@@ -1015,6 +1062,7 @@ local function UpdateDistances(force)
         addon.Performance:Finish("planning", performanceStart)
         navigationSnapshot = snapshot
         insights.previousCamps = snapshot.previousCamps
+        insights.presence = snapshot.presence
         questMeasurements, objectiveDistances = snapshot.measurements, snapshot.objectiveDistances
         previousObjectives, objectiveLock = snapshot.previousObjectives, snapshot.objectiveLock
         questJourneys, distanceOrder = snapshot.journeys, snapshot.distanceOrder
@@ -1186,6 +1234,7 @@ function addon.PauseExcursion()
     end
 end
 function addon.SyncExcursion(quests)
+    if addon.RecoveryState and addon.RecoveryState.active then return end
     local plan = insights.excursion
     if not (plan and plan.running) then return end
     addon.ExcursionPlan.Sync(plan, quests, C_QuestLog and C_QuestLog.GetQuestObjectives,
@@ -1204,6 +1253,7 @@ end
 
 local function Refresh()
     refreshPending = false
+    addon.UpdateRecovery()
     movementState = nil
     addon.QuestRewards.Clear()
     navigationSnapshot = nil
@@ -1213,6 +1263,7 @@ local function Refresh()
     objectiveDistances = nil
     questDestinations = {}
     local quests, used = addon.QuestLog.Read(C_QuestLog)
+    insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
     insights.newlyAccepted = {}
     if quests then
         local present = {}
@@ -2628,6 +2679,14 @@ local function AddonLoaded(name)
                 addon.ShowTextWindow("performance", addon.Performance:Report(), L.PerformanceTitle, L.PerformanceHelp)
             elseif command == "status" then
                 print("FQN | Questie: " .. addon.ReadQuestieStatus(C_AddOns))
+            elseif command == "activity" then
+                local active = shownQuests and shownQuests[1]
+                local area = active and navigationSnapshot and navigationSnapshot.presence and navigationSnapshot.presence[active.id]
+                local fight, body = insights.engagement, addon.RecoveryState
+                print(("FQN | activity: combatMatch=%s objective=%s area=%s recovery=%s corpse=%s"):format(
+                    tostring(fight and fight.questID or "none"), tostring(fight and fight.objectiveIndex or "none"),
+                    tostring(area and area.objectiveIndex or "none"), tostring(body and body.active == true),
+                    body and body.active and (body.exact and "native" or body.target and "last-death-position" or "unknown") or "none"))
             elseif command == "debug" then
                 ShowDiagnostics()
             elseif command == "problem" then
@@ -2696,6 +2755,7 @@ end
 
 events:RegisterEvent("ADDON_LOADED")
 addon.EventController.Bind(events, {
+    recovery = addon.UpdateRecovery,
     captureXP = CaptureSessionXP,
     turnIn = function(arg, rewardXP)
         if insights.levelHold and insights.levelHold.id == arg then insights.levelHold = nil end

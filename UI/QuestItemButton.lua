@@ -19,7 +19,7 @@ function addon.CreateQuestItemButton(owner, parent)
     host.cooldown = CreateFrame("Cooldown", nil, host, "CooldownFrameTemplate")
     host.cooldown:SetAllPoints(host.icon)
     function controller:Read()
-        if not self.quest or self.quest.readyToTurnIn or owner.detour then return end
+        if not self.quest or self.quest.readyToTurnIn or owner.detour or owner.recoveryState then return end
         if addon.DemoMode and addon.DemoMode.IsActive() then return end
         return addon.QuestItemHints.Read(C_QuestLog, self.quest.id, GetQuestLogSpecialItemInfo, GetItemCount, IsQuestLogSpecialItemInRange)
     end

@@ -52,6 +52,15 @@ function addon.NavigationController.Compute(input)
         end
     end
     addon.TravelSupport.ApplyAccess(input.mapAPI, eligibleQuests, measurements, distanceMaps, savedAccessPoints, passedAccessPoints, input.onTaxi or input.detour)
+    local presence = {}
+    for _, quest in ipairs(eligibleQuests) do
+        if not quest.readyToTurnIn then
+            presence[quest.id] = addon.ObjectivePresence.Area(input.mapAPI, questMarkers[quest.id], measurements[quest.id],
+                input.previousPresence and input.previousPresence[quest.id], avoidedObjectives[quest.id],
+                objectiveLock and objectiveLock.questID == quest.id and objectiveLock.index,
+                input.previousCamps and input.previousCamps[quest.id])
+        end
+    end
     if objectiveLock then
         local targets = objectiveDistances[objectiveLock.questID]
         if not (targets and targets[objectiveLock.index]) then objectiveLock = nil end
@@ -84,6 +93,7 @@ function addon.NavigationController.Compute(input)
     for _, quest in ipairs(eligibleQuests) do
         local entry, penalty = addon.RecommendationFeedback.Get(input.feedback, quest, measurements[quest.id], input.now or 0)
         feedback[quest.id], adjustments[quest.id] = entry, penalty
+        if presence[quest.id] and not entry then adjustments[quest.id] = (adjustments[quest.id] or 0) - 60 end
         if capacity and (capacity.full or capacity.reserveNeeded) and quest.readyToTurnIn and not entry
             and measurements[quest.id] and measurements[quest.id].yards <= 500 then adjustments[quest.id] = -100 end
     end
@@ -114,6 +124,7 @@ function addon.NavigationController.Compute(input)
         bundles = bundles, feedback = feedback, adjustments = adjustments, planningRanked = planningRanked,
         capacity = capacity,
         camps = camps, previousCamps = previousCamps, finishers = turnInLocations,
+        presence = presence,
         turnInTour = addon.PlanningInsights.TurnIns(input.mapAPI, eligibleQuests, measurements, input.xpNeeded, feedback),
     }
 end

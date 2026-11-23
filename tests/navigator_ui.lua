@@ -886,6 +886,21 @@ return function(test, equal, near, mockUI, loadAddon)
         tracker:SetDecisionBrief({steps = {}, closing = {}, acceptanceReview = true})
         tracker.nextBoard.assist:Click() equal(reviewed, true)
     end)
+    test("Corpse navigation overrides quest/detour arrows and unknown corpse data cannot fall back to quests", function()
+        local addon, tracker, settings, maps, skipped, render, quest = Fixture("deDE")
+        local originalView, detour = settings.navigatorView, {name = "Existing detour"}
+        tracker:SetDetour(detour, {yards = 100}) settings.showScreenArrow = false
+        tracker:RenderRecovery({active = true, ghost = true, exact = true, target = {mapID = 1, x = .2, y = .3}},
+            {yards = 400, east = 1, north = 0}, 1, 0)
+        equal(tracker.navigation.title:GetText(), addon.L.RecoveryTitle)
+        equal(tracker.navigation.distance:GetText(), "~400 yd") assert(tracker.navigation:IsShown())
+        tracker:RenderDirection(-1, 0, "Quest direction") equal(tracker.navigation.title:GetText(), addon.L.RecoveryTitle)
+        tracker:RenderRecovery({active = true, ghost = true}, nil, nil, nil)
+        equal(tracker.navigation.goal:GetText(), addon.L.RecoveryUnknown)
+        equal(tracker.navigation.arrow:IsShown(), false) equal(tracker.detour, detour)
+        tracker:SetRecoveryState(nil) equal(tracker.recoveryState, nil) equal(tracker.detour, detour)
+        equal(settings.navigatorView, originalView) equal(#skipped, 0)
+    end)
     test("Quick settings can filter recommendation controls and expose a separate example preview", function()
         local addon, _, settings = Fixture()
         local entries = {{key = "theme", name = "Theme", help = "Colors", basic = true, effect = "view", choices = {"graphite"}},

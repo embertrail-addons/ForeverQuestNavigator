@@ -1,5 +1,14 @@
 local _, addon = ...
 local english = {
+    QuestEnemyEngaged = "Fighting a matching quest enemy",
+    QuestSpawnNeighborhood = "In a nearby quest spawn area · enemies may be present",
+    RecoveryTitle = "Return to your corpse",
+    RecoveryWait = "Dead · waiting for spirit release or resurrection",
+    RecoveryUnknown = "Corpse coordinates unavailable · quest navigation paused",
+    RecoveryUnmeasurable = "Recovery destination known · direction currently unavailable",
+    RecoveryWalk = "Return to your corpse · quest navigation paused",
+    RecoveryApproximate = "Last death position · approximate corpse destination",
+    RecoveryAtBody = "Near your corpse · resurrect manually when available",
     OfferSkip = "Skip step",
     OfferLater = "Remind me later",
     OfferHide = "Don't recommend again",
@@ -937,6 +946,15 @@ local english = {
 }
 
 local german = setmetatable({
+    QuestEnemyEngaged = "Passender Questgegner im Kampf",
+    QuestSpawnNeighborhood = "Im Quest-Spawngebiet · Gegner können hier sein",
+    RecoveryTitle = "Zum eigenen Leichnam",
+    RecoveryWait = "Tot · auf Geistfreigabe oder Wiederbelebung warten",
+    RecoveryUnknown = "Leichnam-Koordinaten unbekannt · Questnavigation pausiert",
+    RecoveryUnmeasurable = "Rückkehrziel bekannt · Richtung aktuell nicht verfügbar",
+    RecoveryWalk = "Zum Leichnam · Questnavigation pausiert",
+    RecoveryApproximate = "Letzter Todesort · ungefähres Leichnam-Ziel",
+    RecoveryAtBody = "Nahe am Leichnam · selbst wiederbeleben, sobald möglich",
     OfferSkip = "Schritt auslassen",
     OfferLater = "Später erinnern",
     OfferHide = "Nicht mehr empfehlen",
@@ -1913,6 +1931,9 @@ german.UpdateNotesText = "• Abgaben unterwegs mit Umwegvorschau; passende Vorm
 
 english.UpdateNotesText = "• Mixed rounds place pickups between objectives and hand-ins, with known coordinate detours and quest-log capacity.\n• Skip one pickup, remind later or hide per character; restore hidden pickups separately and undo unchanged plans.\n• Actual acceptance pauses for a target review before explicit resume.\n" .. english.UpdateNotesText
 german.UpdateNotesText = "• Gemischte Runden ordnen Annahmen zwischen Zielen und Abgaben ein; bekannte Umwege und Questplätze zählen mit.\n• Annahme auslassen, später merken oder pro Charakter ausblenden; getrennt wieder aufnehmen und unveränderte Pläne rückgängig machen.\n• Nach tatsächlicher Annahme Ziele prüfen und ausdrücklich fortsetzen.\n" .. german.UpdateNotesText
+
+english.UpdateNotesText = "• Recognize local Questie spawn neighborhoods and matching enemies you are fighting when their identity is public.\n• Death/ghost navigation prioritizes a stable corpse destination; unknown corpse data never falls back to quests.\n" .. english.UpdateNotesText
+german.UpdateNotesText = "• Lokale Questie-Spawngebiete und passende Kampfgegner erkennen, soweit deren Identität öffentlich verfügbar ist.\n• Tot / als Geist hat ein stabiles Leichnam-Ziel Vorrang; unbekannte Leichnamdaten führen nicht zu Questpfeilen.\n" .. german.UpdateNotesText
 
 addon.L = {}
 

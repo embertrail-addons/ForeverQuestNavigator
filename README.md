@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current version: 0.1.83.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline. [Release notes and pending in-game checks](release/curseforge-changelog-0.1.83.md) · [Publication authorization](release/acceptance-0.1.83.md).
+**Current release: 0.1.84.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.1.84 recognizes local spawn neighborhoods around unfinished Questie objectives and publicly identifiable enemies you are actually fighting. It does not infer a specific quest from a generic quest-unit flag or a secret GUID. While dead/ghost, a dedicated recovery display takes priority over quest and detour arrows. Native corpse coordinates are pinned for the run; a captured death position is labelled approximate. Missing corpse coordinates/direction never reactivate quest routing. Resurrection restores ordinary navigation. `/fqn activity` reports the current match, spawn-area and recovery state without raw unit GUIDs. [Changes and manual checks](release/curseforge-changelog-0.1.84.md).
 
 0.1.83 plans mixed pickups, objectives and hand-ins rather than placing every pickup first. Known ready hand-ins may free a slot before a later pickup. Available Questie starter pins near the destination and up to three pending outing pickups are considered alongside nearby offers. Pickups with a known insertion detour over 400 coordinate yards are omitted. This bounded heuristic compares coordinate travel, level and potential quest XP; it is not a proven fastest walking route. Actual acceptance pauses the outing: open the review, inspect refreshed active-quest targets and explicitly Start to resume.
 

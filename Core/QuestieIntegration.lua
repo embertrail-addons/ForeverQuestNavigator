@@ -36,6 +36,37 @@ function Integration.GetObjectiveItemID(id, index)
     if ok then return itemID end
 end
 
+function Integration.GetCombatMarkers(quests, api)
+    if not Integration.IsReady() then return {} end
+    local ok, result = pcall(function()
+        local active, relations = QuestieLoader:ImportModule("ActiveQuests"), {}
+        for _, quest in ipairs(quests or {}) do
+            local accepted = not quest.readyToTurnIn and active.Get(quest.id)
+            local data = accepted and accepted.quest
+            local goals = data and api.GetQuestObjectives and api.GetQuestObjectives(quest.id)
+            for index, goal in ipairs(goals or {}) do
+                local source = data.ObjectiveData and data.ObjectiveData[index]
+                local cached = data.Objectives and data.Objectives[index]
+                if not goal.finished and source and cached and type(source.Id) == "number" and source.Id > 0
+                    and source.Type == goal.type and cached.Type == source.Type and cached.Id == source.Id then
+                    local ids = {}
+                    if source.Type == "monster" then ids[source.Id] = true
+                    elseif source.Type == "item" then for _, spawn in pairs(cached.spawnList or {}) do
+                        local id = type(spawn.TooltipKey) == "string" and tonumber(spawn.TooltipKey:match("^m_(%d+)$"))
+                        if id and spawn.Hostile ~= false then ids[id] = true end
+                    end end
+                    for id in pairs(ids) do
+                        relations[quest.id] = relations[quest.id] or {}
+                        relations[quest.id][#relations[quest.id] + 1] = {objectiveIndex = index, npcID = id}
+                    end
+                end
+            end
+        end
+        return relations
+    end)
+    return ok and result or {}
+end
+
 local function LocalMarker(localMaps, mapID, x, y)
     if localMaps[mapID] and type(x) == "number" and type(y) == "number"
         and x >= 0 and x <= 100 and y >= 0 and y <= 100 and (x > 0 or y > 0) then
@@ -76,6 +107,11 @@ local function CollectObjectiveMarkers(quests, questAPI, localMaps, useKillLocat
                                     if marker and phasing.IsSpawnVisible(point[3]) then
                                         marker.objectiveIndex = index
                                         marker.targetKind = kind == "object" and "object" or "area"
+                                        marker.notCombatSource = kind == "item" and spawn.Hostile == false or nil
+                                        marker.spawnKey = type(spawn.TooltipKey) == "string" and spawn.TooltipKey or kind .. ":" .. tostring(sourceID)
+                                        local npcID = kind == "monster" and data.Id
+                                            or type(spawn.TooltipKey) == "string" and tonumber(spawn.TooltipKey:match("^m_(%d+)$"))
+                                        if type(npcID) == "number" and spawn.Hostile ~= false and kind ~= "object" then marker.npcID = npcID end
                                         markers[#markers + 1] = marker
                                     end
                                 end
