@@ -265,6 +265,26 @@ return function(test, addon, equal, near)
         equal(Sync.ShareTour({}, nil, {{id = 7}}), false)
     end)
 
+    test("Follow-ups unlocking at the next level are found only when they start on shown maps", function()
+        local I = addon.QuestieIntegration
+        local env = getfenv(I.SoonFollowUps)
+        local savedDB, savedLoader = rawget(env, "LibQuestieDB"), rawget(env, "QuestieLoader")
+        local chain = {[1] = 11, [2] = 12, [3] = 13, [4] = 14}
+        local required = {[11] = 21, [12] = 21, [13] = 22, [14] = 21}
+        local starters = {[11] = {{101}}, [12] = {{102}}, [13] = {{101}}, [14] = {nil, {201}}}
+        local spawns = {[101] = {[40] = {{50, 50}}}, [102] = {[99] = {{1, 1}}}, [201] = {[40] = {{2, 2}}}}
+        env.LibQuestieDB = {Quest = {nextQuestInChain = function(id) return chain[id] end,
+            requiredLevel = function(id) return required[id] end, startedBy = function(id) return starters[id] end},
+            Npc = {spawns = function(id) return spawns[id] end}, Object = {spawns = function(id) return spawns[id] end}}
+        env.QuestieLoader = {ImportModule = function() return {GetUiMapIdByAreaId = function(_, area) return area == 40 and 1429 or 9999 end} end}
+        local found = I.SoonFollowUps({1, 2, 3, 4, 5}, 20, {[1429] = true})
+        equal(found[11], true) equal(found[12], nil) equal(found[13], nil) equal(found[14], true)
+        equal(next(I.SoonFollowUps({1}, 20, nil)), nil)
+        env.LibQuestieDB = nil
+        equal(next(I.SoonFollowUps({1}, 20, {[1429] = true})), nil)
+        env.LibQuestieDB, env.QuestieLoader = savedDB, savedLoader
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

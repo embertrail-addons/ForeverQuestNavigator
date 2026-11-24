@@ -165,7 +165,7 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
 
     local soonCount = 0
     for _ in pairs(soon) do soonCount = soonCount + 1 end
-    Integration.soonAvailable = soonCount
+    Integration.soonAvailable, Integration.soonSet = soonCount, soon
     local offers = {}
     local priority = addon.QuestPrioritizer
     local anchorDistance = anchor and addon.QuestLocation.GetDistanceMetric(mapAPI, anchor)
@@ -246,6 +246,44 @@ end
 
 -- Quest givers on the shown maps that unlock at the next level (only when Questie draws them).
 function Integration.SoonAvailable() return Integration.soonAvailable end
+function Integration.SoonSet()
+    local copy = {}
+    for id in pairs(Integration.soonSet or {}) do copy[id] = true end
+    return copy
+end
+
+local function StarterOnMaps(db, id, maps, zones)
+    local ok, givers = pcall(db.Quest.startedBy, id)
+    if not ok or type(givers) ~= "table" then return false end
+    for kind, entity in ipairs({db.Npc, db.Object}) do
+        for _, giver in ipairs(givers[kind] or {}) do
+            local spawnsOk, spawns = pcall(entity.spawns, giver)
+            for area in pairs(spawnsOk and type(spawns) == "table" and spawns or {}) do
+                local mapID = zones and zones.GetUiMapIdByAreaId and zones:GetUiMapIdByAreaId(area)
+                if mapID and maps[mapID] then return true end
+            end
+        end
+    end
+    return false
+end
+
+-- Follow-up quests of the given quests that unlock exactly at the next level and start
+-- on one of the shown maps. Uses only QuestieDB fields FQN already relies on.
+function Integration.SoonFollowUps(ids, playerLevel, maps)
+    local found = {}
+    local db = LibQuestieDB
+    if not (db and db.Quest and db.Quest.nextQuestInChain and db.Quest.requiredLevel and db.Quest.startedBy
+        and db.Npc and db.Object and type(playerLevel) == "number" and type(maps) == "table") then return found end
+    local zones = QuestieLoader and QuestieLoader.ImportModule and QuestieLoader:ImportModule("ZoneDB")
+    for _, id in ipairs(ids or {}) do
+        local ok, nextID = pcall(db.Quest.nextQuestInChain, id)
+        if ok and type(nextID) == "number" and nextID > 0 and not found[nextID] then
+            local levelOk, required = pcall(db.Quest.requiredLevel, nextID)
+            if levelOk and required == playerLevel + 1 and StarterOnMaps(db, nextID, maps, zones) then found[nextID] = true end
+        end
+    end
+    return found
+end
 
 function Integration.GetNearbyOffers(...)
     local ok, offers = pcall(FindNearbyOffers, ...)

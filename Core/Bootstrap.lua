@@ -584,8 +584,20 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         local levelPlan = addon.LevelForecast.FromQuests(S.eligibleQuests, S.questMeasurements, addon.QuestLog.GetTurnInXP, xpNeeded)
         if levelPlan then
             local text = L.LevelForecastRoute:format(playerLevel + 1, levelPlan.count, levelPlan.total)
-            local soon = integration.SoonAvailable and integration.SoonAvailable()
-            if soon and soon > 0 then text = text .. " · " .. L.LevelForecastUnlocks:format(soon) end
+            -- Pins Questie draws plus known follow-ups from the database, cached for 30 seconds.
+            local cache = S.insights.soonCache
+            if not cache or cache.level ~= playerLevel or SessionTime() - cache.at > 30 then
+                local ids = {}
+                for _, quest in ipairs(S.eligibleQuests or {}) do ids[#ids + 1] = quest.id end
+                for _, entry in ipairs(S.session and S.session.data.recent or {}) do ids[#ids + 1] = entry.id end
+                local set = integration.SoonSet and integration.SoonSet() or {}
+                for id in pairs(integration.SoonFollowUps and integration.SoonFollowUps(ids, playerLevel, S.questTargetMaps) or {}) do set[id] = true end
+                local count = 0
+                for _ in pairs(set) do count = count + 1 end
+                cache = {level = playerLevel, at = SessionTime(), count = count}
+                S.insights.soonCache = cache
+            end
+            if cache.count > 0 then text = text .. " · " .. L.LevelForecastUnlocks:format(cache.count) end
             routeDetails = routeDetails and (routeDetails .. "\n" .. text) or text
         end
     end
