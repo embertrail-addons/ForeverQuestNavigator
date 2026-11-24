@@ -124,4 +124,9 @@ read_globals = {
     "UnitIsGroupLeader",
     "GetZoneText",
     "GetRealZoneText",
+    "GetBuildInfo",
+    "GetCVar",
+    "date",
+    "debugstack",
+    "geterrorhandler",
 }
