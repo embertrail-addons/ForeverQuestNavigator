@@ -68,6 +68,7 @@ Core\TrackerPresentation.lua
 Core\DemoData.lua
 Core\SettingsDefaults.lua
 Core\Commands.lua
+Core\NoticeQueue.lua
 UI\NavigationDisplay.lua
 UI\Theme.lua
 UI\QuestWidgets.lua

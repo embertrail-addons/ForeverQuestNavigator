@@ -179,6 +179,37 @@ return function(test, addon, equal, near)
         equal(P(memory, "q3", 0 / 0), nil)
     end)
 
+    test("Notice queue shows one window at a time in priority order and waits outside combat", function()
+        local Q = addon.NoticeQueue
+        Q.Reset()
+        local env = getfenv(Q.Pump)
+        local combat = true
+        local savedCombat = rawget(env, "InCombatLockdown")
+        env.InCombatLockdown = function() return combat end
+        local shown, frames = {}, {}
+        local function Frame(name)
+            local frame = {shown = false, scripts = {}}
+            function frame:IsShown() return self.shown end
+            function frame:Show() self.shown = true end
+            function frame:Hide() self.shown = false if self.scripts.OnHide then self.scripts.OnHide(self) end end
+            function frame:HookScript(_, callback) local previous = self.scripts.OnHide
+                self.scripts.OnHide = function(...) if previous then previous(...) end callback(...) end end
+            frames[name] = frame
+            return function() shown[#shown + 1] = name frame:Show() return frame end
+        end
+        Q.Push("recap", 40, Frame("recap"))
+        Q.Push("notes", 30, Frame("notes"))
+        Q.Push("notes", 30, Frame("duplicate"))
+        equal(#shown, 0)
+        combat = false Q.Pump()
+        equal(shown[1], "notes") equal(#shown, 1)
+        frames.notes:Hide() equal(shown[2], "recap")
+        Q.Push("nothing", 10, function() return nil end)
+        frames.recap:Hide() equal(#shown, 2) equal(Q.active, nil)
+        env.InCombatLockdown = savedCombat
+        Q.Reset()
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

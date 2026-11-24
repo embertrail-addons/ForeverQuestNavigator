@@ -22,4 +22,5 @@ function addon.ShowReleaseNotes(settings, version)
     window:SetHeight(math.max(370, window.text:GetStringHeight() + 116))
     settings.lastSeenVersion = version
     addon.UI.ShowUtilityPanel(window, "whatsnew")
+    return window
 end

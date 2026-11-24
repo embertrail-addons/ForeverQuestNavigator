@@ -1930,12 +1930,14 @@ addon.EventController.Bind(events, {
         end
     end,
     enterWorld = function()
-        if S.insights.offerRecap and S.session and not (InCombatLockdown and InCombatLockdown()) then
+        if S.insights.offerRecap and S.session then
             S.insights.offerRecap = nil
-            addon.ShowSessionRecapNotice(S.session:Recap(SessionTime(), SuggestZone()), {
-                open = ShowSession,
-                reset = function() addon.Commands.Dispatch("session reset") end,
-            })
+            addon.NoticeQueue.Push("recap", 40, function()
+                return addon.ShowSessionRecapNotice(S.session:Recap(SessionTime(), SuggestZone()), {
+                    open = ShowSession,
+                    reset = function() addon.Commands.Dispatch("session reset") end,
+                })
+            end)
         end
         AddQuestLogButton()
         if not S.minimapButton then
@@ -1946,20 +1948,26 @@ addon.EventController.Bind(events, {
         end
     end,
     introduction = function()
-        if S.settings and not S.settings.introSeen
-            and not (InCombatLockdown and InCombatLockdown()) then
-            if not S.insights.hadSettings and not S.settings.setupDone then
-                ShowSetup(function() addon.ShowIntroduction(S.settings) end)
-            else addon.ShowIntroduction(S.settings) end
+        -- Automatic windows go through the notice queue: one at a time, never in combat or on a taxi.
+        local Queue = addon.NoticeQueue
+        local function Introduction()
+            Queue.Push("introduction", 20, function() return addon.ShowIntroduction(S.settings) end)
         end
-        if S.settings and S.settings.introSeen and S.insights.updateVersion and not (InCombatLockdown and InCombatLockdown())
-            and not (UnitOnTaxi and UnitOnTaxi("player")) and not addon.DemoMode.IsActive() then
-            if S.settings.showUpdateNotes then addon.ShowReleaseNotes(S.settings, S.insights.updateVersion)
-            else S.settings.lastSeenVersion = S.insights.updateVersion end
+        if S.settings and not S.settings.introSeen then
+            if not S.insights.hadSettings and not S.settings.setupDone then
+                Queue.Push("setup", 10, function() return ShowSetup(Introduction) end)
+            else Introduction() end
+        end
+        if S.settings and S.settings.introSeen and S.insights.updateVersion and not addon.DemoMode.IsActive() then
+            local version = S.insights.updateVersion
             S.insights.updateVersion = nil
+            if S.settings.showUpdateNotes then
+                Queue.Push("updateNotes", 30, function() return addon.ShowReleaseNotes(S.settings, version) end)
+            else S.settings.lastSeenVersion = version end
         end
     end,
     taxi = function(event)
+        addon.NoticeQueue.Pump()
         if event == "TAXIMAP_OPENED" then flight.taxiMapOpen = true end
         if event == "TAXIMAP_CLOSED" or event == "PLAYER_ENTERING_WORLD" then flight.taxiMapOpen = false end
         if flight.taxiMapOpen and (event == "TAXIMAP_OPENED" or event == "TAXI_NODE_STATUS_CHANGED") then

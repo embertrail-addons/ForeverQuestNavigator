@@ -93,6 +93,7 @@ function addon.ShowIntroduction(settings)
     guide.settings, guide.step = settings, 1
     guide:Refresh()
     addon.UI.ShowUtilityPanel(guide)
+    return guide
 end
 
 function addon.RefreshQuestNotepad()
