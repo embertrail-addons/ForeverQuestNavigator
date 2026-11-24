@@ -3174,12 +3174,16 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(env.ForeverQuestNavigatorCharacterDB.accessPoints[1002], nil)
     manager.next:Click()
-    equal(manager.page, 1)
-    equal(manager.rows[1].entry.questID, 99996)
-    assert(manager.rows[1].label.text:find("Completed quest", 1, true))
-    manager.rows[1].remove:Click()
+    equal(manager.offset, 1)
+    do
+        local completedRow
+        for _, row in ipairs(manager.rows) do if row.entry and row.entry.questID == 99996 then completedRow = row end end
+        assert(completedRow and completedRow:IsShown(), "Scrolling reveals the sixth access point")
+        assert(completedRow.label.text:find("Completed quest", 1, true))
+        completedRow.remove:Click()
+    end
     flush()
-    equal(manager.page, 0)
+    equal(manager.offset, 0)
     equal(manager.previous.enabled, false)
 
     sessionWindow.scripts.OnUpdate(sessionWindow, 1)

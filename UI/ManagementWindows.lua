@@ -113,7 +113,7 @@ end
 function addon.ShowAccessManager(actions)
     if not accessWindow then
         accessWindow = Panel(650, 570, L.AccessManager)
-        accessWindow.page, accessWindow.rows, accessWindow.filterMode = 0, {}, "all"
+        accessWindow.offset, accessWindow.rows, accessWindow.filterMode = 0, {}, "all"
         accessWindow.empty = addon.UI.CreateLabel(accessWindow, "GameFontHighlightSmall")
         accessWindow.empty:SetPoint("TOPLEFT", 16, -105)
         accessWindow.empty:SetPoint("TOPRIGHT", -16, -105)
@@ -164,29 +164,23 @@ function addon.ShowAccessManager(actions)
             row.edit:SetScript("OnEnterPressed", Rename)
             accessWindow.rows[index] = row
         end
-        accessWindow.previous = Button(accessWindow, "<", 35, function()
-            accessWindow.page = math.max(0, accessWindow.page - 1)
-            accessWindow:Refresh()
-        end)
+        accessWindow.previous = Button(accessWindow, "^", 35, function() end)
         accessWindow.previous:SetPoint("BOTTOMLEFT", 16, 16)
-        accessWindow.next = Button(accessWindow, ">", 35, function()
-            accessWindow.page = accessWindow.page + 1
-            accessWindow:Refresh()
-        end)
+        accessWindow.next = Button(accessWindow, "v", 35, function() end)
         accessWindow.next:SetPoint("BOTTOMLEFT", 59, 16)
         accessWindow.count = addon.UI.CreateLabel(accessWindow, "GameFontHighlightSmall")
         accessWindow.count:SetPoint("BOTTOMRIGHT", -16, 20)
+        local paging = addon.UI.ScrollPaging(accessWindow, accessWindow.rows, function() accessWindow:Refresh() end)
         function accessWindow:Refresh()
             local all = self.actions.list()
             local entries = self.actions.filter(all, self.search:GetText(), self.filterMode)
-            self.page = math.min(self.page, math.max(0, math.ceil(#entries / 5) - 1))
+            local offset = paging:Clamp(#entries)
             self.empty:SetShown(#entries == 0)
             self.empty:SetText(#all == 0 and L.NoSavedAccess or L.NoAccessMatches)
-            self.previous:SetEnabled(self.page > 0)
-            self.next:SetEnabled((self.page + 1) * 5 < #entries)
-            self.count:SetText(L.AccessShowing:format(#entries, #all))
+            local count = paging:Update(#entries)
+            self.count:SetText(L.AccessShowing:format(#entries, #all) .. (count and (" · " .. count) or ""))
             for index, row in ipairs(self.rows) do
-                local entry = entries[self.page * 5 + index]
+                local entry = entries[offset + index]
                 row.entry = entry
                 row:SetShown(entry ~= nil)
                 if entry then
@@ -209,7 +203,7 @@ function addon.ShowAccessManager(actions)
         accessWindow.search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
         accessWindow.search:SetScript("OnTextChanged", function()
             if not accessWindow.actions then return end
-            accessWindow.page = 0
+            accessWindow.offset = 0
             accessWindow:Refresh()
         end)
         accessWindow.filter = Button(accessWindow, L.FilterAll, 185, function()
@@ -218,7 +212,7 @@ function addon.ShowAccessManager(actions)
                 if mode == accessWindow.filterMode then accessWindow.filterMode = modes[index % 3 + 1] break end
             end
             accessWindow.filter:SetText(({ all = L.FilterAll, current = L.FilterCurrent, completed = L.FilterCompleted })[accessWindow.filterMode])
-            accessWindow.page = 0
+            accessWindow.offset = 0
             accessWindow:Refresh()
         end)
         accessWindow.filter:SetPoint("TOPRIGHT", -16, -61)

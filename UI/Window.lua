@@ -93,6 +93,38 @@ function addon.UI.AttachScroller(window, rows, refresh, bottom)
     return scroller
 end
 
+-- Same scrolling for lists that already own previous/next buttons: they keep their
+-- place but become ^ / v, and the mouse wheel scrolls one row at a time.
+function addon.UI.ScrollPaging(window, rows, refresh)
+    window.offset = window.offset or 0
+    local function Scroll(delta)
+        window.offset = (window.offset or 0) + delta
+        refresh()
+    end
+    window:EnableMouseWheel(true)
+    window:SetScript("OnMouseWheel", function(_, delta) Scroll(-delta) end)
+    for _, row in ipairs(rows) do
+        if row.EnableMouseWheel then row:EnableMouseWheel(true) end
+        row:SetScript("OnMouseWheel", function(_, delta) Scroll(-delta) end)
+    end
+    window.previous:SetText("^") window.previous:SetScript("OnClick", function() Scroll(-(#rows - 1)) end)
+    window.next:SetText("v") window.next:SetScript("OnClick", function() Scroll(#rows - 1) end)
+    local paging = {}
+    function paging:Clamp(count)
+        window.offset = math.max(0, math.min(window.offset or 0, count - #rows))
+        return window.offset
+    end
+    -- Returns the "a-b of n" text when the list scrolls, else nil.
+    function paging:Update(count)
+        local scrolls = count > #rows
+        window.previous:SetShown(scrolls) window.next:SetShown(scrolls)
+        window.previous:SetEnabled(window.offset > 0) window.next:SetEnabled(window.offset + #rows < count)
+        return scrolls and addon.L.ListCount:format(window.offset + 1, math.min(count, window.offset + #rows), count) or nil
+    end
+    function paging:Reset() window.offset = 0 end
+    return paging
+end
+
 -- Compatibility names used across the UI files.
 addon.UI.CreateUtilityPanel = addon.UI.CreateWindow
 addon.UI.CreateUtilityButton = addon.UI.CreateWindowButton

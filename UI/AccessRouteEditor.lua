@@ -39,20 +39,20 @@ function addon.ShowAccessRouteEditor(actions)
             addon.UI.BindTooltip(row.down, function() return L.MoveAccessLater end)
             window.rows[index] = row
         end
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 32, function() window.page = math.max(1, window.page - 1) window:Refresh() end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 32, function() end)
         window.previous:SetPoint("BOTTOMLEFT", 18, 14)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 32, function() window.page = window.page + 1 window:Refresh() end)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 32, function() end)
         window.next:SetPoint("BOTTOMRIGHT", -18, 14)
         window.count = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.count:SetPoint("BOTTOM", 0, 48)
         window.undo = addon.UI.CreateUtilityButton(window, L.UndoLatest, 240, function() addon.UndoLastChange() window:Refresh() end)
         window.undo:SetPoint("BOTTOM", 0, 14)
+        local paging = addon.UI.ScrollPaging(window, window.rows, function() window:Refresh() end)
         function window:Refresh()
             local points = self.actions.list()
-            local pages = math.max(1, math.ceil(#points / 5))
-            self.page = math.min(self.page, pages)
+            local offset = paging:Clamp(#points)
             for index, row in ipairs(self.rows) do
-                local step = (self.page - 1) * 5 + index
+                local step = offset + index
                 row.step, row.point = step, points[step]
                 row:SetShown(row.point ~= nil)
                 if row.point then
@@ -62,12 +62,12 @@ function addon.ShowAccessRouteEditor(actions)
                     row.up:SetEnabled(step > 1) row.down:SetEnabled(step < #points)
                 end
             end
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
-            self.count:SetText(L.AccessStepCount:format(#points, 8))
+            local count = paging:Update(#points)
+            self.count:SetText(L.AccessStepCount:format(#points, 8) .. (count and (" · " .. count) or ""))
             self.undo:SetEnabled(addon.Undo ~= nil and #addon.Undo.entries > 0)
         end
     end
-    window.actions, window.page = actions, 1
+    window.actions, window.offset = actions, 0
     window:Refresh() addon.UI.ShowUtilityPanel(window)
 end
 function addon.RefreshAccessRouteEditor() if window and window:IsShown() then window:Refresh() end end

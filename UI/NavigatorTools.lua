@@ -6,7 +6,7 @@ local notes, guide
 function addon.ShowQuestNotepad(actions)
     if not notes then
         notes = Panel(570, 410, L.QuestNotepad)
-        notes.rows, notes.page = {}, 0
+        notes.rows, notes.offset = {}, 0
         notes.empty = addon.UI.CreateLabel(notes, "GameFontHighlightSmall")
         notes.empty:SetPoint("TOPLEFT", 16, -50)
         notes.empty:SetPoint("TOPRIGHT", -16, -50)
@@ -35,21 +35,23 @@ function addon.ShowQuestNotepad(actions)
             row.remove:SetPoint("TOPRIGHT", -70, 0)
             notes.rows[index] = row
         end
-        notes.previous = Button(notes, "<", 35, function() notes.page = math.max(0, notes.page - 1) notes:Refresh() end)
+        notes.previous = Button(notes, "^", 35, function() end)
         notes.previous:SetPoint("BOTTOMLEFT", 16, 16)
-        notes.next = Button(notes, ">", 35, function() notes.page = notes.page + 1 notes:Refresh() end)
+        notes.next = Button(notes, "v", 35, function() end)
         notes.next:SetPoint("BOTTOMLEFT", 59, 16)
         local hint = addon.UI.CreateLabel(notes, "GameFontDisableSmall")
         hint:SetPoint("BOTTOMRIGHT", -16, 20)
         hint:SetText(L.NotepadIndependent)
+        notes.count = addon.UI.CreateLabel(notes, "GameFontDisableSmall")
+        notes.count:SetPoint("BOTTOMLEFT", 104, 20)
+        local paging = addon.UI.ScrollPaging(notes, notes.rows, function() notes:Refresh() end)
         function notes:Refresh()
             local entries = self.actions.list()
-            self.page = math.min(self.page, math.max(0, math.ceil(#entries / 5) - 1))
+            local offset = paging:Clamp(#entries)
             self.empty:SetShown(#entries == 0)
-            self.previous:SetEnabled(self.page > 0)
-            self.next:SetEnabled((self.page + 1) * 5 < #entries)
+            self.count:SetText(paging:Update(#entries) or "")
             for index, row in ipairs(self.rows) do
-                local entry = entries[self.page * 5 + index]
+                local entry = entries[offset + index]
                 row.entry = entry
                 row:SetShown(entry ~= nil)
                 if entry then
@@ -62,6 +64,7 @@ function addon.ShowQuestNotepad(actions)
     notes.actions = actions
     notes:Refresh()
     addon.UI.ShowUtilityPanel(notes)
+    return notes
 end
 
 function addon.ShowIntroduction(settings)

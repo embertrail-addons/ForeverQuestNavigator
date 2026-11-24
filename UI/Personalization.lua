@@ -30,32 +30,33 @@ function addon.ShowFeedbackManager(actions)
         end
         frame.all = addon.UI.CreateUtilityButton(frame, L.FeedbackClearAll, 240, function() frame.actions.clearAll() frame:Refresh() end)
         frame.all:SetPoint("BOTTOM", 0, 16)
-        frame.previous = addon.UI.CreateUtilityButton(frame, "<", 32, function() frame.page = math.max(1, frame.page - 1) frame:Refresh() end)
+        frame.previous = addon.UI.CreateUtilityButton(frame, "^", 32, function() end)
         frame.previous:SetPoint("BOTTOMLEFT", 18, 16)
-        frame.next = addon.UI.CreateUtilityButton(frame, ">", 32, function() frame.page = frame.page + 1 frame:Refresh() end)
+        frame.next = addon.UI.CreateUtilityButton(frame, "v", 32, function() end)
         frame.next:SetPoint("BOTTOMRIGHT", -18, 16)
         frame.status = addon.UI.CreateLabel(frame, "GameFontDisableSmall")
         frame.status:SetPoint("BOTTOM", 0, 55)
+        local paging = addon.UI.ScrollPaging(frame, frame.rows, function() frame:Refresh() end)
         function frame:Refresh()
             local entries = self.actions.list()
-            local pages = math.max(1, math.ceil(#entries / 5))
-            self.page = math.min(self.page, pages)
+            local offset = paging:Clamp(#entries)
             for index, row in ipairs(self.rows) do
-                row.entry = entries[(self.page - 1) * 5 + index]
+                row.entry = entries[offset + index]
                 row:SetShown(row.entry ~= nil)
                 if row.entry then
                     row.label:SetText(addon.UI.FormatQuestTitle(row.entry.quest) .. "\n"
                         .. L["FeedbackReason_" .. row.entry.kind] .. " · " .. L.FeedbackRemaining:format(math.ceil(row.entry.seconds)))
                 end
             end
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
+            local count = paging:Update(#entries)
             self.all:SetEnabled(#entries > 0)
-            self.status:SetText(#entries == 0 and L.NoFeedback or (self.page .. " / " .. pages))
+            self.status:SetText(#entries == 0 and L.NoFeedback or count or "")
         end
         addon.UI.RefreshWhileShown(frame, 1)
     end
-    feedbackWindow.actions, feedbackWindow.page = actions, 1
+    feedbackWindow.actions, feedbackWindow.offset = actions, 0
     feedbackWindow:Refresh() addon.UI.ShowUtilityPanel(feedbackWindow)
+    return feedbackWindow
 end
 
 local function Value(value)

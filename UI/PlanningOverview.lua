@@ -19,8 +19,8 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
         end)
         function window:SelectMode(mode)
             self.modePages = self.modePages or {}
-            if self.mode then self.modePages[self.mode] = self.page end
-            self.mode, self.page = mode, self.modePages[mode] or 1 self:Refresh()
+            if self.mode then self.modePages[self.mode] = self.offset end
+            self.mode, self.offset = mode, self.modePages[mode] or 0 self:Refresh()
         end
         window.modeSelector = addon.UI.CreateUtilityButton(window, "", 564, function()
             if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
@@ -53,10 +53,10 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             row.textLabel:SetMaxLines(2)
             row:SetScript("OnClick", function(self)
                 if self.areaKey or self.back then
-                    window.areaKey, window.page = self.areaKey, 1
+                    window.areaKey, window.offset = self.areaKey, 0
                     window:Refresh()
                 elseif self.handInKey or self.handInBack then
-                    window.handInMap, window.page = self.handInKey, 1 window:Refresh()
+                    window.handInMap, window.offset = self.handInKey, 0 window:Refresh()
                 elseif self.inspect then
                     addon.ShowTextWindow("comparison", self.detail, L.BriefComparison, L.BriefNoScore)
                 elseif self.stop then window.openStop(self.stop) end
@@ -73,12 +73,13 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             addon.UI.BindTooltip(row, function(self) return self:GetText(), self.detail end)
             window.rows[index] = row
         end
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 35, function() window.page = math.max(1, window.page - 1) window:Refresh() end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 35, function() end)
         window.previous:SetPoint("BOTTOMLEFT", 18, 16)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 35, function() window.page = window.page + 1 window:Refresh() end)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 35, function() end)
         window.next:SetPoint("BOTTOMRIGHT", -18, 16)
         window.pageLabel = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.pageLabel:SetPoint("BOTTOM", 0, 21)
+        window.paging = addon.UI.ScrollPaging(window, window.rows, function() window:Refresh() end)
         window.remember = addon.UI.CreateUtilityButton(window, L.BriefRemember, 270, function()
             if addon.RememberAdvisoryRound then addon.RememberAdvisoryRound() end
         end)
@@ -118,8 +119,7 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
                 areas = L.PickupAreas, outing = L.PickupRound, closing = L.BriefClosing, handIns = L.BriefHandInAreas,
                 comparison = L.BriefComparison, progress = L.BriefProgressTitle}
             self.modeSelector:SetText(L.PlanningView .. ": " .. (names[self.mode] or L.SharedQuestStops) .. " (" .. #entries .. ") v")
-            local pages = math.max(1, math.ceil(#entries / 4))
-            self.page = math.min(self.page, pages)
+            local offset = self.paging:Clamp(#entries)
             local summary = self.mode == "bundles" and L.SharedStopsHelp or L.TourSummary:format(#entries, tour.total or 0, tour.xp or 0)
             if self.mode == "turnIns" then
                 if tour.levelUpAt then summary = summary .. "\n" .. L.TourLevelUp:format(tour.levelUpAt) end
@@ -141,7 +141,7 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
             self.buildOuting:SetEnabled(model.pickupPlanning and #(model.pickupPlanning.areas or {}) > 0 or false)
             self.remember:SetEnabled(model.pickupPlanning and #(model.pickupPlanning.outing or {}) > 0 or false)
             for index, row in ipairs(self.rows) do
-                local entry = entries[(self.page - 1) * 4 + index]
+                local entry = entries[offset + index]
                 row:SetShown(entry ~= nil)
                 row.stop, row.detail, row.areaKey, row.back, row.handInKey, row.handInBack = nil, nil, nil, nil, nil, nil
                 row.inspect = nil
@@ -168,20 +168,18 @@ function addon.ShowPlanningOverview(getModel, openStop, slot)
                     row:SetText(addon.UI.FormatQuestTitle(entry.quest) .. "\n" .. (entry.known and entry.summary or L.UnknownFollowUps))
                 elseif entry then
                     row.stop = entry
-                    row:SetText(((self.page - 1) * 4 + index) .. ". " .. addon.UI.FormatQuestTitle(entry.quest) .. "\n"
+                    row:SetText((offset + index) .. ". " .. addon.UI.FormatQuestTitle(entry.quest) .. "\n"
                         .. L.TourLeg:format(entry.leg or 0) .. " · " .. (entry.xp and L.QuestXPReward:format(entry.xp) or L.UnknownXP))
                 end
                 row.map:SetShown(entry ~= nil and row.stop ~= nil and row.stop.target ~= nil)
             end
-            self.previous:SetEnabled(self.page > 1)
-            self.next:SetEnabled(self.page < pages)
-            self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
-            self.pageLabel:SetText(#entries > 0 and (self.page .. " / " .. pages) or L.NoPlanningStops)
+            local count = self.paging:Update(#entries)
+            self.pageLabel:SetText(#entries > 0 and (count or "") or L.NoPlanningStops)
         end
         addon.UI.RefreshWhileShown(window, 1)
     end
     window.getModel, window.openStop = getModel, openStop
-    window.mode, window.page = window.mode or "bundles", window.page or 1
+    window.mode, window.offset = window.mode or "bundles", window.offset or 0
     window:Refresh()
     if not window.hasOpened and #(window.model.bundles or {}) == 0 and window.model.turnInTour and #window.model.turnInTour.stops > 1 then
         window.mode = "turnIns"
