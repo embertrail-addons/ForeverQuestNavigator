@@ -800,6 +800,20 @@ return function(test, equal, near, mockUI, loadAddon)
         local manager = addon.ShowFeedbackManager({list = function() return feedback end, clear = function() end, clearAll = function() end})
         equal(manager.next:IsShown(), false) equal(manager.status.text, "")
     end)
+    test("A shared tour changes nothing until the player adopts it", function()
+        local addon, _, _, _, _, _, _, _, _, env = Fixture()
+        env.C_QuestLog = {GetNumQuestLogEntries = function() return 1, 1 end, GetInfo = function(index)
+            if index == 1 then return {questID = 7, title = "Seven", level = 10} end end,
+            IsOnQuest = function(id) return id == 7 end, IsComplete = function() return false end}
+        local adopted
+        local offer = addon.ShowTourOffer("Alice", {{id = 7, stage = "objective"}, {id = 8, stage = "turnIn"}},
+            function(stops) adopted = stops end)
+        assert(offer:IsShown()) assert(offer.body.text:find("Alice", 1, true))
+        equal(adopted, nil)
+        offer.decline:Click() equal(adopted, nil) equal(offer:IsShown(), false)
+        offer = addon.ShowTourOffer("Alice", {{id = 7, stage = "objective"}}, function(stops) adopted = stops end)
+        offer.adopt:Click() equal(#adopted, 1) equal(offer:IsShown(), false)
+    end)
     test("Outing summary leaves out zero counts", function()
         local addon = Fixture()
         local plan = addon.ExcursionPlan.Build({entries = {{quest = {id = 1, title = "Quest"}, target = {mapID = 1, x = .2, y = .3}}}})

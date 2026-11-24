@@ -18,6 +18,7 @@ local SetDisplayMode
 local GetQuestDestination
 local UpdateQuestLogButton
 local RefreshNearbyOffers
+local AdoptTour
 function addon.GetNavigationSnapshot() return S.navigationSnapshot end
 function addon.UpdateRecovery(event)
     if not addon.CorpseNavigation then return end
@@ -1224,6 +1225,39 @@ local function SyncGroup()
 end
 addon.SyncGroup = SyncGroup
 
+-- Sends the own tour to the group (explicit action; requires group sync to be on).
+local function ShareTour()
+    if not (S.settings and S.settings.groupSync) then print("FQN | " .. L.TourShareNeedsSync) return false end
+    local channel = IsInRaid and IsInRaid() and "RAID" or IsInGroup and IsInGroup() and "PARTY" or nil
+    local stops = S.workspace and S.workspace.plan and S.workspace.plan.stops or {}
+    if not channel then print("FQN | " .. L.TourShareNoGroup) return false end
+    if #stops == 0 then print("FQN | " .. L.TourShareEmpty) return false end
+    local ok = addon.GroupSync.ShareTour(C_ChatInfo, channel, stops)
+    print("FQN | " .. (ok and L.TourShared:format(math.min(#stops, addon.GroupSync.TOUR_MAX)) or L.TourShareFailed))
+    return ok
+end
+addon.ShareTour = ShareTour
+
+-- Adds shared stops for quests in the own log to the end of the own tour; nothing is removed.
+function AdoptTour(stops)
+    local quests, byID = addon.QuestLog.Read(C_QuestLog) or {}, {}
+    for _, quest in ipairs(quests) do byID[quest.id] = quest end
+    local present = {}
+    for _, stop in ipairs(S.workspace and S.workspace.plan.stops or {}) do present[stop.id] = true end
+    local added, missing = 0, 0
+    for _, stop in ipairs(stops) do
+        local quest = byID[stop.id]
+        if not quest then missing = missing + 1
+        elseif not present[stop.id] and S.workspace then
+            S.workspace:Action("add", {quest = quest})
+            present[stop.id], added = true, added + 1
+        end
+    end
+    print("FQN | " .. L.TourAdopted:format(added, missing))
+    ScheduleRefresh()
+    return added, missing
+end
+
 local function UpdateSharedItems()
     S.insights.sharedItems = addon.QuestInsights.SharedItems(S.eligibleQuests,
         function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
@@ -2005,6 +2039,11 @@ addon.EventController.Bind(events, {
     addonMessage = function(prefix, text, _, sender)
         if prefix ~= addon.GroupSync.PREFIX or not (S.settings and S.settings.groupSync) then return end
         local name = Ambiguate and type(sender) == "string" and Ambiguate(sender, "none") or sender
+        if type(text) == "string" and text:sub(1, 3) == "T1|" then
+            local stops = GroupMembers()[name] and addon.GroupSync.DecodeTour(text)
+            if stops then addon.NoticeQueue.Push("tourOffer", 35, function() return addon.ShowTourOffer(name, stops, AdoptTour) end) end
+            return
+        end
         if addon.GroupSync.Receive(name, text, GroupMembers(), SessionTime()) then
             S.insights.groupAdvice = nil
             if S.measurableQuestIDs and TrackingVisible() then UpdateDistances() end

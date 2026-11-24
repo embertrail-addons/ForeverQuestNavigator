@@ -109,6 +109,44 @@ function Sync.Describe(questID)
     return #entries > 0 and table.concat(entries, ", ") or nil
 end
 
+-- Tour sharing: only on an explicit click. Format "T1|<id>:<o|t>,..." (o = objective,
+-- t = turn-in), at most 20 stops. The receiver confirms before anything changes.
+Sync.TOUR_MAX = 20
+function Sync.EncodeTour(stops)
+    local parts = {}
+    for _, stop in ipairs(stops or {}) do
+        if #parts >= Sync.TOUR_MAX then break end
+        if type(stop.id) == "number" and stop.id > 0 and stop.id % 1 == 0 then
+            parts[#parts + 1] = ("%d:%s"):format(stop.id, stop.stage == "turnIn" and "t" or "o")
+        end
+    end
+    local text = "T1|" .. table.concat(parts, ",")
+    return #parts > 0 and #text <= Sync.MAX_BYTES and text or nil
+end
+
+function Sync.DecodeTour(message)
+    if type(message) ~= "string" or #message > Sync.MAX_BYTES then return end
+    local list = message:match("^T1|([%d:ot,]+)$")
+    if not list then return end
+    local stops, seen = {}, {}
+    for part in (list .. ","):gmatch("([^,]*),") do
+        local id, stage = part:match("^(%d+):([ot])$")
+        id = Integer(id, 1, 10000000)
+        if not id or #stops >= Sync.TOUR_MAX then return end
+        if not seen[id] then
+            seen[id] = true
+            stops[#stops + 1] = {id = id, stage = stage == "t" and "turnIn" or "objective"}
+        end
+    end
+    return #stops > 0 and stops or nil
+end
+
+function Sync.ShareTour(api, channel, stops)
+    local text = Sync.EncodeTour(stops)
+    if not (text and api and api.SendAddonMessage and channel) then return false end
+    return pcall(api.SendAddonMessage, Sync.PREFIX, text, channel)
+end
+
 -- Throttled send: at most one message per INTERVAL seconds, never in combat.
 function Sync.MarkDirty() Sync.dirty = true end
 function Sync.ReadyToSend(now, inCombat)

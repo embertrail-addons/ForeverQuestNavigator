@@ -247,6 +247,24 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Shared tours encode compactly and reject malformed messages", function()
+        local Sync = addon.GroupSync
+        local text = Sync.EncodeTour({{id = 12, stage = "objective"}, {id = 40, stage = "turnIn"}, {id = 0}})
+        equal(text, "T1|12:o,40:t")
+        local stops = Sync.DecodeTour(text)
+        equal(#stops, 2) equal(stops[2].id, 40) equal(stops[2].stage, "turnIn")
+        equal(#Sync.DecodeTour("T1|5:o,5:t"), 1)
+        for _, bad in ipairs({"T2|5:o", "T1|", "T1|5:x", "T1|0:o", "T1|5:o;", "1|5|5:0:1"}) do equal(Sync.DecodeTour(bad), nil) end
+        local many = {}
+        for index = 1, 30 do many[index] = {id = 100000 + index} end
+        equal(#Sync.DecodeTour(Sync.EncodeTour(many)), Sync.TOUR_MAX)
+        equal(Sync.EncodeTour({}), nil)
+        local sent
+        equal(Sync.ShareTour({SendAddonMessage = function(prefix, message, channel) sent = {prefix, message, channel} end}, "PARTY", {{id = 7}}), true)
+        equal(sent[2], "T1|7:o") equal(sent[3], "PARTY")
+        equal(Sync.ShareTour({}, nil, {{id = 7}}), false)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

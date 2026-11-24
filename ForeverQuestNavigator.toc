@@ -103,6 +103,7 @@ UI\ExcursionWindow.lua
 UI\AdventurePanel.lua
 UI\PlanningOverview.lua
 UI\QuestWorkbench.lua
+UI\TourShare.lua
 UI\QuickSettings.lua
 UI\Personalization.lua
 UI\AccessRouteEditor.lua
