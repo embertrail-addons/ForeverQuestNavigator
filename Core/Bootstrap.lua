@@ -155,8 +155,21 @@ local function SuggestZone()
     return best and best.name
 end
 
+-- Today's level goal: text for the session overview (nil when no goal is set).
+local function GoalText()
+    local character = ForeverQuestNavigatorCharacterDB
+    local goal = character and addon.DailyGoal.Current(character, addon.DailyGoal.Today(WallClock()))
+    if not goal then return nil end
+    local data = S.session and S.session.data
+    local average = data and data.completed > data.unknownRewards and data.questXP / (data.completed - data.unknownRewards) or nil
+    local progress = UnitLevel and UnitXP and UnitXPMax and addon.DailyGoal.Progress(goal, UnitLevel("player"),
+        UnitXP("player"), UnitXPMax("player"), average)
+    return addon.DailyGoal.Describe(goal, progress), progress
+end
+F.GoalText = GoalText
+
 local function ShowSession()
-    if S.session then addon.ShowSessionDashboard(function() return S.session end, SessionTime, SuggestZone) end
+    if S.session then addon.ShowSessionDashboard(function() return S.session end, SessionTime, SuggestZone, GoalText) end
 end
 
 local function ClearMapMarker()

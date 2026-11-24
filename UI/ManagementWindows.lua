@@ -28,9 +28,9 @@ function addon.ShowSessionRecapNotice(text, actions)
     return recapNotice
 end
 
-function addon.ShowSessionDashboard(getSession, now, suggest)
+function addon.ShowSessionDashboard(getSession, now, suggest, goal)
     if not dashboard then
-        dashboard = Panel(570, 580, L.SessionTitle)
+        dashboard = Panel(570, 630, L.SessionTitle)
         dashboard.cards, dashboard.rows = {}, {}
         local labels = { L.StatTime, L.StatXP, L.StatTurnIns, L.StatQuestXP, L.StatLevels, L.StatUnknownRewards }
         for index, text in ipairs(labels) do
@@ -66,6 +66,18 @@ function addon.ShowSessionDashboard(getSession, now, suggest)
             end)
             dashboard.rows[index] = row
         end
+        -- Today's level goal with a progress bar (only when a goal is set: /fqn goal <level>).
+        dashboard.goalTitle = addon.UI.CreateLabel(dashboard, "GameFontNormalSmall")
+        dashboard.goalTitle:SetPoint("TOPLEFT", 16, -540) dashboard.goalTitle:SetText(L.GoalTitle)
+        dashboard.goal = addon.UI.CreateLabel(dashboard, "GameFontHighlightSmall")
+        dashboard.goal:SetPoint("TOPLEFT", 16, -558) dashboard.goal:SetPoint("TOPRIGHT", -16, -558)
+        dashboard.goal:SetJustifyH("LEFT") dashboard.goal:SetMaxLines(2)
+        dashboard.goalTrack = dashboard:CreateTexture(nil, "ARTWORK")
+        dashboard.goalTrack:SetPoint("TOPLEFT", 16, -580) dashboard.goalTrack:SetSize(538, 4)
+        dashboard.goalTrack:SetColorTexture(1, 1, 1, .15)
+        dashboard.goalFill = dashboard:CreateTexture(nil, "OVERLAY")
+        dashboard.goalFill:SetPoint("TOPLEFT", dashboard.goalTrack, "TOPLEFT") dashboard.goalFill:SetHeight(4)
+        dashboard.goalFill:SetColorTexture(1, .82, .34, .95)
         dashboard.recapTitle = addon.UI.CreateLabel(dashboard, "GameFontNormalSmall")
         dashboard.recapTitle:SetPoint("TOPLEFT", 16, -420) dashboard.recapTitle:SetText(L.RecapTitle)
         dashboard.recap = addon.UI.CreateLabel(dashboard, "GameFontHighlightSmall")
@@ -88,6 +100,12 @@ function addon.ShowSessionDashboard(getSession, now, suggest)
                 tostring(data.questXP), tostring(data.levels), tostring(data.unknownRewards) }
             for index, value in ipairs(values) do self.cards[index]:SetText(value) end
             self.copyText = session:Describe(current)
+            local goalText, progress = nil, nil
+            if self.goalSource then goalText, progress = self.goalSource() end
+            self.goal:SetText(goalText or L.GoalHint)
+            self.goalTrack:SetShown(progress ~= nil) self.goalFill:SetShown(progress ~= nil)
+            if progress then self.goalFill:SetWidth(math.max(1, 538 * progress.fraction)) end
+            if goalText then self.copyText = self.copyText .. "\n" .. goalText end
             if session.Recap then
                 local recap = session:Recap(current, self.suggest and self.suggest())
                 self.recap:SetText(recap)
@@ -105,7 +123,7 @@ function addon.ShowSessionDashboard(getSession, now, suggest)
         end
         addon.UI.RefreshWhileShown(dashboard, 1)
     end
-    dashboard.getSession, dashboard.now, dashboard.suggest = getSession, now, suggest
+    dashboard.getSession, dashboard.now, dashboard.suggest, dashboard.goalSource = getSession, now, suggest, goal
     dashboard:Refresh()
     addon.UI.ShowUtilityPanel(dashboard)
 end

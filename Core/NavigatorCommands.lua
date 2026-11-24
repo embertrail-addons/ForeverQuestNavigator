@@ -62,6 +62,16 @@ function addon.NavigatorCommands.Install(S, F)
         Add("problem", "debug", "CmdProblem", function() addon.OpenProblemReport() end)
         Add("selftest", "debug", "CmdSelfTest", function() F.RunSelfTest() end)
         Add("tour share", "quests", "CmdTourShare", function() addon.ShareTour() end, {advanced = true})
+        Add("goal", "history", "CmdGoal", function(text)
+            local character = ForeverQuestNavigatorCharacterDB
+            if not character then return end
+            local Goal = addon.DailyGoal
+            local today = Goal.Today(GetServerTime and GetServerTime())
+            if text == "" then print("FQN | " .. (F.GoalText() or addon.L.GoalNone)) return end
+            if text == "off" or text == "aus" then Goal.Clear(character) print("FQN | " .. addon.L.GoalCleared) return end
+            if Goal.Set(character, text, today, UnitLevel and UnitLevel("player")) then print("FQN | " .. (F.GoalText() or ""))
+            else print("FQN | " .. addon.L.GoalInvalid) end
+        end, {args = true})
         Add("fixture", "debug", "CmdFixture", function() F.ShowFixture() end, {advanced = true})
         Add("markers", "debug", "CmdMarkers", function()
             local marker = addon.GetMapMarkerStatus()

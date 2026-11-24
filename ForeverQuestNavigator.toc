@@ -71,6 +71,7 @@ Core\Commands.lua
 Core\NoticeQueue.lua
 Core\ErrorLog.lua
 Core\SelfTest.lua
+Core\DailyGoal.lua
 UI\NavigationDisplay.lua
 UI\Theme.lua
 UI\QuestWidgets.lua

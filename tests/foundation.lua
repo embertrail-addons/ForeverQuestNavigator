@@ -285,6 +285,21 @@ return function(test, addon, equal, near)
         env.LibQuestieDB, env.QuestieLoader = savedDB, savedLoader
     end)
 
+    test("Daily goal expires the next day and estimates remaining turn-ins", function()
+        local G, store = addon.DailyGoal, {}
+        equal(G.Set(store, "30", "2026-11-24", 30), false) equal(G.Set(store, "60", "2026-11-24", 30), false)
+        equal(G.Set(store, "32", "2026-11-24", 30), true)
+        local goal = G.Current(store, "2026-11-24")
+        equal(goal.level, 32) equal(G.Current(store, "2026-11-25"), nil)
+        local progress = G.Progress(goal, 31, 500, 1000, 250)
+        near(progress.levelsLeft, 0.5) equal(progress.xpLeft, 500) equal(progress.turnIns, 2) near(progress.fraction, 0.75)
+        local text = G.Describe(goal, progress)
+        assert(text:find("32", 1, true)) assert(text:find(addon.L.GoalTurnIns:format(2), 1, true))
+        equal(G.Progress(goal, 32, 0, 1000).done, true)
+        equal(G.Progress(goal, 30, 0, 1000, nil).turnIns, nil)
+        G.Clear(store) equal(G.Current(store, "2026-11-24"), nil)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

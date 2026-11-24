@@ -1065,6 +1065,16 @@ local english = {
     TourOfferDecline = "Decline",
     TourAdopted = "%d stops added to your tour; %d quests are not in your log.",
     CmdTourShare = "Share your tour with the group",
+    GoalTitle = "Today's goal",
+    GoalNone = "No goal for today. Set one with /fqn goal <level>, e.g. /fqn goal 40.",
+    GoalHint = "No goal for today · /fqn goal <level> sets one",
+    GoalSet = "Goal for today: level %d",
+    GoalReached = "Goal reached: level %d",
+    GoalProgress = "Level %d · %.1f levels to go",
+    GoalTurnIns = "~%d turn-ins at this session's average",
+    GoalCleared = "Goal for today removed.",
+    GoalInvalid = "Use a level above your current level, at most 20 more: /fqn goal 40 · /fqn goal off",
+    CmdGoal = "Level goal for today (level or off)",
 }
 
 local german = setmetatable({
@@ -2133,6 +2143,16 @@ local german = setmetatable({
     TourOfferDecline = "Ablehnen",
     TourAdopted = "%d Stopps zu deiner Tour hinzugefügt; %d Quests sind nicht in deinem Questlog.",
     CmdTourShare = "Eigene Tour mit der Gruppe teilen",
+    GoalTitle = "Tagesziel",
+    GoalNone = "Kein Tagesziel. Mit /fqn goal <Stufe> festlegen, z. B. /fqn goal 40.",
+    GoalHint = "Kein Tagesziel · /fqn goal <Stufe> legt eins fest",
+    GoalSet = "Tagesziel: Stufe %d",
+    GoalReached = "Tagesziel erreicht: Stufe %d",
+    GoalProgress = "Stufe %d · noch %.1f Stufen",
+    GoalTurnIns = "~%d Abgaben beim Schnitt dieser Sitzung",
+    GoalCleared = "Tagesziel entfernt.",
+    GoalInvalid = "Bitte eine Stufe über deiner aktuellen, höchstens 20 mehr: /fqn goal 40 · /fqn goal aus",
+    CmdGoal = "Tagesziel (Stufe oder aus)",
 }, { __index = english })
 
 addon.L = {}
