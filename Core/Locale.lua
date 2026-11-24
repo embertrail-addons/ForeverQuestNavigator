@@ -1048,6 +1048,10 @@ local english = {
     ExcursionUnknownRewards = "%d unknown rewards",
     ExcursionUnplanned = "%d unplanned targets",
     FinderSearchPlaceholder = "Search quest name, ID or zone…",
+    SelfTestTitle = "FQN self-test",
+    SelfTestHelp = "Checks that the game interfaces FQN uses exist in this client. Copy it with Ctrl+C for a bug report.",
+    SelfTestSummary = "%d OK · %d missing (required) · %d missing (optional)",
+    CmdSelfTest = "Self-test of game interfaces",
 }
 
 local german = setmetatable({
@@ -2099,6 +2103,10 @@ local german = setmetatable({
     ExcursionUnknownRewards = "%d unbekannte Belohnungen",
     ExcursionUnplanned = "%d ungeplante Ziele",
     FinderSearchPlaceholder = "Questname, ID oder Gebiet suchen…",
+    SelfTestTitle = "FQN-Selbsttest",
+    SelfTestHelp = "Prüft, ob die von FQN genutzten Spielschnittstellen in diesem Client vorhanden sind. Mit Strg+C für einen Fehlerbericht kopieren.",
+    SelfTestSummary = "%d OK · %d fehlen (nötig) · %d fehlen (optional)",
+    CmdSelfTest = "Selbsttest der Spielschnittstellen",
 }, { __index = english })
 
 addon.L = {}

@@ -301,7 +301,7 @@ function addon.OpenProblemReport()
         quest = quest, marker = measurement and measurement.marker, yards = measurement and measurement.yards,
         level = UnitLevel and UnitLevel("player"), manual = S.manualQuestID ~= nil,
         decision = S.navigationSnapshot and S.navigationSnapshot.decision, questieLoaded = loaded, questieReady = not not integration.IsReady(),
-        markerCount = markers.count, tourStops = S.workspace and #S.workspace.plan.stops})
+        markerCount = markers.count, tourStops = S.workspace and #S.workspace.plan.stops, errors = addon.ErrorLog.Summary()})
     addon.ShowTextWindow("problemReport", report, L.ProblemReportTitle, L.ProblemReportPrivacy)
 end
 
@@ -940,7 +940,7 @@ local function UpdateDirectionTicker()
             ((S.settings.showDirectionArrow and GetPlayerFacing and (S.measurableQuestIDs or S.nearbyOffers) or S.temporaryDetour)
                 and not flight.active and not (IsInInstance and IsInInstance()))
         if canRotate and not tickers.direction then
-            tickers.direction = C_Timer.NewTicker(0.2, UpdateDirection)
+            tickers.direction = C_Timer.NewTicker(0.2, addon.ErrorLog.Wrap("direction", UpdateDirection))
         elseif not canRotate and tickers.direction then
             tickers.direction:Cancel()
             tickers.direction = nil
@@ -1057,7 +1057,7 @@ local function UpdateDistanceTicker()
     if TrackingVisible() and S.measurableQuestIDs then
         UpdateDistances()
         if not tickers.distance then
-            tickers.distance = C_Timer.NewTicker(1, function() UpdateDistances(false) end)
+            tickers.distance = C_Timer.NewTicker(1, addon.ErrorLog.Wrap("distance", function() UpdateDistances(false) end))
         end
     else
         if tickers.distance then
@@ -1383,7 +1383,7 @@ ScheduleRefresh = function()
     if not S.refreshPending then
         S.refreshPending = true
         -- In combat, coalesce bursts of quest-log events into fewer full rebuilds.
-        C_Timer.After(InCombatLockdown and InCombatLockdown() and 1 or 0.1, Refresh)
+        C_Timer.After(InCombatLockdown and InCombatLockdown() and 1 or 0.1, addon.ErrorLog.Wrap("refresh", Refresh))
     end
 end
 
@@ -1792,6 +1792,17 @@ local function InitializeWorkspace(character)
     })
 end
 
+local function RunSelfTest()
+    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local position = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+    local quests = addon.QuestLog.Read(C_QuestLog)
+    local text = addon.SelfTest.Run(getfenv and getfenv(1) or _G, {version = AddonVersion(),
+        build = GetBuildInfo and select(1, GetBuildInfo()), locale = GetLocale and GetLocale(),
+        mapID = mapID or "none", position = position ~= nil, quests = quests and #quests})
+    addon.ShowTextWindow("selftest", text, L.SelfTestTitle, L.SelfTestHelp)
+end
+F.RunSelfTest = RunSelfTest
+
 local function ShowSetup(done)
     return addon.ShowSetup(S.settings, {catalog = addon.SettingsController.catalog, done = done,
         questie = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie") and true or false,
@@ -1816,6 +1827,9 @@ local function AddonLoaded(name)
             ForeverQuestNavigatorDB = S.settings
         end
         addon.SettingsDefaults.Normalize(S.settings, LIMITS, not S.insights.hadSettings)
+        if type(S.settings.errorLog) ~= "table" then S.settings.errorLog = {} end
+        addon.ErrorLog.Attach(S.settings.errorLog)
+        addon.ErrorLog.version = AddonVersion()
         addon.UI.iconLabels = S.settings.iconLabels ~= false
         addon.CanvasMarkers.showLine = S.settings.showRouteLine ~= false
         if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then

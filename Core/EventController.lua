@@ -94,6 +94,7 @@ end
 
 function addon.EventController.Bind(frame, context)
     frame:SetScript("OnEvent", function(_, event, ...)
-        addon.EventController.Handle(context, event, ...)
+        if addon.ErrorLog then addon.ErrorLog.Call(event, addon.EventController.Handle, context, event, ...)
+        else addon.EventController.Handle(context, event, ...) end
     end)
 end

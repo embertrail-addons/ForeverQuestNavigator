@@ -210,6 +210,43 @@ return function(test, addon, equal, near)
         Q.Reset()
     end)
 
+    test("Error log records FQN errors with counts and still reports them to the game", function()
+        local Log, store = addon.ErrorLog, {}
+        Log.Attach(store) Log.version = "9.9.9"
+        local env = getfenv(Log.Call)
+        local reported = {}
+        local savedHandler, savedStack = rawget(env, "geterrorhandler"), rawget(env, "debugstack")
+        env.geterrorhandler = function() return function(message) reported[#reported + 1] = message end end
+        env.debugstack = function() return "Interface/AddOns/ForeverQuestNavigator/Core/Bootstrap.lua:120: in function" end
+        local value = Log.Call("refresh", function(a, b) return a + b end, 2, 3)
+        equal(value, 5)
+        for _ = 1, 3 do Log.Call("refresh", function() error("Interface/AddOns/ForeverQuestNavigator/Core/X.lua:5: boom\nsecond line") end) end
+        Log.Call("event", function() error("other") end)
+        local entries = store.entries
+        equal(#entries, 2) equal(entries[2].count, 3) equal(entries[2].origin, "Core/Bootstrap.lua:120")
+        assert(not entries[2].message:find("second line", 1, true)) equal(#reported, 4)
+        local summary = table.concat(Log.Summary(), "\n")
+        assert(summary:find("errors=2", 1, true)) assert(summary:find("refresh x3 [9.9.9]", 1, true))
+        for index = 1, 15 do Log.Call("e" .. index, function() error("x") end) end
+        equal(#store.entries, Log.MAX)
+        env.geterrorhandler = nil
+        local ok = pcall(Log.Call, "test", function() error("loud") end)
+        equal(ok, false)
+        env.geterrorhandler, env.debugstack = savedHandler, savedStack
+        Log.Clear() equal(Log.Summary()[1], "errors=none")
+    end)
+
+    test("Self-test lists required and optional game interfaces", function()
+        local fakeEnv = {C_QuestLog = {GetInfo = 1, GetNumQuestLogEntries = 1, GetQuestObjectives = 1, IsOnQuest = 1},
+            C_Map = {GetBestMapForUnit = 1, GetPlayerMapPosition = 1, GetMapInfo = 1}, C_Timer = {NewTicker = 1},
+            C_ChatInfo = {SendAddonMessage = 1}}
+        local text, failures, warnings = addon.SelfTest.Run(fakeEnv, {version = "1.0.0", mapID = 1415, position = true, quests = 3})
+        equal(failures, 0) assert(warnings > 0)
+        assert(text:find("OK · Addon messages", 1, true)) assert(text:find("missing (optional) · Questie", 1, true))
+        local _, missing = addon.SelfTest.Run({}, {})
+        equal(missing, 8)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

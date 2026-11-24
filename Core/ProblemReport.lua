@@ -14,7 +14,8 @@ function Report.Build(state)
         "targetMap=" .. Value(marker.mapID), "targetX=" .. Value(marker.x), "targetY=" .. Value(marker.y),
         "objective=" .. Value(marker.objectiveIndex), "distanceYards=" .. Value(state.yards),
         "questieLoaded=" .. tostring(state.questieLoaded == true), "questieReady=" .. tostring(state.questieReady == true),
-        "markerCount=" .. Value(state.markerCount), "tourStops=" .. Value(state.tourStops),
-        "", addon.L.ProblemReportPrivacy, "", addon.L.ProblemReportQuestions}
+        "markerCount=" .. Value(state.markerCount), "tourStops=" .. Value(state.tourStops)}
+    for _, line in ipairs(type(state.errors) == "table" and state.errors or {}) do lines[#lines + 1] = tostring(line) end
+    for _, line in ipairs({"", addon.L.ProblemReportPrivacy, "", addon.L.ProblemReportQuestions}) do lines[#lines + 1] = line end
     return table.concat(lines, "\n")
 end

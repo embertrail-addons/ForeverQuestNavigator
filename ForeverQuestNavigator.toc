@@ -69,6 +69,8 @@ Core\DemoData.lua
 Core\SettingsDefaults.lua
 Core\Commands.lua
 Core\NoticeQueue.lua
+Core\ErrorLog.lua
+Core\SelfTest.lua
 UI\NavigationDisplay.lua
 UI\Theme.lua
 UI\QuestWidgets.lua
