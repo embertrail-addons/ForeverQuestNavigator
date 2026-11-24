@@ -73,6 +73,7 @@ Core\ErrorLog.lua
 Core\SelfTest.lua
 Core\DailyGoal.lua
 UI\NavigationDisplay.lua
+UI\MinimapArrow.lua
 UI\Theme.lua
 UI\QuestWidgets.lua
 UI\Window.lua

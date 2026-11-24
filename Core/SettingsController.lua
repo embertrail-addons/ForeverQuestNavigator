@@ -164,6 +164,10 @@ function addon.SettingsController.Register(context)
         "showRouteMarkers", settings, Settings.VarType.Boolean, L.RouteMarkers, true)
     routeMarkers:SetValueChangedCallback(context.UpdateMapMarker)
     Checkbox(category, routeMarkers, L.RouteMarkersHelp)
+    local minimapArrow = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
+        "minimapArrow", settings, Settings.VarType.Boolean, L.MinimapArrow, false)
+    minimapArrow:SetValueChangedCallback(function() context.UpdateDirectionTicker() end)
+    Checkbox(category, minimapArrow, L.MinimapArrowHelp)
     local routeLine = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
         "showRouteLine", settings, Settings.VarType.Boolean, L.RouteLine, true)
     routeLine:SetValueChangedCallback(function(_, value)

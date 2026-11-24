@@ -300,6 +300,19 @@ return function(test, addon, equal, near)
         G.Clear(store) equal(G.Current(store, "2026-11-24"), nil)
     end)
 
+    test("Minimap arrow points relative to facing on rotating maps and absolute on north-up maps", function()
+        local Arrow = addon.MinimapArrow
+        local angle, x, y = Arrow.Place(0, 1, 1.0, true)
+        near(angle, 0) near(x, 0) near(y, 1)
+        angle, x, y = Arrow.Place(1, 0, 0, false)
+        near(angle, math.pi / 2) near(x, 1) near(y, 0)
+        angle = Arrow.Place(0, 1, math.pi / 2, false)
+        near(angle, -math.pi / 2)
+        equal(Arrow.Place(nil, 1, 0, false), nil) equal(Arrow.Place(0, 0, 0, false), nil)
+        Arrow.Update({minimapArrow = false}, 0, 1, 0)
+        equal(Arrow.frame, nil)
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

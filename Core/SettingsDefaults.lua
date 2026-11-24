@@ -37,7 +37,7 @@ function Defaults.Normalize(settings, limits, isNew)
         settings[key] = On(settings[key])
     end
     for _, key in ipairs({"areaOverviewExpanded", "allowTrackerResize", "lockTrackerPosition",
-        "lockNavigationPosition", "groupSync"}) do
+        "lockNavigationPosition", "groupSync", "minimapArrow"}) do
         settings[key] = Off(settings[key])
     end
     local font = settings.fontPercent

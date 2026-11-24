@@ -941,6 +941,7 @@ local function UpdateDirection()
     if S.navigationSnapshot then S.navigationSnapshot.arrived, S.navigationSnapshot.flying = arrived or working, flight.active end
     S.tracker:SetJourneyPhase(flight.active and "flight" or active and active.readyToTurnIn and "turnIn" or (arrived or working) and "work" or "travel")
     S.tracker:RenderDirection(right, forward, status, arrived and not inInstance, working)
+    addon.MinimapArrow.Update(S.settings, right, forward, facing)
     S.tracker:RenderRowDirections(facing)
     local report = S.insights.levelReport
     if report and not report.notified and #report.entries > 0 then
@@ -960,10 +961,10 @@ local function TrackingVisible()
 end
 
 local function UpdateDirectionTicker()
-    if TrackingVisible() and (S.settings.showDirectionArrow or S.temporaryDetour or (S.workspace and S.workspace:ReturnTarget()) or addon.RecoveryState and addon.RecoveryState.active) then
+    if TrackingVisible() and (S.settings.showDirectionArrow or S.settings.minimapArrow or S.temporaryDetour or (S.workspace and S.workspace:ReturnTarget()) or addon.RecoveryState and addon.RecoveryState.active) then
         UpdateDirection()
         local canRotate = addon.RecoveryState and addon.RecoveryState.active or
-            ((S.settings.showDirectionArrow and GetPlayerFacing and (S.measurableQuestIDs or S.nearbyOffers) or S.temporaryDetour)
+            (((S.settings.showDirectionArrow or S.settings.minimapArrow) and GetPlayerFacing and (S.measurableQuestIDs or S.nearbyOffers) or S.temporaryDetour)
                 and not flight.active and not (IsInInstance and IsInInstance()))
         if canRotate and not tickers.direction then
             tickers.direction = C_Timer.NewTicker(0.2, addon.ErrorLog.Wrap("direction", UpdateDirection))
@@ -979,6 +980,7 @@ local function UpdateDirectionTicker()
         tickers.direction = nil
     end
     S.tracker:RenderDirection()
+    addon.MinimapArrow.Update(S.settings)
     S.tracker:RenderRowDirections()
 end
 

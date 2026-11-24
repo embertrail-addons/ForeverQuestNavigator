@@ -1075,6 +1075,8 @@ local english = {
     GoalCleared = "Goal for today removed.",
     GoalInvalid = "Use a level above your current level, at most 20 more: /fqn goal 40 · /fqn goal off",
     CmdGoal = "Level goal for today (level or off)",
+    MinimapArrow = "Arrow on the minimap edge",
+    MinimapArrowHelp = "Shows a small arrow on the edge of the minimap pointing to the current target. Works with a rotating or north-up minimap. Hidden on arrival, in instances and on flights.",
 }
 
 local german = setmetatable({
@@ -2153,6 +2155,8 @@ local german = setmetatable({
     GoalCleared = "Tagesziel entfernt.",
     GoalInvalid = "Bitte eine Stufe über deiner aktuellen, höchstens 20 mehr: /fqn goal 40 · /fqn goal aus",
     CmdGoal = "Tagesziel (Stufe oder aus)",
+    MinimapArrow = "Pfeil am Minimap-Rand",
+    MinimapArrowHelp = "Zeigt am Rand der Minimap einen kleinen Pfeil zum aktuellen Ziel. Funktioniert mit drehender und genordeter Minimap. Bei Ankunft, in Instanzen und im Flug ausgeblendet.",
 }, { __index = english })
 
 addon.L = {}
