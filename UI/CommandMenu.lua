@@ -17,7 +17,7 @@ function addon.ShowCommandMenu(settings)
             local first = window.matches and window.matches[1]
             if first then first.run("") end
         end)
-        window.search:SetScript("OnTextChanged", function() window.page = 1 window:Refresh() end)
+        window.search:SetScript("OnTextChanged", function() window.offset = 0 window:Refresh() end)
         addon.UI.BindTooltip(window.search, function() return L.CommandSearch, L.CommandSearchHelp end)
         window.clear = addon.UI.CreateUtilityButton(window, "×", 18, function() window.search:SetText("") end)
         window.clear:SetPoint("TOPLEFT", 405, -52)
@@ -36,12 +36,13 @@ function addon.ShowCommandMenu(settings)
             end
             window.rows[index] = row
         end
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 40, function() window.page = window.page - 1 window:Refresh() end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 40, function() end)
         window.previous:SetPoint("BOTTOMLEFT", 18, 16)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 40, function() window.page = window.page + 1 window:Refresh() end)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 40, function() end)
         window.next:SetPoint("BOTTOMRIGHT", -18, 16)
         window.pageLabel = addon.UI.CreateLabel(window, "GameFontHighlightSmall")
         window.pageLabel:SetPoint("BOTTOM", 0, 22)
+        local paging = addon.UI.ScrollPaging(window, window.rows, function() window:Refresh() end)
         function window:Refresh()
             local simple = self.settings and self.settings.simpleNavigator == true
             local matches = {}
@@ -49,10 +50,9 @@ function addon.ShowCommandMenu(settings)
                 if entry.menu ~= false then matches[#matches + 1] = entry end
             end
             self.matches = matches
-            local pages = math.max(1, math.ceil(#matches / ROWS))
-            self.page = math.max(1, math.min(self.page or 1, pages))
+            local offset = paging:Clamp(#matches)
             for index, row in ipairs(self.rows) do
-                local entry = matches[(self.page - 1) * ROWS + index]
+                local entry = matches[offset + index]
                 row.entry = entry
                 row:SetShown(entry ~= nil)
                 if entry then
@@ -60,8 +60,7 @@ function addon.ShowCommandMenu(settings)
                 end
             end
             self.hint:SetText(#matches == 0 and L.CommandNoMatch or (simple and L.CommandSimpleHint or L.CommandHint))
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
-            self.pageLabel:SetText(("%d / %d"):format(self.page, pages))
+            self.pageLabel:SetText(paging:Update(#matches) or "")
         end
     end
     window.settings = settings

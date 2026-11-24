@@ -55,9 +55,9 @@ function addon.ShowExcursion(plan, actions)
             end)
             window.rows[index] = row
         end
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 32, function() window.page = math.max(1, window.page - 1) window:Refresh() end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 32, function() end)
         window.previous:SetPoint("BOTTOMRIGHT", -60, 120)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 32, function() window.page = window.page + 1 window:Refresh() end)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 32, function() end)
         window.next:SetPoint("BOTTOMRIGHT", -18, 120)
         window.dismiss = addon.UI.CreateUtilityButton(window, L.RoundDismiss, 280, function()
             if window.actions.dismiss then window.actions.dismiss() end
@@ -91,9 +91,10 @@ function addon.ShowExcursion(plan, actions)
             window.status = ok and L.UndoDone or message window:Refresh()
         end)
         window.undo:SetPoint("BOTTOMRIGHT", -18, 50)
+        window.paging = addon.UI.ScrollPaging(window, window.rows, function() window:Refresh() end)
         function window:Refresh()
             local p = self.plan
-            local pages = math.max(1, math.ceil(#p.stops / 6)) self.page = math.min(self.page, pages)
+            local offset = self.paging:Clamp(#p.stops)
             -- Only name what matters: zero counts are left out.
             local parts = {(#p.stops == 1 and L.ExcursionStopOne or L.ExcursionStopMany):format(#p.stops), L.ExcursionKnownXP:format(p.xp or 0)}
             if (p.unknownXP or 0) > 0 then parts[#parts + 1] = L.ExcursionUnknownRewards:format(p.unknownXP) end
@@ -117,7 +118,7 @@ function addon.ShowExcursion(plan, actions)
             self.info:SetPoint("BOTTOMRIGHT", self.undo:IsShown() and -150 or -18, 50)
             local top, rowHeight = math.max(76, self.summary:GetStringHeight() + 60), 30
             for index, row in ipairs(self.rows) do
-                local stop = p.stops[(self.page - 1) * 6 + index]
+                local stop = p.stops[offset + index]
                 row.stop = stop row:SetShown(stop ~= nil)
                 local skippable = stop and stop.action == "accept" and not stop.done and self.actions.skip ~= nil
                 row.skip:SetShown(skippable == true) row.choices:SetShown(skippable == true)
@@ -126,24 +127,23 @@ function addon.ShowExcursion(plan, actions)
                 local icon = stop and addon.UI.iconLabels and (addon.UI.ActionIcon(stop.action) .. " ") or ""
                 if stop then row:SetText((stop.done and "[x] " or "") .. icon .. L["ExcursionAction_" .. stop.action] .. ": "
                     .. addon.UI.FormatQuestTitle(stop.quest, nil, nil, stop.action == "turnIn")
-                    .. (p.running and (self.page - 1) * 6 + index == p.index and ("\n" .. L.ExcursionCurrent) or ""))
+                    .. (p.running and offset + index == p.index and ("\n" .. L.ExcursionCurrent) or ""))
                     rowHeight = math.max(rowHeight, row.textLabel:GetStringHeight() + 12)
                     if skippable then rowHeight = math.max(rowHeight, row.skip:GetHeight() + 8) end
                 end
             end
-            local visible = math.min(6, math.max(1, #p.stops - (self.page - 1) * 6))
+            local visible = math.min(6, math.max(1, #p.stops - offset))
             for index, row in ipairs(self.rows) do
                 row:ClearAllPoints() row:SetPoint("TOPLEFT", 18, -top - (index - 1) * (rowHeight + 6)) row:SetHeight(rowHeight)
             end
             self:SetHeight(math.max(330, top + visible * (rowHeight + 6) + 160))
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page < pages)
-            self.previous:SetShown(pages > 1) self.next:SetShown(pages > 1)
+            self.paging:Update(#p.stops)
             self.start:SetEnabled(#p.stops > 0 and p.index <= #p.stops and not p.running and not p.needsReview and not p.unverified) self.pause:SetEnabled(p.running)
         end
         addon.UI.RefreshWhileShown(window, 1)
     end
     window.plan, window.actions, window.status = plan, actions, nil
-    window.page = window.page or 1
+    window.offset = window.offset or 0
     window:Refresh() addon.UI.ShowUtilityPanel(window, "outing")
     return window
 end

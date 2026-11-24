@@ -12,11 +12,11 @@ function addon.ShowAdventure(getModel, actions, mode)
         window.hubPage = "adventure"
         window.tabs = {}
         function window:SelectMode(key)
-            self.pages[self.mode or "departure"] = self.page or 1
+            self.pages[self.mode or "departure"] = self.offset or 0
             for _, group in ipairs(groups) do for _, modeKey in ipairs(group.modes) do
                 if modeKey == key then self.group = group self.lastMode[group.key] = key end
             end end
-            self.mode, self.page = key, self.pages[key] or 1 self:Refresh()
+            self.mode, self.offset = key, self.pages[key] or 0 self:Refresh()
         end
         window.lastMode = {}
         for index, group in ipairs(groups) do
@@ -85,18 +85,17 @@ function addon.ShowAdventure(getModel, actions, mode)
             window:Refresh()
         end)
         window.primary:SetPoint("BOTTOMLEFT", 18, 60)
-        window.previous = addon.UI.CreateUtilityButton(window, "<", 45, function()
-            window.page = math.max(1, window.page - 1) window:Refresh()
-        end)
+        window.previous = addon.UI.CreateUtilityButton(window, "^", 45, function() end)
         window.previous:SetPoint("BOTTOMLEFT", 18, 16)
-        window.next = addon.UI.CreateUtilityButton(window, ">", 45, function() window.page = window.page + 1 window:Refresh() end)
+        window.next = addon.UI.CreateUtilityButton(window, "v", 45, function() end)
         window.next:SetPoint("BOTTOMRIGHT", -18, 16)
         window.pageText = addon.UI.CreateLabel(window, "GameFontDisableSmall") window.pageText:SetPoint("BOTTOM", 0, 24)
+        local paging = addon.UI.ScrollPaging(window, window.rows, function() window:Refresh() end)
         window.pages = {}
         function window:Refresh()
             local model = self.getModel(self.mode) or {}
             local entries = model.rows or {}
-            self.page = math.min(self.page, math.max(1, math.ceil(#entries / 4))) self.pages[self.mode] = self.page
+            local offset = paging:Clamp(#entries) self.pages[self.mode] = offset
             self.summary:SetText(addon.TrackerPresentation.Summary(model.summary or L.AdventureReadOnly, 2))
             self.fullSummary = model.summary or L.AdventureReadOnly
             local groupHeight = 32
@@ -119,7 +118,7 @@ function addon.ShowAdventure(getModel, actions, mode)
             self.empty:ClearAllPoints() self.empty:SetPoint("TOPLEFT", 24, -rowY) self.empty:SetPoint("TOPRIGHT", -24, -rowY)
             local rowHeight = 60
             for index, row in ipairs(self.rows) do
-                local e = entries[(self.page - 1) * 4 + index]
+                local e = entries[offset + index]
                 row.entry = e row:SetShown(e ~= nil)
                 if e then
                     row:SetText(addon.UI.FormatQuestTitle(e.quest) .. "\n" .. (e.short or addon.UI.FormatDistance(e)))
@@ -142,9 +141,8 @@ function addon.ShowAdventure(getModel, actions, mode)
                 or self.mode == "bags" and model.canSaveVendor and L.JourneySaveVendor
             self.primary:SetText(label or "") self.primary:SetShown(label ~= nil)
             self.primary:SetEnabled(self.mode ~= "changes" or #entries > 0)
-            self.previous:SetEnabled(self.page > 1) self.next:SetEnabled(self.page * 4 < #entries)
-            self.previous:SetShown(#entries > 4) self.next:SetShown(#entries > 4)
-            self.pageText:SetText(#entries == 0 and L.NoPlanningStops or self.page .. " / " .. math.ceil(#entries / 4))
+            local count = paging:Update(#entries)
+            self.pageText:SetText(#entries == 0 and L.NoPlanningStops or count or "")
         end
         addon.UI.RefreshWhileShown(window, 1)
     end
