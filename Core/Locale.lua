@@ -1091,6 +1091,8 @@ local english = {
     HistoryQuests = "%d quests",
     HistoryRate = "~%d XP/h",
     CmdSessionHistory = "Earlier sessions",
+    BindingMenu = "Open command menu",
+    BindingNext = "Next recommended quest",
 }
 
 local german = setmetatable({
@@ -2185,6 +2187,8 @@ local german = setmetatable({
     HistoryQuests = "%d Quests",
     HistoryRate = "~%d EP/Std.",
     CmdSessionHistory = "Frühere Sitzungen",
+    BindingMenu = "Befehlsmenü öffnen",
+    BindingNext = "Nächste empfohlene Quest",
 }, { __index = english })
 
 addon.L = {}

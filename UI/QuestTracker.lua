@@ -262,6 +262,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     auto:SetText(L.NavigatorResume)
     auto:SetScript("OnClick", actions.resumeAutoSelect)
     auto:SetEnabled(false)
+    frame.autoButton = auto
     auto:Hide()
 
     local activeCheckbox = CreateSkipCheckbox(content, actions.skip)

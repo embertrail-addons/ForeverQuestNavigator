@@ -3285,6 +3285,14 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(updatedTracker:IsShown(), false)
     env.ForeverQuestNavigator_HandleBinding("toggle")
     equal(updatedTracker:IsShown(), true)
+    do
+        equal(env.BINDING_NAME_FOREVERQUESTNAVIGATOR_MENU, "Open command menu")
+        env.ForeverQuestNavigator_HandleBinding("menu")
+        assert(Window("All commands"):IsShown())
+        env.ForeverQuestNavigator_HandleBinding("next") env.ForeverQuestNavigator_HandleBinding("next")
+        updatedTracker.autoButton.scripts.OnClick(updatedTracker.autoButton)
+        flush()
+    end
 
     env.ForeverQuestNavigatorDB.introSeen = nil
     fire("PLAYER_ENTERING_WORLD")

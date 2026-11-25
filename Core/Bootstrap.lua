@@ -1958,6 +1958,8 @@ local function AddonLoaded(name)
         BINDING_NAME_FOREVERQUESTNAVIGATOR_PLAN = L.BindingPlan
         BINDING_NAME_FOREVERQUESTNAVIGATOR_CAMP = L.BindingCamp
         BINDING_NAME_FOREVERQUESTNAVIGATOR_FEEDBACK = L.BindingFeedback
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_MENU = L.BindingMenu
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_NEXT = L.BindingNext
         ForeverQuestNavigator_HandleBinding = function(action)
             if action == "toggle" then ToggleTracker()
             elseif action == "map" then
@@ -1966,7 +1968,22 @@ local function AddonLoaded(name)
             elseif action == "hold" then ToggleQuestHold()
             elseif action == "plan" then F.ShowPlanning()
             elseif action == "feedback" then F.ShowFeedback()
-            elseif action == "camp" then SwitchCamp(S.shownQuests and S.shownQuests[1] and S.shownQuests[1].id) end
+            elseif action == "camp" then SwitchCamp(S.shownQuests and S.shownQuests[1] and S.shownQuests[1].id)
+            elseif action == "menu" then addon.ShowCommandMenu(S.settings)
+            elseif action == "next" then
+                -- Cycles through the shown recommendations; presses within 10 s continue the same cycle.
+                local cycle, now = S.insights.questCycle, SessionTime()
+                if not cycle or now - cycle.at > 10 then
+                    cycle = {ids = {}, index = 1}
+                    for _, quest in ipairs(S.shownQuests or {}) do cycle.ids[#cycle.ids + 1] = quest.id end
+                end
+                cycle.at = now
+                if #cycle.ids > 1 then
+                    cycle.index = cycle.index % #cycle.ids + 1
+                    SelectQuest(cycle.ids[cycle.index])
+                end
+                S.insights.questCycle = cycle
+            end
         end
         AddQuestLogMenu()
         local function UpdateTrackers()

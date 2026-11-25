@@ -17,4 +17,10 @@
     <Binding name="FOREVERQUESTNAVIGATOR_FEEDBACK" category="ADDONS">
         ForeverQuestNavigator_HandleBinding("feedback")
     </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_MENU" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("menu")
+    </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_NEXT" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("next")
+    </Binding>
 </Bindings>
