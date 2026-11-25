@@ -1290,7 +1290,7 @@ test("TOC startup and quest events update the tracker with or without optional a
 
     local slash = env.SlashCmdList.FOREVERQUESTNAVIGATOR
     equal(minimapButton.point[2], env.Minimap)
-    equal(minimapButton.labels[1].text, "FQN")
+    assert(minimapButton.icon, "Minimap button shows the compass icon")
     minimapButton:Click()
     equal(tracker:IsShown(), true)
     equal(env.ForeverQuestNavigatorDB.hidden, false)

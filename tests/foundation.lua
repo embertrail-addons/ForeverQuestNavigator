@@ -314,6 +314,17 @@ return function(test, addon, equal, near)
         equal(Arrow.frame, nil)
     end)
 
+    test("Texture paths in the source use escaped backslashes", function()
+        -- "Interface\AddOns" in Lua silently becomes "InterfaceAddOns"; it must be written "Interface\\AddOns".
+        for line in io.lines("ForeverQuestNavigator.toc") do
+            if line:match("%.lua$") then
+                local path = line:gsub("\\", "/")
+                local file = assert(io.open(path)) local source = file:read("*a") file:close()
+                assert(not source:find('"Interface\\%a'), path .. " has an unescaped texture path")
+            end
+        end
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

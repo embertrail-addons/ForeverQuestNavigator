@@ -30,10 +30,14 @@ function addon.CreateMinimapButton(settings, cycleDisplayMode, openSettings)
     border:SetSize(53, 53)
     border:SetPoint("CENTER", 10, -10)
     border:SetTexture(136430) -- Minimap tracking border
-    local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetPoint("CENTER")
-    label:SetTextColor(1, 0.82, 0.34)
-    label:SetText("FQN")
+    -- Same compass as in the addon list, cut round like other minimap buttons.
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(20, 20)
+    icon:SetPoint("CENTER")
+    icon:SetTexture("Interface\\AddOns\\ForeverQuestNavigator\\Media\\icon")
+    if icon.SetMask then icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    else icon:SetTexCoord(.08, .92, .08, .92) end
+    button.icon = icon
 
     local angle = settings.minimapAngle
     if type(angle) ~= "number" or not (math.abs(angle) < math.huge) then angle = math.rad(225) end
