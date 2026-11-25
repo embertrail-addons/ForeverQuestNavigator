@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.2.1.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current release: 0.2.2.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.2 adds a **Mark targets** window for the active quest (target and mark mobs with a skull, the turn-in NPC with a star), real raid marks when you target quest mobs, quest marks with progress above nameplates, a loot reminder, respawn estimates and danger hints, all open objectives without expanding, a quiet navigator inside instances, hearthstone and turn-in hints, a bag check, `/fqn time`, a compact arrow bar, quest sounds and per-character profiles. Group sync is now on by default. [0.2.2 changes and manual checks](release/curseforge-changelog-0.2.2.md).
 
 0.2.1 makes every list scroll with the mouse wheel, opens automatic windows one at a time, adds `/fqn selftest` and an FQN error log in `/fqn problem`, tour sharing with the group, a daily level goal (`/fqn goal`), an optional minimap arrow and the compass icon. [0.2.1 changes and manual checks](release/curseforge-changelog-0.2.1.md).
 
@@ -124,7 +126,7 @@ Other tools include a zone overview, shared quest/item targets, ready turn-in pl
 
 ## Problems and screenshots
 
-Use `/fqn problem` for a copyable report with version, quest ID, target position and selected technical state. The report uses an allowlist and excludes character names, personal notes and saved access-route names. Review it before sharing. FQN sends nothing automatically; only the optional group sync (off by default) sends quest IDs and objective counts to your own party or raid. Include reproduction steps and a Lua error, if available, in a [GitHub issue](https://github.com/embertrail-addons/ForeverQuestNavigator/issues).
+Use `/fqn problem` for a copyable report with version, quest ID, target position and selected technical state. The report uses an allowlist and excludes character names, personal notes and saved access-route names. Review it before sharing. FQN sends nothing automatically; only group sync (on by default since 0.2.2, can be switched off) sends quest IDs and objective counts to your own party or raid. Include reproduction steps and a Lua error, if available, in a [GitHub issue](https://github.com/embertrail-addons/ForeverQuestNavigator/issues).
 
 If Questie is not loaded, check its entry in the game's addon list and `/fqn status`. A missing UI, disabled addon, load error and a missing installation are different conditions.
 

@@ -4,7 +4,17 @@
 
 Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Forever 1.60.1**. It compares your accepted quests across zone borders, shows where to go next and guides you there. You stay in control: FQN never accepts, completes or turns in quests for you.
 
-## New in 0.2.1
+## New in 0.2.2
+
+*   **Mark targets window:** lists the mobs of your active quest (including every mob that drops a needed item) or its turn-in NPC. One click targets and marks it: **skull** for mobs, **star** for the turn-in NPC. It shows up only when there is something to mark.
+*   **Real raid marks** when you target a quest mob, and **quest marks with progress** (for example 3/8) above every other quest mob's nameplate.
+*   **Loot reminder, respawn estimate and danger hints** for elite or much stronger quest mobs; the quest item sits in the window too.
+*   **All open objectives** at a glance, and a **quiet navigator inside dungeons and raids**.
+*   **Hints on the way:** dungeon quest summary, next turn-in after leaving, hearthstone and turn-in collector hints, bag check before a tour, `/fqn time 45` for a tour that fits your time.
+*   **Compact arrow bar**, soft **quest sounds** and **per-character profiles** (`/fqn profile`).
+*   **Group sync is now on by default**; group members' quest mobs get a faded skull with their name.
+
+## Added in 0.2.1
 
 *   **Daily goal:** `/fqn goal 40` sets a level goal for today; the session overview shows progress and how many turn-ins are roughly left.
 *   **Share your tour with the group:** send your quest order to party members who also use FQN; they confirm before anything changes.
@@ -18,7 +28,7 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 *   Quick setup on first start and **Simple mode** for new installations; expert mode adds tours, planning, outings and history.
 *   One tool window with a **searchable command menu** (`/fqn menu` or right-click on the minimap button).
 *   **Route line on the world map**, a **distance bar**, a **level forecast** over several turn-ins and a **session recap**.
-*   **Optional group sync** with party members who also use FQN (off by default).
+*   **Group sync** with party members who also use FQN (on by default since 0.2.2).
 
 ## Quest navigation
 
@@ -43,9 +53,9 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 *   Skip a quest or a suggested pickup without abandoning anything; restore it any time. A character-specific notepad keeps your own notes.
 *   The session overview records turn-ins, XP per hour and zones, offers a recap when you return and tracks a daily level goal.
 
-## Group sync (optional)
+## Group sync
 
-When **Share quest progress with my group** is enabled, FQN sends your active quest IDs, objective counts (for example 3/5) and your current target quest to your own party or raid, at most every 3 seconds and never during combat. Only when you click **Share with group** does it also send your tour's quest order; members confirm before adopting it, and adopting only adds quests from their own log. Members who also use FQN see shared quests and progress, and quests several members still need rank slightly earlier. Nothing is saved, and a member's data is dropped when they leave. With the setting off (the default), FQN sends no addon messages.
+When **Share quest progress with my group** is enabled, FQN sends your active quest IDs, objective counts (for example 3/5) and your current target quest to your own party or raid, at most every 3 seconds and never during combat. Only when you click **Share with group** does it also send your tour's quest order; members confirm before adopting it, and adopting only adds quests from their own log. Members who also use FQN see shared quests and progress, and quests several members still need rank slightly earlier. Nothing is saved, and a member's data is dropped when they leave. The setting is on by default since 0.2.2; with it off, FQN sends no addon messages.
 
 ## Make it yours
 

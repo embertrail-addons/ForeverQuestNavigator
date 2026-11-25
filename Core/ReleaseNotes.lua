@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.2",
+        en = "• Mark targets window: target and mark the mobs (skull) or turn-in NPC (star) of the active quest; real raid marks when you target a quest mob.\n• Quest marks with progress above quest mobs on nameplates, loot reminder, respawn estimate and danger hints.\n• All open objectives visible; quiet navigator in dungeons and raids; group sync on by default.\n• Hearthstone and turn-in hints, bag check, /fqn time, compact arrow bar, quest sounds and per-character profiles.",
+        de = "• Fenster 'Ziele markieren': Mobs (Totenkopf) oder Abgabe-NPC (Stern) der aktiven Quest anvisieren und markieren; echte Zielmarkierung beim Anvisieren von Questmobs.\n• Questzeichen mit Fortschritt über Questmobs an den Namensplaketten, Plünder-Erinnerung, Respawn-Schätzung und Gefahrenhinweise.\n• Alle offenen Ziele sichtbar; unauffälliger Navigator in Dungeons und Raids; Gruppensync standardmäßig an.\n• Ruhestein- und Abgabehinweise, Taschen-Check, /fqn time, kompakte Pfeilleiste, Questtöne und Profile je Charakter."},
     {version = "0.2.1",
         en = "• All lists scroll with the mouse wheel; automatic windows open one at a time.\n• /fqn selftest checks the game interfaces; /fqn problem includes recent FQN errors.\n• Share your tour with the group, daily level goal (/fqn goal), optional minimap arrow.\n• Compass icon in the addon list and on the minimap button.",
         de = "• Alle Listen scrollen mit dem Mausrad; automatische Fenster öffnen nacheinander.\n• /fqn selftest prüft die Spielschnittstellen; /fqn problem enthält aktuelle FQN-Fehler.\n• Tour mit der Gruppe teilen, Tagesziel (/fqn goal), optionaler Pfeil am Minimap-Rand.\n• Kompass-Icon in der Addon-Liste und auf dem Minimap-Button."},
