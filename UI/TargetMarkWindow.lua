@@ -76,7 +76,11 @@ function addon.CreateTargetMarkWindow(settings, source)
         frame:SetPoint("RIGHT", UIParent, "RIGHT", -260, 80)
     end
     frame:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
-    addon.UI.Theme.WatchFrame(frame)
+    -- Same background opacity as the navigator (setting opacityPercent).
+    local function Opacity() return (settings.opacityPercent or 80) / 100 end
+    addon.UI.Theme.WatchFrame(frame, Opacity)
+    function frame:UpdateOpacity() addon.UI.Theme.Frame(self, Opacity()) end
+    addon.UI.TargetMarkWindow = frame
 
     frame.heading = addon.UI.CreateLabel(frame, "GameFontNormalSmall")
     frame.heading:SetPoint("TOPLEFT", 6, -4)

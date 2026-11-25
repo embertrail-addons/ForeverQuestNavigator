@@ -176,6 +176,7 @@ function addon.CreateQuestTracker(settings, actions, version)
         addon.UI.Theme.Frame(self, opacity)
         navigation:UpdateOpacity()
         if detailPanel then detailPanel:UpdateOpacity() end
+        if addon.UI.TargetMarkWindow then addon.UI.TargetMarkWindow:UpdateOpacity() end
     end
 
     local header = CreateFrame("Frame", nil, frame)

@@ -932,6 +932,8 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     -- Hidden together with all windows from the minimap icon.
     itemSettings.displayMode = "off" itemWindow:Refresh() equal(itemWindow:IsShown(), false)
     itemSettings.displayMode = "full" itemWindow:Refresh() equal(itemWindow:IsShown(), true)
+    -- Background follows the navigator opacity.
+    itemSettings.opacityPercent = 30 itemWindow:UpdateOpacity() near(itemWindow.backdropAlpha, .3)
     equal(itemWindow.itemButton.attributes.type, "item") equal(itemWindow.itemButton.attributes.item, "item:77")
     equal(itemWindow.itemButton.label.text, "Torch ×2")
     assert(itemWindow.rows[1].label.text:find("3/8", 1, true))
