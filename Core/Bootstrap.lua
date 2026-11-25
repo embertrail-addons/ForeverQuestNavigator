@@ -492,12 +492,9 @@ local function SameAreaOverview(a, b)
     return true
 end
 
-local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, playerLevel, xpNeeded, nextQuest, forecast)
-    S.navigationSnapshot = S.navigationSnapshot or { measurements = S.questMeasurements or {},
-        objectiveDistances = S.objectiveDistances or {}, ranked = ranked, playerLevel = playerLevel, capacity = S.questCapacity }
-    S.navigationSnapshot.sharedItems = S.insights.sharedItems
-    S.navigationSnapshot.pickupPlanning = S.insights.pickupPlanning
-    S.navigationSnapshot.chains = addon.QuestInsights.Chains(C_Map, Enum and Enum.UIMapType, ranked, S.routeChains, S.questMeasurements)
+-- Which quest the navigator shows: explicit choices (manual, objective lock, recovery,
+-- flight, combat, outing, tour, detour, level hold) win over the route suggestion.
+local function ChooseShownQuest(ranked, routeQuest, routeNote, routeDetails, playerLevel)
     local quest = ranked[1]
     local tourID = S.workspace and S.workspace:Current()
     local excursionStop = addon.ExcursionPlan.Current(S.insights.excursion)
@@ -538,6 +535,12 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     if levelHold and quest.id == levelHold and not (S.manualQuestID or S.objectiveLock or excursionStop or tourID) then
         routeNote = L.AdventureLevelShort S.navigationSnapshot.decision, S.navigationSnapshot.decisionSaving = "levelReview", nil
     end
+    return quest, routeNote, routeDetails, tourID, excursionStop, levelHold
+end
+
+-- Short context note for the shown quest: progress, shared stops, feedback, group
+-- members and quest-log capacity. summaryImportant keeps the summary visible.
+local function ContextNote(quest, routeNote, routeQuest, tourID, playerLevel)
     local progressHint = addon.QuestTools.ProgressHint(quest)
     if progressHint then routeNote = routeNote and (routeNote .. " · " .. progressHint) or progressHint end
     local summaryImportant = not not (S.manualQuestID or tourID or routeQuest or quest.readyToTurnIn or progressHint
@@ -559,14 +562,11 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     if quest.readyToTurnIn and S.navigationSnapshot.capacity and (S.navigationSnapshot.capacity.full or S.navigationSnapshot.capacity.reserveNeeded) then
         routeNote = (routeNote and (routeNote .. " · ") or "") .. (S.navigationSnapshot.capacity.full and L.FreeQuestSlot or L.ReserveQuestSlot)
     end
-    local destination = GetQuestDestination(quest.id)
-    if S.manualQuestID then ranked = RankFromQuest(ranked, quest, destination, playerLevel) end
-    local alternatives = {}
-    for _, candidate in ipairs(ranked) do
-        if candidate.id ~= quest.id then
-            alternatives[#alternatives + 1] = candidate
-        end
-    end
+    return routeNote, summaryImportant
+end
+
+-- XP line, reward details and the single-turn-in level-up forecast.
+local function DescribeRewardLines(quest, xpNeeded, playerLevel, routeQuest, routeNote, routeDetails, nextQuest)
     local rewardText, reward = DescribeQuestXP(quest, xpNeeded, playerLevel)
     local rewardDetails = S.settings.showQuestXP and xpNeeded and rewardText or nil
     if S.settings.showQuestRewards ~= false then
@@ -593,26 +593,58 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
         routeDetails = routeDetails and (routeDetails .. "\n" .. rewardText) or rewardText
     end
     if routeNote == L.LevelUpOnTurnIn and S.settings.showQuestXP and reward and reward >= xpNeeded then routeNote = nil end
-    if xpNeeded and not (reward and reward >= xpNeeded) and type(playerLevel) == "number" and playerLevel > 0 then
-        local levelPlan = addon.LevelForecast.FromQuests(S.eligibleQuests, S.questMeasurements, addon.QuestLog.GetTurnInXP, xpNeeded)
-        if levelPlan then
-            local text = L.LevelForecastRoute:format(playerLevel + 1, levelPlan.count, levelPlan.total)
-            -- Pins Questie draws plus known follow-ups from the database, cached for 30 seconds.
-            local cache = S.insights.soonCache
-            if not cache or cache.level ~= playerLevel or SessionTime() - cache.at > 30 then
-                local ids = {}
-                for _, quest in ipairs(S.eligibleQuests or {}) do ids[#ids + 1] = quest.id end
-                for _, entry in ipairs(S.session and S.session.data.recent or {}) do ids[#ids + 1] = entry.id end
-                local set = integration.SoonSet and integration.SoonSet() or {}
-                for id in pairs(integration.SoonFollowUps and integration.SoonFollowUps(ids, playerLevel, S.questTargetMaps) or {}) do set[id] = true end
-                local count = 0
-                for _ in pairs(set) do count = count + 1 end
-                cache = {level = playerLevel, at = SessionTime(), count = count}
-                S.insights.soonCache = cache
-            end
-            if cache.count > 0 then text = text .. " · " .. L.LevelForecastUnlocks:format(cache.count) end
-            routeDetails = routeDetails and (routeDetails .. "\n" .. text) or text
+    return rewardText, reward, rewardDetails, rewards, routeNote, routeDetails
+end
+
+-- Level forecast over several of the nearest ready turn-ins, plus quests that unlock
+-- then (Questie pins and known follow-ups, cached for 30 seconds).
+local function LevelForecastLine(playerLevel, xpNeeded)
+    local levelPlan = addon.LevelForecast.FromQuests(S.eligibleQuests, S.questMeasurements, addon.QuestLog.GetTurnInXP, xpNeeded)
+    if levelPlan then
+        local text = L.LevelForecastRoute:format(playerLevel + 1, levelPlan.count, levelPlan.total)
+        -- Pins Questie draws plus known follow-ups from the database, cached for 30 seconds.
+        local cache = S.insights.soonCache
+        if not cache or cache.level ~= playerLevel or SessionTime() - cache.at > 30 then
+            local ids = {}
+            for _, quest in ipairs(S.eligibleQuests or {}) do ids[#ids + 1] = quest.id end
+            for _, entry in ipairs(S.session and S.session.data.recent or {}) do ids[#ids + 1] = entry.id end
+            local set = integration.SoonSet and integration.SoonSet() or {}
+            for id in pairs(integration.SoonFollowUps and integration.SoonFollowUps(ids, playerLevel, S.questTargetMaps) or {}) do set[id] = true end
+            local count = 0
+            for _ in pairs(set) do count = count + 1 end
+            cache = {level = playerLevel, at = SessionTime(), count = count}
+            S.insights.soonCache = cache
         end
+        if cache.count > 0 then text = text .. " · " .. L.LevelForecastUnlocks:format(cache.count) end
+        return text
+    end
+end
+
+local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, playerLevel, xpNeeded, nextQuest, forecast)
+    S.navigationSnapshot = S.navigationSnapshot or { measurements = S.questMeasurements or {},
+        objectiveDistances = S.objectiveDistances or {}, ranked = ranked, playerLevel = playerLevel, capacity = S.questCapacity }
+    S.navigationSnapshot.sharedItems = S.insights.sharedItems
+    S.navigationSnapshot.pickupPlanning = S.insights.pickupPlanning
+    S.navigationSnapshot.chains = addon.QuestInsights.Chains(C_Map, Enum and Enum.UIMapType, ranked, S.routeChains, S.questMeasurements)
+    local quest, tourID, excursionStop, levelHold
+    quest, routeNote, routeDetails, tourID, excursionStop, levelHold =
+        ChooseShownQuest(ranked, routeQuest, routeNote, routeDetails, playerLevel)
+    local summaryImportant
+    routeNote, summaryImportant = ContextNote(quest, routeNote, routeQuest, tourID, playerLevel)
+    local destination = GetQuestDestination(quest.id)
+    if S.manualQuestID then ranked = RankFromQuest(ranked, quest, destination, playerLevel) end
+    local alternatives = {}
+    for _, candidate in ipairs(ranked) do
+        if candidate.id ~= quest.id then
+            alternatives[#alternatives + 1] = candidate
+        end
+    end
+    local rewardText, reward, rewardDetails, rewards
+    rewardText, reward, rewardDetails, rewards, routeNote, routeDetails =
+        DescribeRewardLines(quest, xpNeeded, playerLevel, routeQuest, routeNote, routeDetails, nextQuest)
+    if xpNeeded and not (reward and reward >= xpNeeded) and type(playerLevel) == "number" and playerLevel > 0 then
+        local text = LevelForecastLine(playerLevel, xpNeeded)
+        if text then routeDetails = routeDetails and (routeDetails .. "\n" .. text) or text end
     end
     local nearbyStops = GetNearbyStops(quest, destination, ranked, playerLevel)
     local approachStops
