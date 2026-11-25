@@ -49,6 +49,26 @@ class PackageTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 package.build(root, root / "out")
 
+    def test_icon_texture_is_packaged_without_converting_binary_data(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            toc = root / "ForeverQuestNavigator.toc"
+            toc.write_text("## Version: 1.2.3\n## IconTexture: Interface\\AddOns\\ForeverQuestNavigator\\Media\\icon\nCore.lua\nUI.xml\n",
+                           encoding="utf-8")
+            (root / "Media").mkdir()
+            icon = bytes(range(256)) + b"\r\n\x00"
+            (root / "Media/icon.tga").write_bytes(icon)
+            archive = package.build(root, root / "out")
+            with ZipFile(archive) as zip_file:
+                self.assertEqual(zip_file.read("ForeverQuestNavigator/Media/icon.tga"), icon)
+            (root / "Media/icon.tga").unlink()
+            with self.assertRaises(ValueError):
+                package.build(root, root / "out")
+            toc.write_text("## Version: 1.2.3\n## IconTexture: Interface\\Icons\\Other\nCore.lua\nUI.xml\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                package.build(root, root / "out")
+
     def test_native_bindings_are_included_without_a_toc_entry(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

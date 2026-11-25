@@ -41,6 +41,19 @@ def build(root, output, tag=None, channel=None):
         include(name)
     if (root / "Bindings.xml").is_file():
         include("Bindings.xml")
+    # Addon-list icon: "## IconTexture: Interface\AddOns\<addon>\path" (extension optional).
+    for line in lines:
+        if line.startswith("## IconTexture:"):
+            texture = line.split(":", 1)[1].strip().replace("\\", "/")
+            prefix = f"Interface/AddOns/{ADDON}/"
+            if not texture.lower().startswith(prefix.lower()):
+                raise ValueError(f"IconTexture must point inside the addon: {texture}")
+            relative = texture[len(prefix):]
+            candidates = [relative] if Path(relative).suffix else [relative + ".tga", relative + ".blp"]
+            found = [candidate for candidate in candidates if (root / candidate).is_file()]
+            if not found:
+                raise ValueError(f"Missing IconTexture file: {relative}")
+            include(found[0])
     for line in lines:
         if line.strip() and not line.lstrip().startswith("#"):
             include(line.strip())
