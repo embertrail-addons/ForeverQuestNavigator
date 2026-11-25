@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.2.0.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current release: 0.2.1.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.1 makes every list scroll with the mouse wheel, opens automatic windows one at a time, adds `/fqn selftest` and an FQN error log in `/fqn problem`, tour sharing with the group, a daily level goal (`/fqn goal`), an optional minimap arrow and the compass icon. [0.2.1 changes and manual checks](release/curseforge-changelog-0.2.1.md).
 
 0.2.0 adds a three-step setup on first start, **Simple mode** (default for new installs; existing players keep their view), one tool window that also holds Outing and Tour assistant, a searchable command menu (`/fqn menu`, minimap right-click), quest symbols, a route line on the world map, a level forecast across several turn-ins, a session recap with XP per hour and optional **group sync** via addon messages (off by default). [0.2.0 changes and manual checks](release/curseforge-changelog-0.2.0.md).
 
