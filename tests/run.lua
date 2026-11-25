@@ -863,23 +863,88 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     window.scripts.OnEvent(window, "PLAYER_TARGET_CHANGED")
     equal(marked, 1) equal(window.status:IsShown(), false) equal(window.heading:IsShown(), true)
 
-    -- Nameplates: every visible mob of the active quest gets the badge, not only the target.
-    local plates, names = {}, {nameplate1 = "Kobold", nameplate2 = "Kobold", nameplate3 = "Rabbit"}
+    -- Nameplates: every visible mob of the active quest gets the badge with progress, not only the target.
+    local plates, names, raid = {}, {nameplate1 = "Kobold", nameplate2 = "Kobold", nameplate3 = "Rabbit", target = "Kobold"}, {}
     for unit in pairs(names) do plates[unit] = createFrame("Frame") end
     env.C_NamePlate = {GetNamePlateForUnit = function(unit) return plates[unit] end}
     env.UnitName = function(unit) return names[unit] end
     env.UnitIsDead = function(unit) return unit == "nameplate2" and names.dead end
+    env.GetRaidTargetIndex = function(unit) return raid[unit] end
+    env.SetRaidTarget = function(unit, icon) raid[unit] = icon end
+    list = {{name = "Kobold", icon = 8, kind = "loot", item = "Candle", progress = "3/8", questID = 3}}
+    local settings = {}
     local nameplates = ui.NameplateMarks
-    nameplates.Start(function() return list end, true)
+    nameplates.Start(function() return list end, settings)
     local driver = nameplates.driver
     for unit in pairs(names) do driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_ADDED", unit) end
     local function Badge(unit) for _, frame in ipairs(frames) do if frame.parent == plates[unit] then return frame end end end
     equal(Badge("nameplate1"):IsShown(), true) equal(Badge("nameplate2"):IsShown(), true) equal(Badge("nameplate3"), nil)
+    equal(Badge("nameplate1").progress.text, "3/8")
     names.dead = true driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate2")
     equal(Badge("nameplate2"):IsShown(), false)
     nameplates.SetEnabled(false) equal(Badge("nameplate1"):IsShown(), false)
     nameplates.SetEnabled(true) equal(Badge("nameplate1"):IsShown(), true)
+    -- Targeting a quest mob sets the real raid icon; a unit with a raid icon needs no badge.
+    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, 8)
+    raid.nameplate1 = 8 driver.scripts.OnEvent(driver, "RAID_TARGET_UPDATE") equal(Badge("nameplate1"):IsShown(), false)
+    raid.target = 2 names.target = "Kobold" driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED")
+    equal(raid.target, 2, "never replaces someone else's mark")
+    raid.target = nil settings.autoRaidMarks = false driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED")
+    equal(raid.target, nil) settings.autoRaidMarks = true
+    env.IsInRaid = function() return true end env.UnitIsGroupLeader = function() return false end
+    env.UnitIsGroupAssistant = function() return false end
+    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil, "raid marks need leader or assist")
+    env.IsInRaid = function() return false end
+    raid.nameplate1 = nil
     driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate1") equal(Badge("nameplate1"):IsShown(), false)
+    -- Loot reminder: killed droppers count until looted.
+    local clock = 100
+    env.GetTime = function() return clock end
+    local event = {}
+    env.CombatLogGetCurrentEventInfo = function() return unpack(event) end
+    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-1", "Kobold"}
+    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
+    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-2", "Rabbit"}
+    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
+    equal(nameplates.LootCount(), 1)
+    env.GetNumLootItems = function() return 1 end env.GetLootSourceInfo = function() return "Creature-1" end
+    driver.scripts.OnEvent(driver, "LOOT_OPENED") equal(nameplates.LootCount(), 0)
+    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-3", "Kobold"}
+    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED") equal(nameplates.LootCount(), 1)
+    clock = clock + 200 equal(nameplates.LootCount(), 0, "old corpses are forgotten")
+    env.GetTime = nil
+
+    -- Mark window: quest item on top, progress in rows, loot line at the bottom.
+    local extra = {item = {id = 77, name = "Torch", count = 2, texture = 1}, loot = 2}
+    local itemWindow = ui.CreateTargetMarkWindow({}, function() return list, extra end)
+    itemWindow:SetEnabled(true)
+    equal(itemWindow.itemButton.attributes.type, "item") equal(itemWindow.itemButton.attributes.item, "item:77")
+    equal(itemWindow.itemButton.label.text, "Torch ×2")
+    assert(itemWindow.rows[1].label.text:find("3/8", 1, true))
+    assert(itemWindow.loot:IsShown()) assert(itemWindow.loot.text:find("2", 1, true))
+    list = {} extra = {item = {id = 77, name = "Torch", count = 1}}
+    itemWindow:Refresh() equal(itemWindow:IsShown(), true, "a usable quest item alone keeps the window")
+    extra = {} itemWindow:Refresh() equal(itemWindow:IsShown(), false) equal(itemWindow.itemButton.attributes.type, nil)
+
+    -- Instances: quests listed under the dungeon heading, and the next turn-in after leaving.
+    local Instance, L = ui.InstanceQuests, ui.L
+    local quests = {{id = 1, title = "Into the Mines", header = "The Deadmines"}, {id = 2, title = "Wolves", header = "Elwynn Forest"},
+        {id = 3, title = "Red Silk", header = "the deadmines "}}
+    assert(Instance.Summary(quests, "The Deadmines", L):find("2", 1, true))
+    equal(Instance.Summary(quests, "Ragefire Chasm", L), nil)
+    local state = {}
+    equal(Instance.Transition(state, true, "The Deadmines"), "enter")
+    equal(Instance.Transition(state, true, "The Deadmines"), nil)
+    equal(Instance.Transition(state, false, nil), "leave")
+    equal(Instance.Transition(state, false, nil), nil)
+    equal(Instance.NextTurnIn({{id = 5, title = "Wolves"}, {id = 6, title = "Report", readyToTurnIn = true}}, {[6] = {yards = 120.4}}, L),
+        L.InstanceLeftTurnIn:format("Report", 120))
+    equal(Instance.NextTurnIn({{id = 5, title = "Wolves"}}, {}, L), nil)
+    local log = {{isHeader = true, title = "The Deadmines"}, {questID = 11, title = "Oh Brother"},
+        {isHeader = true, title = "Westfall"}, {questID = 12, title = "Harvest"}}
+    local read = ui.QuestLog.Read({GetNumQuestLogEntries = function() return #log, 2 end, GetInfo = function(index) return log[index] end,
+        IsOnQuest = function() return true end, IsComplete = function() return false end})
+    equal(read[1].header, "The Deadmines") equal(read[2].header, "Westfall")
     -- Secure buttons stay unchanged in combat and update afterwards.
     env.InCombatLockdown = function() return true end
     list = {{name = "Other", icon = 1, kind = "accept", questID = 5}}
@@ -1098,6 +1163,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showTargetMarks = "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
                     nameplateMarks = "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
                     quietInstances = "FOREVERQUESTNAVIGATOR_QUIET_INSTANCES",
+                    autoRaidMarks = "FOREVERQUESTNAVIGATOR_AUTO_RAID_MARKS",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                     groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                     minimapArrow = "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
@@ -1146,6 +1212,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showTargetMarks = "Mark targets",
                     nameplateMarks = "Quest marks above mobs",
                     quietInstances = "Unobtrusive in instances",
+                    autoRaidMarks = "Raid mark on targeted quest mobs",
                     showRouteLine = "Connect route stops with a line",
                     groupSync = "Share quest progress with my group",
                     minimapArrow = "Arrow on the minimap edge",

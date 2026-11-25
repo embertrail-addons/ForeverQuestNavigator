@@ -30,12 +30,13 @@ end
 function Marks.Collect(input)
     local entries, seen = {}, {}
     local limit = input.limit or Marks.LIMIT
-    local function Add(name, icon, kind, quest, item)
+    local function Add(name, icon, kind, quest, item, progress)
         if type(name) ~= "string" or name == "" or #entries >= limit then return end
         local key = name .. "#" .. icon
         if seen[key] then return end
         seen[key] = true
-        entries[#entries + 1] = {name = name, icon = icon, kind = kind, questID = quest.id, title = quest.title, item = item}
+        entries[#entries + 1] = {name = name, icon = icon, kind = kind, questID = quest.id, title = quest.title,
+            item = item, progress = progress}
     end
     local quest
     for _, candidate in ipairs(input.quests or {}) do
@@ -49,16 +50,40 @@ function Marks.Collect(input)
         if names and #names > 0 then
             for _, source in ipairs(names) do
                 if type(source) == "table" then
-                    Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item)
+                    Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item, source.progress)
                 else Add(source, Marks.SKULL, "kill", quest) end
             end
         else
             for _, goal in ipairs(input.objectives and input.objectives(quest.id) or {}) do
-                if goal.type == "monster" and not goal.finished then Add(Marks.KillName(goal.text), Marks.SKULL, "kill", quest) end
+                if goal.type == "monster" and not goal.finished then
+                    Add(Marks.KillName(goal.text), Marks.SKULL, "kill", quest, nil, Marks.Progress(goal))
+                end
             end
         end
     end
     return entries
+end
+
+-- "3/8" from a quest objective, or nil when the numbers are missing.
+function Marks.Progress(goal)
+    local done, needed = goal and goal.numFulfilled, goal and goal.numRequired
+    if type(done) == "number" and type(needed) == "number" and needed > 0 then return done .. "/" .. needed end
+    local text = goal and type(goal.text) == "string" and goal.text:match("(%d+%s*/%s*%d+)%s*$")
+    return text and text:gsub("%s", "") or nil
+end
+
+-- Mob names that drop an item for an open objective (for the loot reminder).
+function Marks.LootNames(entries)
+    local names = {}
+    for _, entry in ipairs(entries or {}) do if entry.kind == "loot" then names[entry.name] = true end end
+    return names
+end
+
+-- Raid marks change for everyone in the group: solo and in a party anyone may set them,
+-- in a raid only the leader or an assistant.
+function Marks.MayMark()
+    if not (IsInRaid and IsInRaid()) then return true end
+    return (UnitIsGroupLeader and UnitIsGroupLeader("player")) or (UnitIsGroupAssistant and UnitIsGroupAssistant("player")) or false
 end
 
 -- No marks in dungeons, raids, battlegrounds and arenas.
@@ -69,7 +94,9 @@ end
 -- Stable text for "did anything change" checks, so secure buttons are only rebuilt when needed.
 function Marks.Signature(entries)
     local parts = {}
-    for index, entry in ipairs(entries) do parts[index] = entry.icon .. ":" .. entry.name .. ":" .. tostring(entry.questID) end
+    for index, entry in ipairs(entries) do
+        parts[index] = entry.icon .. ":" .. entry.name .. ":" .. tostring(entry.questID) .. ":" .. tostring(entry.progress)
+    end
     return table.concat(parts, "|")
 end
 

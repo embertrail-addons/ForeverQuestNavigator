@@ -27,8 +27,11 @@ function QuestLog.Read(api)
 
     local quests = {}
     local entryCount, totalQuests = api.GetNumQuestLogEntries()
+    local header
     for index = 1, entryCount do
         local info = api.GetInfo(index)
+        -- Zone or dungeon heading the quest is listed under (used for instance summaries).
+        if info and info.isHeader then header = info.title end
         if info and not (info.isHeader or info.isHidden or info.isInternalOnly or info.isTask)
             and info.questID and info.questID > 0 and api.IsOnQuest(info.questID) then
             local questID = info.questID
@@ -47,6 +50,7 @@ function QuestLog.Read(api)
                 failed = api.IsFailed and api.IsFailed(questID),
                 disabled = api.IsQuestDisabledForSession and api.IsQuestDisabledForSession(questID),
                 progress = not ready and addon.QuestTools.Progress(api, questID) or nil,
+                header = header,
             }
         end
     end

@@ -1115,10 +1115,16 @@ local english = {
     AllGoalsHelp = "Lists every open objective of the shown quest without expanding, also in the compact view.",
     TargetMark_loot = "Drops %s (skull)",
     NameplateMarks = "Quest marks above mobs",
-    NameplateMarksHelp = "Shows a skull above every visible mob of the active quest and a star above its turn-in NPC. Uses nameplates (key V), works without group rights and sends nothing.",
+    NameplateMarksHelp = "Shows the mark and the progress (for example 3/8) above every other visible mob of the active quest. Uses nameplates (key V), works without group rights and sends nothing.",
     TargetMarkHideHint = "Appears by itself when the active quest has mobs or a turn-in NPC. Switch it off in the settings, with /fqn marks or with its key binding.",
     QuietInstances = "Unobtrusive in instances",
     QuietInstancesHelp = "In dungeons, raids, battlegrounds and arenas the navigator shows only one faded line, the screen arrow is hidden and no quest marks are shown.",
+    AutoRaidMarks = "Raid mark on targeted quest mobs",
+    AutoRaidMarksHelp = "When you target a mob of the active quest it gets the real skull raid mark, the turn-in NPC the star. Never replaces an existing mark; in a raid only as leader or assistant.",
+    LootReminder = "|TInterface\\Buttons\\UI-GroupLoot-Coin-Up:0|t %d quest mob(s) not looted",
+    InstanceQuests = "%s: %d of your quests can be done here – %s",
+    InstanceLeftTurnIn = "Back outside – next turn-in: %s (~%d yd)",
+    InstanceLeftTurnInNear = "Back outside – next turn-in: %s",
 }
 
 local german = setmetatable({
@@ -2237,10 +2243,16 @@ local german = setmetatable({
     AllGoalsHelp = "Zeigt alle offenen Ziele der angezeigten Quest ohne Aufklappen, auch in der kompakten Ansicht.",
     TargetMark_loot = "Lässt %s fallen (Totenkopf)",
     NameplateMarks = "Questzeichen über Mobs",
-    NameplateMarksHelp = "Zeigt einen Totenkopf über jedem sichtbaren Mob der aktiven Quest und einen Stern über dem Abgabe-NPC. Nutzt die Namensplaketten (Taste V), braucht keine Gruppenrechte und sendet nichts.",
+    NameplateMarksHelp = "Zeigt das Zeichen und den Fortschritt (zum Beispiel 3/8) über jedem weiteren sichtbaren Mob der aktiven Quest. Nutzt die Namensplaketten (Taste V), braucht keine Gruppenrechte und sendet nichts.",
     TargetMarkHideHint = "Erscheint von selbst, wenn die aktive Quest Mobs oder einen Abgabe-NPC hat. Abschalten in den Einstellungen, mit /fqn marks oder über die Taste.",
     QuietInstances = "Unauffällig in Instanzen",
     QuietInstancesHelp = "In Dungeons, Raids, Schlachtfeldern und Arenen zeigt der Navigator nur eine blasse Zeile, der Bildschirmpfeil ist aus und es gibt keine Questzeichen.",
+    AutoRaidMarks = "Zielmarkierung auf anvisierte Questmobs",
+    AutoRaidMarksHelp = "Nimmst du einen Mob der aktiven Quest ins Ziel, bekommt er die echte Totenkopf-Zielmarkierung, der Abgabe-NPC den Stern. Ersetzt nie eine vorhandene Markierung; im Raid nur als Leiter oder Assistent.",
+    LootReminder = "|TInterface\\Buttons\\UI-GroupLoot-Coin-Up:0|t %d Questmob(s) nicht geplündert",
+    InstanceQuests = "%s: %d deiner Quests lassen sich hier erledigen – %s",
+    InstanceLeftTurnIn = "Wieder draußen – nächste Abgabe: %s (~%d yd)",
+    InstanceLeftTurnInNear = "Wieder draußen – nächste Abgabe: %s",
 }, { __index = english })
 
 addon.L = {}

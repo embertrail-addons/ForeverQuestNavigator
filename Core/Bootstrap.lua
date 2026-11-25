@@ -903,6 +903,11 @@ local function UpdateFlightState()
     if not fighting then S.combatQuestID = nil end
     S.tracker:SetCombatView(fighting == true and S.settings.quietNavigation ~= false)
     S.tracker:SetInstanceView(S.settings.quietInstances ~= false and IsInInstance and IsInInstance() == true)
+    if S.insights.leftInstance and S.questMeasurements and S.eligibleQuests then
+        S.insights.leftInstance = nil
+        local text = addon.InstanceQuests.NextTurnIn(S.eligibleQuests, S.questMeasurements, L)
+        if text then print("FQN | " .. text) end
+    end
     if fighting or flying then addon.HideLevelNotice() end
 end
 
@@ -1320,6 +1325,11 @@ addon.ShowTourChatPreview = ShowTourChat
 local function TargetMarkEntries()
     local relations = S.insights.combatMarkers or {}
     local shown = S.shownQuests and S.shownQuests[1]
+    -- Second result: the active quest's usable item and the unlooted-corpse count.
+    local extra = {loot = addon.NameplateMarks.LootCount()}
+    if shown and not shown.readyToTurnIn and not addon.DemoMode.IsActive() then
+        extra.item = addon.QuestItemHints.Read(C_QuestLog, shown.id, GetQuestLogSpecialItemInfo, GetItemCount, IsQuestLogSpecialItemInRange)
+    end
     return addon.TargetMarks.Collect({
         quests = S.eligibleQuests, shownID = shown and shown.id,
         killers = function(id)
@@ -1331,13 +1341,15 @@ local function TargetMarkEntries()
                 local goal = goals[relation.objectiveIndex]
                 local item = goal and goal.type == "item" and type(goal.text) == "string"
                     and goal.text:gsub("%s*:?%s*%d+%s*/%s*%d+%s*$", "") or nil
-                if name then names[#names + 1] = {name = name, item = item ~= "" and item or nil} end
+                if name then
+                    names[#names + 1] = {name = name, item = item ~= "" and item or nil, progress = addon.TargetMarks.Progress(goal)}
+                end
             end
             return names
         end,
         objectives = function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
         finisher = function(id) return integration.QuestNpcName(id, "finishedBy") end,
-    })
+    }), extra
 end
 
 -- show: true/false, or nil to toggle. Secure buttons cannot be shown or hidden in combat.
@@ -2141,7 +2153,18 @@ addon.EventController.Bind(events, {
             S.minimapButton = addon.CreateMinimapButton(S.settings, CycleDisplayMode, OpenSettings)
         end
         if S.settings.showTargetMarks and not S.targetMarks then addon.ToggleTargetMarks(true) end
-        addon.NameplateMarks.Start(TargetMarkEntries, S.settings.nameplateMarks)
+        addon.NameplateMarks.Start(TargetMarkEntries, S.settings)
+        -- Entering a dungeon: which open quests belong there. Leaving: next turn-in (announced
+        -- once the navigator has measured again, see UpdateFlightState).
+        S.insights.instance = S.insights.instance or {}
+        local inside = IsInInstance and IsInInstance() == true
+        local change = addon.InstanceQuests.Transition(S.insights.instance, inside, inside and GetInstanceInfo and GetInstanceInfo() or nil)
+        if change == "enter" then
+            local text = addon.InstanceQuests.Summary(addon.QuestLog.Read(C_QuestLog), S.insights.instance.name, L)
+            if text then print("FQN | " .. text) end
+        elseif change == "leave" then
+            S.insights.leftInstance = true
+        end
         if S.workspace and S.workspace.pending and not S.workspace.announced then
             S.workspace.announced = true print("FQN | " .. L.ResumeOffer)
         end

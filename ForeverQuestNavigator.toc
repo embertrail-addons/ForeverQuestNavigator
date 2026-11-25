@@ -62,6 +62,8 @@ Core\ZoneOverview.lua
 Core\ReleaseFeatures.lua
 Core\TourPlan.lua
 Core\TargetMarks.lua
+Core\InstanceQuests.lua
+Core\LootReminder.lua
 Core\QuestFinder.lua
 Core\ProblemReport.lua
 Core\QuestState.lua

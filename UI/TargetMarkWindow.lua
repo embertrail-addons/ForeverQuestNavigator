@@ -101,13 +101,45 @@ function addon.CreateTargetMarkWindow(settings, source)
     frame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
 
+    -- Usable quest item of the active quest, as a secure item button on top of the list.
+    local item = CreateFrame("Button", nil, frame, "SecureActionButtonTemplate")
+    item:SetHeight(ROW_HEIGHT)
+    item:RegisterForClicks("LeftButtonUp")
+    item:SetAttribute("useOnKeyDown", false)
+    item.icon = item:CreateTexture(nil, "ARTWORK")
+    item.icon:SetSize(14, 14)
+    item.icon:SetPoint("LEFT", 2, 0)
+    item.label = addon.UI.CreateLabel(item, "GameFontNormalSmall")
+    item.label:SetPoint("LEFT", item.icon, "RIGHT", 4, 0)
+    item.label:SetPoint("RIGHT", -2, 0)
+    item.label:SetJustifyH("LEFT")
+    item.label:SetMaxLines(1)
+    local itemHighlight = item:CreateTexture(nil, "HIGHLIGHT")
+    itemHighlight:SetAllPoints()
+    itemHighlight:SetColorTexture(1, 1, 1, .08)
+    item:SetScript("OnEnter", function(self)
+        if not (self.hint and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if GameTooltip.SetHyperlink and self.hint.link then GameTooltip:SetHyperlink(self.hint.link)
+        else GameTooltip:SetText(self.hint.name or L.QuestItemAction) end
+        GameTooltip:AddLine(L.QuestItemClick, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    item:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    item:Hide()
+    frame.itemButton = item
+
+    -- Loot reminder: killed quest-item droppers that were not looted yet.
+    frame.loot = addon.UI.CreateLabel(frame, "GameFontNormalSmall")
+    frame.loot:SetJustifyH("LEFT")
+    frame.loot:SetMaxLines(1)
+    frame.loot:Hide()
+
     frame.rows = {}
     for index = 1, addon.TargetMarks.LIMIT do
         local row = CreateFrame("Button", nil, frame, "SecureActionButtonTemplate")
         row.window = frame
         row:SetHeight(ROW_HEIGHT)
-        row:SetPoint("TOPLEFT", 3, -HEADER - (index - 1) * ROW_HEIGHT)
-        row:SetPoint("TOPRIGHT", -3, -HEADER - (index - 1) * ROW_HEIGHT)
         row:RegisterForClicks("AnyUp", "AnyDown")
         row:SetAttribute("type", "macro")
         row.icon = row:CreateTexture(nil, "ARTWORK")
@@ -132,23 +164,51 @@ function addon.CreateTargetMarkWindow(settings, source)
         -- An unanswered click ends after a moment; its "not in range" note goes with it.
         if self.pending and Now() - self.pending.at > PENDING_SECONDS + 1 then self.pending = nil SetStatus(self, nil) end
         if InCombat() then return end
-        local entries = (self.enabled and not addon.TargetMarks.Hidden()) and source() or {}
-        -- Only there while the active quest has targets; secure frames change only out of combat.
-        self:SetShown(#entries > 0)
-        local signature = addon.TargetMarks.Signature(entries)
+        local entries, extra
+        if self.enabled and not addon.TargetMarks.Hidden() then entries, extra = source() end
+        entries, extra = entries or {}, extra or {}
+        local hint, lootCount = extra.item, extra.loot or 0
+        -- Only there while the active quest has targets or an item; secure frames change only out of combat.
+        self:SetShown(#entries > 0 or hint ~= nil)
+        local signature = addon.TargetMarks.Signature(entries) .. "|item:" .. tostring(hint and hint.id)
+            .. ":" .. tostring(hint and hint.count) .. "|loot:" .. lootCount
         if signature == self.signature then return end
         self.signature, self.entries = signature, entries
+        local top = HEADER
+        item.hint = hint
+        if hint then
+            if item.assigned ~= hint.id then item:SetAttribute("type", "item") item:SetAttribute("item", "item:" .. hint.id) item.assigned = hint.id end
+            item.icon:SetTexture(hint.texture or "Interface\\Icons\\INV_Misc_QuestionMark")
+            item.label:SetText((hint.name or L.QuestItemAction) .. ((hint.count or 0) > 1 and (" ×" .. hint.count) or ""))
+            item:ClearAllPoints()
+            item:SetPoint("TOPLEFT", 3, -top) item:SetPoint("TOPRIGHT", -3, -top)
+            top = top + ROW_HEIGHT + 2
+        elseif item.assigned then
+            item:SetAttribute("type", nil) item:SetAttribute("item", nil) item.assigned = nil
+        end
+        item:SetShown(hint ~= nil)
         for index, row in ipairs(self.rows) do
             local entry = entries[index]
             row.entry = entry
             if entry then
                 row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name))
                 row.icon:SetTexture(ICON:format(entry.icon))
-                row.label:SetText(entry.name) -- the dropped item is in the tooltip
+                -- Progress at a glance; the dropped item is in the tooltip.
+                row.label:SetText(entry.progress and (entry.name .. " |cff9d9d9d" .. entry.progress .. "|r") or entry.name)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 3, -top) row:SetPoint("TOPRIGHT", -3, -top)
+                top = top + ROW_HEIGHT
             end
             row:SetShown(entry ~= nil)
         end
-        self:SetHeight(HEADER + math.max(1, #entries) * ROW_HEIGHT + 4)
+        self.loot:SetShown(lootCount > 0)
+        if lootCount > 0 then
+            self.loot:SetText(L.LootReminder:format(lootCount))
+            self.loot:ClearAllPoints()
+            self.loot:SetPoint("TOPLEFT", 6, -top - 2) self.loot:SetPoint("TOPRIGHT", -6, -top - 2)
+            top = top + ROW_HEIGHT
+        end
+        self:SetHeight(top + 4)
     end
     -- A separate ticker keeps checking while the window itself is hidden.
     frame.ticker = CreateFrame("Frame")
