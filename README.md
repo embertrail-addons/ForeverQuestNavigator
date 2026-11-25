@@ -132,7 +132,7 @@ If Questie is not loaded, check its entry in the game's addon list and `/fqn sta
 
 ## Development
 
-Run Lua 5.1 `tests/run.lua`, the JSON fixtures through `scripts/replay.py`, and `python -m unittest discover -s tests -p "test_*.py"`. Validate metadata with `python scripts/check_release.py`; build with `python scripts/package.py --channel beta`. Prepare a new version with `python scripts/release.py 0.2.1 --en "…" --de "…"` (bumps the TOC, creates changelog/acceptance/validation files and the in-game update note; nothing is committed or uploaded).
+Run Lua 5.1 `tests/run.lua`, the JSON fixtures through `scripts/replay.py`, and `python -m unittest discover -s tests -p "test_*.py"`. Validate metadata with `python scripts/check_release.py`; build with `python scripts/package.py --channel beta`. Prepare a new version with `python scripts/release.py 0.2.1 --en "…" --de "…"` (bumps the TOC, creates changelog/acceptance/validation files and the in-game update note; nothing is committed or uploaded). Install a local test build with `python scripts/install.py --addons "<WoW>\Interface\AddOns"` (or set `FQN_ADDONS_DIR`): it backs up the installed copy, copies every file, removes stale ones and verifies all files by SHA-256.
 
 Planning state, search, report generation and tracker presentation have separate modules. UI tests exercise actual controls with game API mocks; they do not replace in-game visual verification.
 
