@@ -68,7 +68,13 @@ function FlightPoints.Hint(destination, context, api)
     if not measurement or measurement.yards < context.minimum then return end
     local plan = addon.QuestLocation.GetFlightPlan(api.C_Map, destination.target, context.flightContext)
     if plan then
-        return L.FlightRoute:format(plan.origin.name, plan.landing.name, plan.approach, plan.finish)
+        local text = L.FlightRoute:format(plan.origin.name, plan.landing.name, plan.approach, plan.finish)
+        -- Same assumptions as the plan: walking pace and a flight allowance incl. boarding.
+        if type(plan.seconds) == "number" and type(plan.walkSeconds) == "number" then
+            text = text .. "\n" .. L.FlightCompare:format(math.max(1, math.floor(plan.seconds / 60 + .5)),
+                math.max(1, math.floor(plan.walkSeconds / 60 + .5)))
+        end
+        return text
     end
     if not destination.zoneID or destination.zoneID == context.playerZoneID then return end
     if not destination.flightChecked then

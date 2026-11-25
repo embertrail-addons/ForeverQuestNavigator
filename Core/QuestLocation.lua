@@ -295,7 +295,7 @@ function QuestLocation.GetFlightPlan(mapAPI, target, context)
                 if seconds + 60 <= walkSeconds and (not best or seconds < best.seconds
                     or (seconds == best.seconds and departure.route.origin.id < best.origin.id)) then
                     best = { origin = departure.route.origin, landing = landing, approach = departure.approach,
-                        finish = finish, seconds = seconds }
+                        finish = finish, seconds = seconds, walkSeconds = walkSeconds }
                 end
             end
         end

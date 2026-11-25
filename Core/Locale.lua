@@ -1083,6 +1083,7 @@ local english = {
     CmdGroupTest = "Simulate a group member (nothing is sent)",
     CmdGroupTestOff = "End the group test",
     TourPreviewSaved = "About %d yards shorter than the current order.",
+    FlightCompare = "With flight ~%d min · on foot ~%d min (straight-line estimate)",
 }
 
 local german = setmetatable({
@@ -2169,6 +2170,7 @@ local german = setmetatable({
     CmdGroupTest = "Mitspieler simulieren (nichts wird gesendet)",
     CmdGroupTestOff = "Gruppentest beenden",
     TourPreviewSaved = "Etwa %d Yards kürzer als die bisherige Reihenfolge.",
+    FlightCompare = "Mit Flug ~%d Min. · zu Fuß ~%d Min. (Luftlinien-Schätzung)",
 }, { __index = english })
 
 addon.L = {}

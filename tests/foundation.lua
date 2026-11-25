@@ -247,6 +247,17 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Flight hints compare flying and walking time", function()
+        local location = addon.QuestLocation
+        local saved = location.GetFlightPlan
+        location.GetFlightPlan = function() return {origin = {name = "A"}, landing = {name = "B"}, approach = 100, finish = 200,
+            seconds = 250, walkSeconds = 900} end
+        local text = addon.FlightPoints.Hint({target = {}}, {measurement = {yards = 5000}, minimum = 1500}, {})
+        assert(text:find(addon.L.FlightCompare:format(4, 15), 1, true))
+        assert(text:find("\n", 1, true))
+        location.GetFlightPlan = saved
+    end)
+
     test("Route order improvement untangles crossings and respects validity rules", function()
         local R = addon.RouteOrder
         local points = {a = {0, 0}, b = {10, 10}, c = {10, 0}, d = {0, 10}}
