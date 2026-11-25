@@ -1115,6 +1115,7 @@ local english = {
     BindingMarks = "Show/hide mark targets window",
     AllGoals = "Show all open objectives",
     AllGoalsHelp = "Lists every open objective of the shown quest without expanding, also in the compact view.",
+    TargetMark_loot = "Drops %s (skull)",
 }
 
 local german = setmetatable({
@@ -2233,6 +2234,7 @@ local german = setmetatable({
     BindingMarks = "Fenster 'Ziele markieren' ein/aus",
     AllGoals = "Alle offenen Questziele zeigen",
     AllGoalsHelp = "Zeigt alle offenen Ziele der angezeigten Quest ohne Aufklappen, auch in der kompakten Ansicht.",
+    TargetMark_loot = "Lässt %s fallen (Totenkopf)",
 }, { __index = english })
 
 addon.L = {}

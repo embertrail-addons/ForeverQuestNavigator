@@ -26,7 +26,7 @@ local function ShowRowTooltip(button)
     if not (entry and GameTooltip) then return end
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     GameTooltip:SetText(entry.name)
-    GameTooltip:AddLine(L["TargetMark_" .. entry.kind], 1, 1, 1, true)
+    GameTooltip:AddLine(entry.item and L.TargetMark_loot:format(entry.item) or L["TargetMark_" .. entry.kind], 1, 1, 1, true)
     if entry.title then GameTooltip:AddLine(entry.title, .8, .8, .8, true) end
     GameTooltip:AddLine(L.TargetMarkClick, .6, .8, 1, true)
     GameTooltip:Show()
@@ -119,7 +119,8 @@ function addon.CreateTargetMarkWindow(settings, source)
             if entry then
                 row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name))
                 row.icon:SetTexture(ICON:format(entry.icon))
-                row.label:SetText(entry.name)
+                -- Droppers show the item, so several mobs for one item are told apart from kill targets.
+                row.label:SetText(entry.item and (entry.name .. " |cff9d9d9d(" .. entry.item .. ")|r") or entry.name)
             end
             row:SetShown(entry ~= nil)
         end

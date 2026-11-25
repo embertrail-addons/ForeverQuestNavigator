@@ -830,6 +830,10 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(table.concat(names, ","), "Kobold/8,Wolf/8,Young Wolf/8,Marshal/1,Farmer/1")
     equal(entries[4].kind, "turnIn") equal(entries[5].kind, "accept")
     equal(Marks.Macro("Wolf"), "/targetexact Wolf")
+    -- Every mob that drops the quest item is offered, each labelled with the item.
+    local loot = Marks.Collect({quests = {{id = 4, title = "Pelts"}},
+        killers = function() return {{name = "Wolf", item = "Pelt"}, {name = "Bear", item = "Pelt"}, {name = "Boar", item = "Pelt"}} end})
+    equal(#loot, 3) equal(loot[2].name, "Bear") equal(loot[2].kind, "loot") equal(loot[3].item, "Pelt") equal(loot[3].icon, 8)
 
     local list = entries
     env.InCombatLockdown = function() return false end
