@@ -1,5 +1,5 @@
 local _, addon = ...
--- Optional group sync (setting groupSync, off by default). Shares only quest IDs,
+-- Optional group sync (setting groupSync, on by default). Shares only quest IDs,
 -- objective progress counts and the current target quest with the own party/raid
 -- via addon messages. Nothing is saved; data from a member is dropped when they
 -- leave the group. Format (plain text): "1|<targetID>|<id>:<done>:<total>,..."

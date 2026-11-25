@@ -167,7 +167,8 @@ function addon.CreateTargetMarkWindow(settings, source)
         if self.pending and Now() - self.pending.at > PENDING_SECONDS + 1 then self.pending = nil SetStatus(self, nil) end
         if InCombat() then return end
         local entries, extra
-        if self.enabled and not addon.TargetMarks.Hidden() then entries, extra = source() end
+        -- Hidden with everything else when the minimap icon switches all windows off.
+        if self.enabled and settings.displayMode ~= "off" and not addon.TargetMarks.Hidden() then entries, extra = source() end
         entries, extra = entries or {}, extra or {}
         local hint, lootCount = extra.item, extra.loot or 0
         -- Only there while the active quest has targets or an item; secure frames change only out of combat.

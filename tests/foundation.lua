@@ -4,12 +4,17 @@ return function(test, addon, equal, near)
     test("Settings normalization starts new installs simple and keeps existing players' choices", function()
         local fresh = addon.SettingsDefaults.Normalize({}, limits, true)
         equal(fresh.simpleNavigator, true) equal(fresh.displayMode, "full") equal(fresh.opacityPercent, 80)
-        equal(fresh.showRouteLine, true) equal(fresh.iconLabels, true) equal(fresh.groupSync, false)
+        equal(fresh.showRouteLine, true) equal(fresh.iconLabels, true) equal(fresh.groupSync, true)
         local existing = addon.SettingsDefaults.Normalize({displayMode = "arrow", fontPercent = 300, acceptedRows = 4.6,
             questieOfferRadius = 5000, screenArrowX = 1 / 0, screenArrowY = 3, sortByDistance = true, hubX = 0 / 0}, limits, false)
         equal(existing.simpleNavigator, false) equal(existing.displayMode, "arrow") equal(existing.fontPercent, 100)
         equal(existing.acceptedRows, 4) equal(existing.questieOfferRadius, 350) equal(existing.screenArrowX, nil)
         equal(existing.sortByDistance, nil) equal(existing.hubX, nil)
+        -- Group sync is switched on once for existing players; a later "off" is kept.
+        local before = addon.SettingsDefaults.Normalize({groupSync = false}, limits, false)
+        equal(before.groupSync, true)
+        before.groupSync = false
+        equal(addon.SettingsDefaults.Normalize(before, limits, false).groupSync, false)
         local kept = addon.SettingsDefaults.Normalize({simpleNavigator = true, showDirectionArrow = false, displayMode = "arrow"}, limits, false)
         equal(kept.simpleNavigator, true) equal(kept.displayMode, "full") equal(kept.hidden, false)
         local character = addon.SettingsDefaults.NormalizeCharacter({questNotes = "broken", accessPoints = {a = 1}})

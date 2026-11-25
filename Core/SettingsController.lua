@@ -70,7 +70,7 @@ function addon.SettingsController.Register(context)
     groupHints:SetValueChangedCallback(ScheduleRefresh)
     Checkbox(category, groupHints, L.AdventureGroupHelp)
     local groupSync = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_GROUP_SYNC", "groupSync", settings,
-        Settings.VarType.Boolean, L.GroupSync, false)
+        Settings.VarType.Boolean, L.GroupSync, true)
     groupSync:SetValueChangedCallback(function(_, value)
         if not value then addon.GroupSync.Reset() else addon.GroupSync.MarkDirty() if addon.SyncGroup then addon.SyncGroup() end end
         ScheduleRefresh()

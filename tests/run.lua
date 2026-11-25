@@ -926,8 +926,12 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
 
     -- Mark window: quest item on top, progress in rows, loot line at the bottom.
     local extra = {item = {id = 77, name = "Torch", count = 2, texture = 1}, loot = 2}
-    local itemWindow = ui.CreateTargetMarkWindow({}, function() return list, extra end)
+    local itemSettings = {}
+    local itemWindow = ui.CreateTargetMarkWindow(itemSettings, function() return list, extra end)
     itemWindow:SetEnabled(true)
+    -- Hidden together with all windows from the minimap icon.
+    itemSettings.displayMode = "off" itemWindow:Refresh() equal(itemWindow:IsShown(), false)
+    itemSettings.displayMode = "full" itemWindow:Refresh() equal(itemWindow:IsShown(), true)
     equal(itemWindow.itemButton.attributes.type, "item") equal(itemWindow.itemButton.attributes.item, "item:77")
     equal(itemWindow.itemButton.label.text, "Torch ×2")
     assert(itemWindow.rows[1].label.text:find("3/8", 1, true))
@@ -1237,7 +1241,6 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "navigatorLayout" then expectedDefault = "guided" end
                 if key == "reducedColors" then expectedDefault = false end
                 if key == "groupQuestHints" then expectedDefault = false end
-                if key == "groupSync" then expectedDefault = false end
                 if key == "minimapArrow" or key == "showTargetMarks" or key == "compactBar" then expectedDefault = false end
                 if key == "simpleNavigator" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end

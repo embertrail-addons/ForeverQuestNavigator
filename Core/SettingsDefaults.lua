@@ -30,14 +30,16 @@ function Defaults.Normalize(settings, limits, isNew)
     settings.reducedColors = Off(settings.reducedColors)
     settings.repeatablePolicy = addon.RepeatablePolicy.Mode(settings.repeatablePolicy)
     settings.navigatorLayout = settings.navigatorLayout == "lists" and "lists" or "guided"
+    -- Group sync became default-on in 0.2.2: switch it on once, later choices stay.
+    if not settings.groupSyncDefaultOn then settings.groupSync, settings.groupSyncDefaultOn = true, true end
     for _, key in ipairs({"showTravelPreparation", "quietNavigation", "showRouteMarkers", "showQuestRewards",
         "showRewardComparison", "showTravelTime", "adaptiveLayout", "showLevelHints", "useQuestieKillLocations",
         "showQuestieOffers", "showDirectionArrow", "showScreenArrow", "showQuestXP", "difficultyWords",
-        "rememberNavigation", "showRouteLine", "iconLabels", "allGoals", "nameplateMarks", "quietInstances", "autoRaidMarks", "questSounds"}) do
+        "rememberNavigation", "showRouteLine", "iconLabels", "allGoals", "nameplateMarks", "quietInstances", "autoRaidMarks", "questSounds", "groupSync"}) do
         settings[key] = On(settings[key])
     end
     for _, key in ipairs({"areaOverviewExpanded", "allowTrackerResize", "lockTrackerPosition",
-        "lockNavigationPosition", "groupSync", "minimapArrow"}) do
+        "lockNavigationPosition", "minimapArrow"}) do
         settings[key] = Off(settings[key])
     end
     local font = settings.fontPercent

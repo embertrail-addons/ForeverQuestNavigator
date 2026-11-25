@@ -2052,6 +2052,7 @@ SetDisplayMode = function(mode)
         UpdateQuestieTicker()
     end
     if mode == "full" and wasArrowOnly then ScheduleRefresh() end
+    if S.targetMarks then S.targetMarks:Refresh() end
 end
 
 local function CycleDisplayMode()
