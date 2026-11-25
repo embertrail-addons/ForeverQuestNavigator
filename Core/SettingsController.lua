@@ -22,7 +22,7 @@ function addon.SettingsController.Register(context)
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
         theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true, fontPercent = true,
-        showQuestieOffers = true, iconLabels = true, difficultyWords = true, allGoals = true, showTargetMarks = true }
+        showQuestieOffers = true, iconLabels = true, difficultyWords = true, allGoals = true, showTargetMarks = true, nameplateMarks = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
@@ -293,6 +293,10 @@ function addon.SettingsController.Register(context)
         "showTargetMarks", settings, Settings.VarType.Boolean, L.TargetMarkTitle, false)
     targetMarks:SetValueChangedCallback(function(_, value) addon.ToggleTargetMarks(value == true) end)
     Checkbox(category, targetMarks, L.TargetMarkHelp)
+    local nameplateMarks = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
+        "nameplateMarks", settings, Settings.VarType.Boolean, L.NameplateMarks, true)
+    nameplateMarks:SetValueChangedCallback(function(_, value) addon.NameplateMarks.SetEnabled(value) end)
+    Checkbox(category, nameplateMarks, L.NameplateMarksHelp)
 
     local opacity = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRACKER_OPACITY",
         "opacityPercent", settings, Settings.VarType.Number, L.Opacity, DEFAULT_OPACITY)

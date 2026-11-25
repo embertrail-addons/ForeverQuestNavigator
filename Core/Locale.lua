@@ -1115,6 +1115,8 @@ local english = {
     AllGoals = "Show all open objectives",
     AllGoalsHelp = "Lists every open objective of the shown quest without expanding, also in the compact view.",
     TargetMark_loot = "Drops %s (skull)",
+    NameplateMarks = "Quest marks above mobs",
+    NameplateMarksHelp = "Shows a skull above every visible mob of the active quest and a star above its turn-in NPC. Uses nameplates (key V), works without group rights and sends nothing.",
 }
 
 local german = setmetatable({
@@ -2233,6 +2235,8 @@ local german = setmetatable({
     AllGoals = "Alle offenen Questziele zeigen",
     AllGoalsHelp = "Zeigt alle offenen Ziele der angezeigten Quest ohne Aufklappen, auch in der kompakten Ansicht.",
     TargetMark_loot = "Lässt %s fallen (Totenkopf)",
+    NameplateMarks = "Questzeichen über Mobs",
+    NameplateMarksHelp = "Zeigt einen Totenkopf über jedem sichtbaren Mob der aktiven Quest und einen Stern über dem Abgabe-NPC. Nutzt die Namensplaketten (Taste V), braucht keine Gruppenrechte und sendet nichts.",
 }, { __index = english })
 
 addon.L = {}

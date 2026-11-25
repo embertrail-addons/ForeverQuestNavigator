@@ -2139,6 +2139,7 @@ addon.EventController.Bind(events, {
             S.minimapButton = addon.CreateMinimapButton(S.settings, CycleDisplayMode, OpenSettings)
         end
         if S.settings.showTargetMarks and not S.targetMarks then addon.ToggleTargetMarks(true) end
+        addon.NameplateMarks.Start(TargetMarkEntries, S.settings.nameplateMarks)
         if S.workspace and S.workspace.pending and not S.workspace.announced then
             S.workspace.announced = true print("FQN | " .. L.ResumeOffer)
         end

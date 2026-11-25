@@ -110,6 +110,7 @@ UI\PlanningOverview.lua
 UI\QuestWorkbench.lua
 UI\TourShare.lua
 UI\TargetMarkWindow.lua
+UI\NameplateMarks.lua
 UI\QuickSettings.lua
 UI\Personalization.lua
 UI\AccessRouteEditor.lua

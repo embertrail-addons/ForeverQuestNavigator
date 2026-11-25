@@ -70,6 +70,7 @@ read_globals = {
     "GetUnitSpeed",
     "InCombatLockdown",
     "GetRaidTargetIndex",
+    "C_NamePlate",
     "SetRaidTarget",
     "IsInGroup",
     "IsInInstance",

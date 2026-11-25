@@ -855,7 +855,29 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     row.scripts.PostClick(row) equal(marked, 8)
     window.rows[2].scripts.PostClick(window.rows[2])
     equal(marked, 8, "a different target name is never marked")
-    assert(window.status.text:find("Marshal", 1, true))
+    assert(window.status.text:find("Marshal", 1, true)) equal(window.heading:IsShown(), false)
+    -- The target can arrive after the click; the target-changed event finishes the mark.
+    env.UnitName = function() return "Marshal" end
+    window.scripts.OnEvent(window, "PLAYER_TARGET_CHANGED")
+    equal(marked, 1) equal(window.status:IsShown(), false) equal(window.heading:IsShown(), true)
+
+    -- Nameplates: every visible mob of the active quest gets the badge, not only the target.
+    local plates, names = {}, {nameplate1 = "Kobold", nameplate2 = "Kobold", nameplate3 = "Rabbit"}
+    for unit in pairs(names) do plates[unit] = createFrame("Frame") end
+    env.C_NamePlate = {GetNamePlateForUnit = function(unit) return plates[unit] end}
+    env.UnitName = function(unit) return names[unit] end
+    env.UnitIsDead = function(unit) return unit == "nameplate2" and names.dead end
+    local nameplates = ui.NameplateMarks
+    nameplates.Start(function() return list end, true)
+    local driver = nameplates.driver
+    for unit in pairs(names) do driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_ADDED", unit) end
+    local function Badge(unit) for _, frame in ipairs(frames) do if frame.parent == plates[unit] then return frame end end end
+    equal(Badge("nameplate1"):IsShown(), true) equal(Badge("nameplate2"):IsShown(), true) equal(Badge("nameplate3"), nil)
+    names.dead = true driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate2")
+    equal(Badge("nameplate2"):IsShown(), false)
+    nameplates.SetEnabled(false) equal(Badge("nameplate1"):IsShown(), false)
+    nameplates.SetEnabled(true) equal(Badge("nameplate1"):IsShown(), true)
+    driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate1") equal(Badge("nameplate1"):IsShown(), false)
     -- Secure buttons stay unchanged in combat and update afterwards.
     env.InCombatLockdown = function() return true end
     list = {{name = "Other", icon = 1, kind = "accept", questID = 5}}
@@ -1064,6 +1086,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     iconLabels = "FOREVERQUESTNAVIGATOR_ICON_LABELS",
                     allGoals = "FOREVERQUESTNAVIGATOR_ALL_GOALS",
                     showTargetMarks = "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
+                    nameplateMarks = "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                     groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                     minimapArrow = "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
@@ -1110,6 +1133,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     iconLabels = "Symbols instead of action words",
                     allGoals = "Show all open objectives",
                     showTargetMarks = "Mark targets",
+                    nameplateMarks = "Quest marks above mobs",
                     showRouteLine = "Connect route stops with a line",
                     groupSync = "Share quest progress with my group",
                     minimapArrow = "Arrow on the minimap edge",
