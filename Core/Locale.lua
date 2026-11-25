@@ -1093,6 +1093,15 @@ local english = {
     CmdSessionHistory = "Earlier sessions",
     BindingMenu = "Open command menu",
     BindingNext = "Next recommended quest",
+    TourChatButton = "Tour as chat text",
+    TourChatTitle = "Tour as chat text",
+    TourChatHelp = "For group members without FQN. Check the text; it is sent to your group chat only when you click 'Send to group'.",
+    TourChatSend = "Send to group",
+    TourChatCopy = "Copy text",
+    TourChatPrefix = "FQN tour: ",
+    TourChatObjective = "objectives",
+    TourChatTurnIn = "turn in",
+    CmdTourChat = "Tour as chat text (preview)",
 }
 
 local german = setmetatable({
@@ -2189,6 +2198,15 @@ local german = setmetatable({
     CmdSessionHistory = "Frühere Sitzungen",
     BindingMenu = "Befehlsmenü öffnen",
     BindingNext = "Nächste empfohlene Quest",
+    TourChatButton = "Tour als Chat-Text",
+    TourChatTitle = "Tour als Chat-Text",
+    TourChatHelp = "Für Mitspieler ohne FQN. Prüfe den Text; er wird nur in den Gruppenchat gesendet, wenn du „An Gruppe senden“ klickst.",
+    TourChatSend = "An Gruppe senden",
+    TourChatCopy = "Text kopieren",
+    TourChatPrefix = "FQN-Tour: ",
+    TourChatObjective = "Ziele",
+    TourChatTurnIn = "abgeben",
+    CmdTourChat = "Tour als Chat-Text (Vorschau)",
 }, { __index = english })
 
 addon.L = {}

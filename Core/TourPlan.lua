@@ -101,6 +101,25 @@ function Tour.ApplyPreview(plan, preview)
     plan.stops = Tour.New(preview).stops plan.revision = plan.revision + 1 return true
 end
 
+-- Plain chat messages for players without FQN: "1. Title (stage) > 2. ...", split so
+-- each message stays below the chat limit. titleFor(id) and stageWord(stage) give text.
+function Tour.ChatMessages(stops, titleFor, stageWord, prefix, limit)
+    limit = limit or 240
+    local messages, current = {}, prefix or ""
+    for index, stop in ipairs(stops or {}) do
+        local part = ("%d. %s (%s)"):format(index, titleFor(stop.id) or ("#" .. stop.id), stageWord(stop.stage))
+        local joined = current == (prefix or "") and current .. part or current .. " > " .. part
+        if #joined > limit and current ~= (prefix or "") then
+            messages[#messages + 1] = current
+            current = (prefix or "") .. part
+        else
+            current = joined
+        end
+    end
+    if current ~= (prefix or "") then messages[#messages + 1] = current end
+    return messages
+end
+
 -- Explicit priorities are remembered as IDs/policies, never live frames or locks.
 function Tour.Priority(id, held)
     if not ID(id) then return end

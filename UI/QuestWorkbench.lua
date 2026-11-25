@@ -88,6 +88,8 @@ function addon.ShowQuestWorkbench(controller, mode)
         frame.closing = Button(frame, L.PlanClosingRound, 148, 483, -539, function() frame.controller:Action("closing") frame.offset = 0 frame:Refresh() end)
         frame.share = Button(frame, L.TourShareButton, 148, 18, -539, function() if addon.ShareTour then addon.ShareTour() end end)
         addon.UI.BindTooltip(frame.share, function() return L.TourShareButton, L.TourShareHelp end)
+        frame.chat = Button(frame, L.TourChatButton, 148, 18, -539, function() if addon.ShowTourChatPreview then addon.ShowTourChatPreview() end end)
+        addon.UI.BindTooltip(frame.chat, function() return L.TourChatButton, L.TourChatHelp end)
         frame.returnHere = Button(frame, L.ReturnHere, 200, 18, -578, function() frame.controller:Action("returnHere") frame:Refresh() end)
         frame.returnMap = Button(frame, L.ShowReturnPoint, 200, 225, -578, function()
             if frame.model.returnPoint then frame.controller:Action("map", {target = frame.model.returnPoint}) end
@@ -201,6 +203,7 @@ function addon.ShowQuestWorkbench(controller, mode)
             self.apply:SetShown(tour and model.preview) self.cancelPreview:SetShown(tour and model.preview)
             self.closing:SetShown(tour and model.closingCount > 0 and not model.running and not model.preview)
             self.share:SetShown(tour and #model.tour > 0 and not model.preview and addon.ShareTour ~= nil)
+            self.chat:SetShown(tour and #model.tour > 0 and not model.preview and addon.ShowTourChatPreview ~= nil)
             self.returnHere:SetShown(tour and not model.returnPoint)
             self.returnMap:SetShown(tour and model.returnPoint ~= nil)
             self.returnActions:SetShown(tour and model.returnPoint ~= nil)
@@ -212,7 +215,7 @@ function addon.ShowQuestWorkbench(controller, mode)
             self.apply:SetEnabled(model.preview)
             self.returnMap:SetEnabled(model.returnPoint ~= nil) self.clearReturn:SetEnabled(model.returnPoint ~= nil)
             local buttons = {}
-            for _, button in ipairs({self.start, self.optimize, self.apply, self.cancelPreview, self.closing, self.share}) do if button:IsShown() then buttons[#buttons + 1] = button end end
+            for _, button in ipairs({self.start, self.optimize, self.apply, self.cancelPreview, self.closing, self.share, self.chat}) do if button:IsShown() then buttons[#buttons + 1] = button end end
             local buttonWidth = math.min(196, (614 - (#buttons - 1) * 7) / math.max(1, #buttons))
             for index, button in ipairs(buttons) do button:SetWidth(buttonWidth) button:ClearAllPoints() button:SetPoint("TOPLEFT", 18 + (index - 1) * (buttonWidth + 7), (tour and -464 or -539) + compactHeader) end
             self.empty:SetShown(#entries == 0) self.emptyAction:SetShown(#entries == 0)

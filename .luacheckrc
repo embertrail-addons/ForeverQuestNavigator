@@ -131,4 +131,5 @@ read_globals = {
     "date",
     "debugstack",
     "geterrorhandler",
+    "SendChatMessage",
 }

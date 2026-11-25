@@ -1265,6 +1265,21 @@ local function ShareTour()
 end
 addon.ShareTour = ShareTour
 
+-- Tour as plain chat text for players without FQN: preview first, send only on click.
+local function ShowTourChat()
+    local stops = S.workspace and S.workspace.plan and S.workspace.plan.stops or {}
+    if #stops == 0 then print("FQN | " .. L.TourShareEmpty) return end
+    local titles = {}
+    for _, quest in ipairs(addon.QuestLog.Read(C_QuestLog) or {}) do titles[quest.id] = quest.title end
+    local messages = addon.TourPlan.ChatMessages(stops, function(id) return titles[id] end,
+        function(stage) return stage == "turnIn" and L.TourChatTurnIn or L.TourChatObjective end, L.TourChatPrefix)
+    local channel = IsInRaid and IsInRaid() and "RAID" or IsInGroup and IsInGroup() and "PARTY" or nil
+    addon.ShowTourChat(messages, channel and SendChatMessage and function(list)
+        for _, message in ipairs(list) do SendChatMessage(message, channel) end
+    end or nil)
+end
+addon.ShowTourChatPreview = ShowTourChat
+
 -- Local group test: simulated member plus a shared-tour offer; nothing is sent.
 local function GroupTest(enable)
     local Sync = addon.GroupSync

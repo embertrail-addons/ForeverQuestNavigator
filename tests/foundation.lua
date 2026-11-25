@@ -247,6 +247,20 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Tour chat messages stay under the chat limit and keep the order", function()
+        local stops = {}
+        for index = 1, 12 do stops[index] = {id = index, stage = index % 3 == 0 and "turnIn" or "objective"} end
+        local messages = addon.TourPlan.ChatMessages(stops, function(id) return "Quest number " .. id end,
+            function(stage) return stage == "turnIn" and "turn in" or "objectives" end, "FQN tour: ", 120)
+        assert(#messages > 1)
+        for _, message in ipairs(messages) do
+            assert(#message <= 120 + 40, "message too long") assert(message:sub(1, 10) == "FQN tour: ")
+        end
+        assert(messages[1]:find("1. Quest number 1 (objectives) > 2. Quest number 2", 1, true))
+        assert(table.concat(messages, " "):find("12. Quest number 12 (turn in)", 1, true))
+        equal(#addon.TourPlan.ChatMessages({}, tostring, tostring, "x"), 0)
+    end)
+
     test("Finished sessions are archived newest first and limited to ten", function()
         local Session, history = addon.Session, {}
         equal(Session.DescribeHistory(history), addon.L.HistoryEmpty)
