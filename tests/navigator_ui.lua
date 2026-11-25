@@ -162,6 +162,10 @@ return function(test, equal, near, mockUI, loadAddon)
     test("Compact and collapsed views disclose additional objectives without losing the current one", function()
         local _, tracker, settings, _, _, render = Fixture()
         settings.detailMode = "compact" render()
+        -- Default: every open objective is listed, no toggle needed.
+        assert(tracker.goalRows[1]:IsShown()) assert(tracker.goalRows[2]:IsShown())
+        equal(tracker.moreGoals:IsShown(), false)
+        settings.allGoals = false render()
         assert(tracker.goalRows[1]:IsShown()) equal(tracker.goalRows[2]:IsShown(), false)
         equal(tracker.moreGoals.text, "1 more objective")
         tracker.moreGoals:Click() assert(tracker.goalRows[2]:IsShown())
@@ -446,7 +450,7 @@ return function(test, equal, near, mockUI, loadAddon)
                         for index = 1, 24 do targets[index] = {index = index, text = "Eine lange Zielbeschreibung\nmit zusätzlichem Fortschritt: 2/12", selectable = true} end
                         tracker:Render({id = 1, title = title, level = 34}, "", {}, {}, false, nil,
                             "Full route details", nil, nil, nil, nil, targets, true)
-                        tracker.moreGoals:Click()
+                        if tracker.moreGoals:IsShown() then tracker.moreGoals:Click() end
                         assert(tracker:GetHeight() <= limit) assert(tracker.viewport.maximum > 0)
                         assert(tracker.scrollBody:GetWidth() <= width)
                         equal(tracker.questTitle.text, "[34] " .. title)
@@ -726,6 +730,8 @@ return function(test, equal, near, mockUI, loadAddon)
         addon.SettingsController.catalog = {{key = "navigatorView", control = control}}
         tracker.collapseButton:Click()
         equal(settings.navigatorView, "goal") equal(settings.collapsed, true) equal(calls, 1)
+        assert(tracker.goalRows[2]:IsShown(), "all open objectives stay visible when collapsed")
+        settings.allGoals = false tracker:UpdateNavigatorLayout()
         equal(tracker.goalRows[2]:IsShown(), false)
         tracker.moreGoals:Click() assert(tracker.goalRows[2]:IsShown())
         tracker.collapseButton:Click()

@@ -807,6 +807,55 @@ test("Area groups expand into individual quests while single targets remain dire
     equal(selected, 2)
 end)
 
+test("Target marks list kill targets with skull and quest NPCs with star, shown quest first", function()
+    local frames, createFrame, createFont = mockUI()
+    local env = setmetatable({ CreateFrame = createFrame, CreateFont = createFont, UIParent = {},
+        GetLocale = function() return "enUS" end }, { __index = _G })
+    local ui = loadAddon(env, false)
+    local Marks = ui.TargetMarks
+    equal(Marks.KillName("Kobold Vermin slain: 3/10"), "Kobold Vermin")
+    equal(Marks.KillName("Koboldungeziefer getötet: 0/10"), "Koboldungeziefer")
+    equal(Marks.KillName("Gold Dust: 1/10"), nil)
+    local entries = Marks.Collect({
+        quests = {{id = 1, title = "Wolves"}, {id = 2, title = "Report", readyToTurnIn = true}, {id = 3, title = "Kobolds"}},
+        offers = {{id = 9, title = "New"}}, shownID = 3,
+        killers = function(id) return id == 1 and {"Wolf", "Wolf", "Young Wolf"} or nil end,
+        objectives = function(id) return id == 3 and {{type = "monster", text = "Kobold slain: 1/8"},
+            {type = "monster", text = "Done slain: 8/8", finished = true}} or nil end,
+        finisher = function(id) return id == 2 and "Marshal" or nil end,
+        starter = function(id) return id == 9 and "Farmer" or nil end,
+    })
+    local names = {}
+    for index, entry in ipairs(entries) do names[index] = entry.name .. "/" .. entry.icon end
+    equal(table.concat(names, ","), "Kobold/8,Wolf/8,Young Wolf/8,Marshal/1,Farmer/1")
+    equal(entries[4].kind, "turnIn") equal(entries[5].kind, "accept")
+    equal(Marks.Macro("Wolf"), "/targetexact Wolf")
+
+    local list = entries
+    env.InCombatLockdown = function() return false end
+    local window = ui.CreateTargetMarkWindow({}, function() return list end)
+    window:Show() window.scripts.OnShow(window)
+    local row = window.rows[1]
+    equal(row.template, "SecureActionButtonTemplate")
+    equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold")
+    equal(row:IsShown(), true) equal(window.rows[6]:IsShown(), false)
+    local marked
+    env.UnitExists = function() return true end
+    env.UnitName = function() return "Kobold" end
+    env.GetRaidTargetIndex = function() return marked end
+    env.SetRaidTarget = function(_, icon) marked = icon end
+    row.scripts.PostClick(row) equal(marked, 8)
+    window.rows[4].scripts.PostClick(window.rows[4])
+    equal(marked, 8, "a different target name is never marked")
+    assert(window.status.text:find("Marshal", 1, true))
+    -- Secure buttons stay unchanged in combat and update afterwards.
+    env.InCombatLockdown = function() return true end
+    list = {{name = "Other", icon = 1, kind = "accept", questID = 5}}
+    window:Refresh() equal(row.attributes.macrotext, "/targetexact Kobold")
+    env.InCombatLockdown = function() return false end
+    window:Refresh() equal(row.attributes.macrotext, "/targetexact Other") equal(window.rows[2]:IsShown(), false)
+end)
+
 test("German UI uses the client locale and preserves quest text", function()
     local frames, createFrame, createFont = mockUI()
     local env = setmetatable({
@@ -1005,6 +1054,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     acceptedRows = "FOREVERQUESTNAVIGATOR_ACCEPTED_ROWS",
                     offerRows = "FOREVERQUESTNAVIGATOR_OFFER_ROWS",
                     iconLabels = "FOREVERQUESTNAVIGATOR_ICON_LABELS",
+                    allGoals = "FOREVERQUESTNAVIGATOR_ALL_GOALS",
+                    showTargetMarks = "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                     groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                     minimapArrow = "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
@@ -1049,6 +1100,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showQuestieOffers = "Show nearby quest offers",
                     questieOfferRadius = "Quest offer search radius",
                     iconLabels = "Symbols instead of action words",
+                    allGoals = "Show all open objectives",
+                    showTargetMarks = "Mark targets",
                     showRouteLine = "Connect route stops with a line",
                     groupSync = "Share quest progress with my group",
                     minimapArrow = "Arrow on the minimap edge",
@@ -1060,7 +1113,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "reducedColors" then expectedDefault = false end
                 if key == "groupQuestHints" then expectedDefault = false end
                 if key == "groupSync" then expectedDefault = false end
-                if key == "minimapArrow" then expectedDefault = false end
+                if key == "minimapArrow" or key == "showTargetMarks" then expectedDefault = false end
                 if key == "simpleNavigator" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end

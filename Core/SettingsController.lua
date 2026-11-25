@@ -22,7 +22,7 @@ function addon.SettingsController.Register(context)
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
         theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true, fontPercent = true,
-        showQuestieOffers = true, iconLabels = true, difficultyWords = true }
+        showQuestieOffers = true, iconLabels = true, difficultyWords = true, allGoals = true, showTargetMarks = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
@@ -285,6 +285,14 @@ function addon.SettingsController.Register(context)
         "iconLabels", settings, Settings.VarType.Boolean, L.IconLabels, true)
     iconLabels:SetValueChangedCallback(function(_, value) addon.UI.iconLabels = value ~= false ScheduleRefresh() end)
     Checkbox(category, iconLabels, L.IconLabelsHelp)
+    local allGoals = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_ALL_GOALS",
+        "allGoals", settings, Settings.VarType.Boolean, L.AllGoals, true)
+    allGoals:SetValueChangedCallback(ScheduleRefresh)
+    Checkbox(category, allGoals, L.AllGoalsHelp)
+    local targetMarks = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
+        "showTargetMarks", settings, Settings.VarType.Boolean, L.TargetMarkTitle, false)
+    targetMarks:SetValueChangedCallback(function(_, value) addon.ToggleTargetMarks(value == true) end)
+    Checkbox(category, targetMarks, L.TargetMarkHelp)
 
     local opacity = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRACKER_OPACITY",
         "opacityPercent", settings, Settings.VarType.Number, L.Opacity, DEFAULT_OPACITY)

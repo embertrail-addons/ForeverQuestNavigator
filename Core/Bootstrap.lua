@@ -1314,6 +1314,33 @@ local function ShowTourChat()
 end
 addon.ShowTourChatPreview = ShowTourChat
 
+-- Target-mark window: NPC names from Questie (kill targets, givers, finishers), with the
+-- objective text as fallback for kill targets.
+local function TargetMarkEntries()
+    local relations = S.insights.combatMarkers or {}
+    local shown = S.shownQuests and S.shownQuests[1]
+    return addon.TargetMarks.Collect({
+        quests = S.eligibleQuests, offers = S.nearbyOffers, shownID = shown and shown.id,
+        killers = function(id)
+            local names = {}
+            for _, relation in ipairs(relations[id] or {}) do names[#names + 1] = integration.NpcName(relation.npcID) end
+            return names
+        end,
+        objectives = function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
+        finisher = function(id) return integration.QuestNpcName(id, "finishedBy") end,
+        starter = function(id) return integration.QuestNpcName(id, "startedBy") end,
+    })
+end
+
+-- show: true/false, or nil to toggle. Secure buttons cannot be shown or hidden in combat.
+function addon.ToggleTargetMarks(show)
+    if InCombatLockdown and InCombatLockdown() then print("FQN | " .. L.TargetMarkCombat) return end
+    if show == nil then show = not (S.targetMarks and S.targetMarks:IsShown()) end
+    if show and not S.targetMarks then S.targetMarks = addon.CreateTargetMarkWindow(S.settings, TargetMarkEntries) end
+    S.settings.showTargetMarks = show == true
+    if S.targetMarks then S.targetMarks:SetShown(show) end
+end
+
 -- Local group test: simulated member plus a shared-tour offer; nothing is sent.
 local function GroupTest(enable)
     local Sync = addon.GroupSync
@@ -2009,6 +2036,7 @@ local function AddonLoaded(name)
         BINDING_NAME_FOREVERQUESTNAVIGATOR_FEEDBACK = L.BindingFeedback
         BINDING_NAME_FOREVERQUESTNAVIGATOR_MENU = L.BindingMenu
         BINDING_NAME_FOREVERQUESTNAVIGATOR_NEXT = L.BindingNext
+        BINDING_NAME_FOREVERQUESTNAVIGATOR_MARKS = L.BindingMarks
         ForeverQuestNavigator_HandleBinding = function(action)
             if action == "toggle" then ToggleTracker()
             elseif action == "map" then
@@ -2019,6 +2047,7 @@ local function AddonLoaded(name)
             elseif action == "feedback" then F.ShowFeedback()
             elseif action == "camp" then SwitchCamp(S.shownQuests and S.shownQuests[1] and S.shownQuests[1].id)
             elseif action == "menu" then addon.ShowCommandMenu(S.settings)
+            elseif action == "marks" then addon.ToggleTargetMarks()
             elseif action == "next" then
                 -- Cycles through the shown recommendations; presses within 10 s continue the same cycle.
                 local cycle, now = S.insights.questCycle, SessionTime()
@@ -2102,6 +2131,7 @@ addon.EventController.Bind(events, {
         if not S.minimapButton then
             S.minimapButton = addon.CreateMinimapButton(S.settings, CycleDisplayMode, OpenSettings)
         end
+        if S.settings.showTargetMarks and not S.targetMarks then addon.ToggleTargetMarks(true) end
         if S.workspace and S.workspace.pending and not S.workspace.announced then
             S.workspace.announced = true print("FQN | " .. L.ResumeOffer)
         end

@@ -499,7 +499,9 @@ function addon.CreateQuestTracker(settings, actions, version)
             objective:SetPoint("TOPRIGHT", -14, -detailsBottom)
             detailsBottom = detailsBottom + objective:GetStringHeight() + 3
         end
-        local compactGoals = IsCompact() or settings.collapsed or settings.navigatorView == "goal"
+        -- allGoals (default on) lists every open objective without a "more objectives" toggle.
+        local compactGoals = (IsCompact() or settings.collapsed or settings.navigatorView == "goal")
+            and not (settings.allGoals ~= false and not IsQuiet())
         local hiddenGoals = 0
         finishedToggle:SetShown(finishedCount > 0 and not IsQuiet())
         if finishedCount > 0 then

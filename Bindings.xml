@@ -23,4 +23,7 @@
     <Binding name="FOREVERQUESTNAVIGATOR_NEXT" category="ADDONS">
         ForeverQuestNavigator_HandleBinding("next")
     </Binding>
+    <Binding name="FOREVERQUESTNAVIGATOR_MARKS" category="ADDONS">
+        ForeverQuestNavigator_HandleBinding("marks")
+    </Binding>
 </Bindings>

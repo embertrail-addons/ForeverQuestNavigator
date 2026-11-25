@@ -289,3 +289,23 @@ function Integration.GetNearbyOffers(...)
     local ok, offers = pcall(FindNearbyOffers, ...)
     return ok and offers or nil
 end
+
+-- NPC names for the target-mark window. Only NPCs (not objects) can be targeted.
+function Integration.NpcName(id)
+    local db = LibQuestieDB and LibQuestieDB.Npc
+    if type(id) ~= "number" or not (db and type(db.name) == "function") then return end
+    local ok, name = pcall(db.name, id)
+    if ok and type(name) == "string" and name ~= "" then return name end
+end
+
+-- field: "startedBy" (accept) or "finishedBy" (turn-in); first NPC giver only.
+function Integration.QuestNpcName(id, field)
+    local db = LibQuestieDB and LibQuestieDB.Quest
+    if not (db and type(db[field]) == "function") then return end
+    local ok, givers = pcall(db[field], id)
+    local npcs = ok and type(givers) == "table" and givers[1]
+    for _, npc in ipairs(type(npcs) == "table" and npcs or {}) do
+        local name = Integration.NpcName(npc)
+        if name then return name end
+    end
+end

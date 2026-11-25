@@ -21,6 +21,7 @@ globals = {
     "BINDING_NAME_FOREVERQUESTNAVIGATOR_TOGGLE",
     "BINDING_NAME_FOREVERQUESTNAVIGATOR_MENU",
     "BINDING_NAME_FOREVERQUESTNAVIGATOR_NEXT",
+    "BINDING_NAME_FOREVERQUESTNAVIGATOR_MARKS",
     "UISpecialFrames",
 }
 
@@ -68,6 +69,8 @@ read_globals = {
     "GetTime",
     "GetUnitSpeed",
     "InCombatLockdown",
+    "GetRaidTargetIndex",
+    "SetRaidTarget",
     "IsInGroup",
     "IsInInstance",
     "IsInRaid",
