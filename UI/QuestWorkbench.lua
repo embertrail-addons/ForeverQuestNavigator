@@ -107,6 +107,8 @@ function addon.ShowQuestWorkbench(controller, mode)
         addon.UI.BindTooltip(frame.closing, function() return L.PlanClosingRound, L.ClosingRoundHelp end)
         frame.status = addon.UI.CreateLabel(frame, "GameFontHighlightSmall")
         frame.status:SetPoint("BOTTOMLEFT", 18, 14) frame.status:SetPoint("BOTTOMRIGHT", -18, 14) frame.status:SetJustifyH("LEFT")
+        frame.status:SetMaxLines(2) frame.status:SetHeight(28)
+        if frame.status.SetJustifyV then frame.status:SetJustifyV("BOTTOM") end
         frame.empty = addon.UI.CreateLabel(frame, "GameFontHighlightSmall")
         frame.empty:SetPoint("TOPLEFT", 35, -245) frame.empty:SetPoint("TOPRIGHT", -35, -245)
         frame.empty:SetJustifyH("CENTER") frame.empty:SetMaxLines(4)

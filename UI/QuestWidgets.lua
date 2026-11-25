@@ -197,6 +197,14 @@ local function MakeButton(parent)
     return button
 end
 
+-- Keeps a label on one line (cut with "…") so its box never grows taller than set.
+function addon.UI.SingleLine(label)
+    if label.SetWordWrap then label:SetWordWrap(false) end
+    if label.SetNonSpaceWrap then label:SetNonSpaceWrap(false) end
+    if label.SetJustifyV then label:SetJustifyV("TOP") end
+    return label
+end
+
 -- One height for small action buttons (Map, ..., Why) so a row never mixes sizes.
 function addon.UI.ButtonHeight(scale) return math.max(22, 20 * (scale or 1)) end
 

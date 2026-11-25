@@ -86,6 +86,8 @@ function addon.ShowExcursion(plan, actions)
         window.info = addon.UI.CreateLabel(window, "GameFontDisableSmall")
         window.info:SetPoint("BOTTOMLEFT", 18, 50) window.info:SetPoint("BOTTOMRIGHT", -18, 50)
         window.info:SetMaxLines(4) window.info:SetJustifyH("LEFT")
+        -- Fixed box: long help cannot grow upward over the buttons above it.
+        window.info:SetHeight(58) if window.info.SetJustifyV then window.info:SetJustifyV("BOTTOM") end
         window.undo = addon.UI.CreateUtilityButton(window, L.OfferUndoShort, 120, function()
             local ok, message = window.actions.undo()
             window.status = ok and L.UndoDone or message window:Refresh()
