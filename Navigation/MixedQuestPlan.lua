@@ -126,6 +126,26 @@ function Mixed.Order(plan, options)
         local stop = table.remove(remaining, best)
         ordered[#ordered + 1] = stop total = total + bestLeg current = stop.target Apply(stop, state)
     end
+    -- Shorten the greedy order with local moves that keep precedence and log capacity.
+    local function Cost(stops)
+        local sum, point = 0, nil
+        for _, stop in ipairs(stops) do
+            local leg = point and Gap(options.api, point, stop.target) or not point and options.fromPlayer and options.fromPlayer(stop.target)
+            if type(leg) ~= "number" or leg < 0 or leg >= math.huge then return end
+            sum, point = sum + leg, stop.target
+        end
+        return sum
+    end
+    local function Valid(stops)
+        local check = State(plan, options.capacity)
+        for _, stop in ipairs(stops) do
+            if not Eligible(stop, check) then return false end
+            Apply(stop, check)
+        end
+        return true
+    end
+    local improved, _, improvedTotal = addon.RouteOrder.Improve(ordered, Cost, Valid, 6)
+    if improvedTotal and improvedTotal + 1 < total then ordered, total = improved, improvedTotal end
     plan.stops, plan.orderKnown, plan.coordinateYards, plan.mixed = ordered, true, total, true
     return plan
 end

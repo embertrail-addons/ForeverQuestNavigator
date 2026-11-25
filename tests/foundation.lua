@@ -247,6 +247,39 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Route order improvement untangles crossings and respects validity rules", function()
+        local R = addon.RouteOrder
+        local points = {a = {0, 0}, b = {10, 10}, c = {10, 0}, d = {0, 10}}
+        local function Cost(stops)
+            local total, previous = 0, {0, 0}
+            for _, stop in ipairs(stops) do
+                local p = points[stop]
+                total = total + math.sqrt((p[1] - previous[1]) ^ 2 + (p[2] - previous[2]) ^ 2)
+                previous = p
+            end
+            return total
+        end
+        local order, before, after = R.Improve({"a", "b", "c", "d"}, Cost)
+        assert(after < before) near(after, 30)
+        local blocked = R.Improve({"a", "b", "c", "d"}, Cost, function(stops) return stops[2] == "b" end)
+        equal(blocked[2], "b")
+        local unknown, first, last = R.Improve({"a", "b", "c"}, function() return nil end)
+        equal(unknown[1], "a") equal(first, nil) equal(last, nil)
+        equal(#order, 4)
+    end)
+
+    test("Tour preview reports the saving against the current order", function()
+        local Tour = addon.TourPlan
+        local plan = Tour.New()
+        for _, id in ipairs({1, 2, 3}) do Tour.Add(plan, {id = id}) end
+        local measurements = {[1] = {yards = 300, marker = {x = .3}}, [2] = {yards = 100, marker = {x = .1}},
+            [3] = {yards = 200, marker = {x = .2}}}
+        local preview = Tour.Preview(plan, measurements, function(a, b) return math.abs(a.x - b.x) * 1000 end)
+        equal(preview.stops[1].id, 2) equal(preview.stops[3].id, 1) equal(preview.savedYards, 300)
+        local ordered = Tour.New() for _, id in ipairs({2, 3, 1}) do Tour.Add(ordered, {id = id}) end
+        equal(Tour.Preview(ordered, measurements, function(a, b) return math.abs(a.x - b.x) * 1000 end).savedYards, nil)
+    end)
+
     test("Group test mode simulates a member one step behind and sends nothing", function()
         local Sync = addon.GroupSync
         Sync.Reset()

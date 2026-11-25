@@ -87,21 +87,14 @@ function Tour.Preview(plan, measurements, distance)
         end
         return total
     end
-    -- A bounded two-opt pass can improve the return leg without claiming a
-    -- terrain route or a globally optimal solution. Unknown legs disable it.
-    local total = Cost(ordered)
-    if total then
-        for first = 1, #ordered - 1 do
-            for last = first + 1, #ordered do
-                local candidate = {}
-                for index, stop in ipairs(ordered) do candidate[index] = stop end
-                for index = first, last do candidate[index] = ordered[last - (index - first)] end
-                local alternative = Cost(candidate)
-                if alternative and alternative + 1 < total then ordered, total = candidate, alternative end
-            end
-        end
-    end
-    return {stops = ordered, revision = plan.revision}
+    -- Repeated local moves (section reversal and single-stop relocation) can shorten the
+    -- tour and its return leg without claiming a terrain route or a global optimum.
+    -- Unknown legs disable it.
+    local improved = addon.RouteOrder.Improve(ordered, Cost)
+    ordered = improved
+    local before, after = Cost(plan.stops), Cost(ordered)
+    local saved = before and after and before - after > 1 and math.floor(before - after + .5) or nil
+    return {stops = ordered, revision = plan.revision, savedYards = saved}
 end
 function Tour.ApplyPreview(plan, preview)
     if not preview or preview.revision ~= plan.revision then return false end

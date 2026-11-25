@@ -56,7 +56,7 @@ function Workspace.New(context, saved)
         for _, stop in ipairs(self.plan.stops) do inTour[stop.id] = true end
         local manualID = self.context.priority()
         return {tour = entries, running = self.plan.running, returnPoint = self.plan.returnPoint,
-            pending = self.pending ~= nil, preview = self.preview ~= nil,
+            pending = self.pending ~= nil, preview = self.preview ~= nil, previewSaved = self.preview and self.preview.savedYards or nil,
             counts = counts, inTour = inTour, manualID = manualID, missingData = data.quests == nil,
             closingCount = data.turnInTour and #data.turnInTour.stops or 0,
             entries = Finder.Filter(all, query, kind)}

@@ -1082,6 +1082,7 @@ local english = {
     GroupTestNoQuests = "The group test needs at least one quest in your log.",
     CmdGroupTest = "Simulate a group member (nothing is sent)",
     CmdGroupTestOff = "End the group test",
+    TourPreviewSaved = "About %d yards shorter than the current order.",
 }
 
 local german = setmetatable({
@@ -2167,6 +2168,7 @@ local german = setmetatable({
     GroupTestNoQuests = "Für den Gruppentest brauchst du mindestens eine Quest im Questlog.",
     CmdGroupTest = "Mitspieler simulieren (nichts wird gesendet)",
     CmdGroupTestOff = "Gruppentest beenden",
+    TourPreviewSaved = "Etwa %d Yards kürzer als die bisherige Reihenfolge.",
 }, { __index = english })
 
 addon.L = {}

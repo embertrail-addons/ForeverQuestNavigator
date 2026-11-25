@@ -19,6 +19,7 @@ Core\QuestPreparation.lua
 Core\QuestRewards.lua
 Core\QuestTools.lua
 Core\QuestLocation.lua
+Core\RouteOrder.lua
 Core\FlightPoints.lua
 Core\AreaOverview.lua
 Core\TrackerState.lua
