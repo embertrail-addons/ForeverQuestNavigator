@@ -803,6 +803,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     shown.mapAvailable = hasMap
     shown.objectiveTargets = targets
     S.shownQuests = { quest }
+    F.PlayQuestSound(quest)
     for _, alternative in ipairs(alternatives) do S.shownQuests[#S.shownQuests + 1] = alternative end
     shown.routeNote, shown.routeDetails = routeNote, routeDetails
     shown.zones, shown.alternativeRoutes = zones, alternativeRoutes
@@ -903,6 +904,7 @@ local function UpdateFlightState()
     if not fighting then S.combatQuestID = nil end
     S.tracker:SetCombatView(fighting == true and S.settings.quietNavigation ~= false)
     S.tracker:SetInstanceView(S.settings.quietInstances ~= false and IsInInstance and IsInInstance() == true)
+    F.QuestHints()
     if S.insights.leftInstance and S.questMeasurements and S.eligibleQuests then
         S.insights.leftInstance = nil
         local text = addon.InstanceQuests.NextTurnIn(S.eligibleQuests, S.questMeasurements, L)
@@ -1320,17 +1322,147 @@ local function ShowTourChat()
 end
 addon.ShowTourChatPreview = ShowTourChat
 
+-- Hearthstone: the bind point is recorded where the player binds (HEARTHSTONE_BOUND).
+function F.RecordHearth()
+    local character = ForeverQuestNavigatorCharacterDB
+    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local position = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+    if not (character and position) then return end
+    local x, y = position.x, position.y
+    if position.GetXY then x, y = position:GetXY() end
+    character.hearth = {mapID = mapID, x = x, y = y, name = GetBindLocation and GetBindLocation() or nil}
+end
+
+local function HearthReady()
+    local id = addon.HearthHint.ITEM
+    if not (GetItemCount and GetItemCount(id) > 0) then return false end
+    local cooldown = C_Container and C_Container.GetItemCooldown or GetItemCooldown
+    local start, duration = cooldown and cooldown(id)
+    return not (start and duration and start > 0 and duration > 1.5)
+end
+
+-- Every few seconds: turn-in collector and hearthstone suggestion (chat, once per situation).
+function F.QuestHints()
+    local now = SessionTime()
+    if (S.insights.hintsAt or 0) > now or not (S.eligibleQuests and S.questMeasurements) then return end
+    S.insights.hintsAt = now + 10
+    if addon.TargetMarks.Hidden() then return end
+    local function Distance(a, b)
+        local metric = a and addon.QuestLocation.GetDistanceMetric(C_Map, a)
+        return metric and metric(a, b)
+    end
+    S.insights.collector = S.insights.collector or {}
+    local text = addon.TurnInCollector.Check(S.insights.collector, S.eligibleQuests, S.questMeasurements, Distance, L)
+    if text then print("FQN | " .. text) end
+    local hearth = ForeverQuestNavigatorCharacterDB and ForeverQuestNavigatorCharacterDB.hearth
+    if not (hearth and integration.IsReady()) then return end
+    S.insights.hearthTurnIns = S.insights.hearthTurnIns or {}
+    local turnIns = {}
+    for _, quest in ipairs(S.eligibleQuests) do
+        if quest.readyToTurnIn then
+            local cached = S.insights.hearthTurnIns[quest.id]
+            if cached == nil then
+                cached = addon.QuestieRoutes.GetOutdoorTurnInMarker(C_Map, Enum and Enum.UIMapType, {[hearth.mapID] = true}, quest.id) or false
+                S.insights.hearthTurnIns[quest.id] = cached
+            end
+            if cached then turnIns[#turnIns + 1] = {quest = quest, marker = cached} end
+        end
+    end
+    local measured = addon.TemporaryDetour.Measure(C_Map, hearth)
+    S.insights.hearthHint = S.insights.hearthHint or {}
+    text = addon.HearthHint.Suggest(S.insights.hearthHint, hearth, turnIns, measured and measured.yards, HearthReady(), Distance, L)
+    if text then print("FQN | " .. text) end
+end
+
+-- Soft sounds: an objective of the shown quest finished, or the recommendation changed by itself.
+function F.PlayQuestSound(quest)
+    local finished = 0
+    for _, goal in ipairs(C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(quest.id) or {}) do
+        if goal.finished then finished = finished + 1 end
+    end
+    S.insights.sound = S.insights.sound or {}
+    local kind = addon.QuestSounds.Check(S.insights.sound, quest.id, finished, S.manualQuestID == quest.id)
+    if not kind or S.settings.questSounds == false or not PlaySound or not SOUNDKIT then return end
+    local sound = kind == "objective" and SOUNDKIT.IG_QUEST_LIST_COMPLETE or SOUNDKIT.MAP_PING
+    if sound then PlaySound(sound, "SFX") end
+end
+
+-- Per-character profile switch; turning it off restores the account appearance.
+function F.ToggleProfile()
+    local character = ForeverQuestNavigatorCharacterDB
+    if not character then return end
+    if character.ownProfile then
+        for _, key in ipairs(addon.CharacterProfile.KEYS) do
+            if S.accountProfile then S.settings[key] = S.accountProfile[key] end
+        end
+        character.ownProfile, S.accountProfile = false, nil
+        print("FQN | " .. L.ProfileAccount)
+    else
+        character.ownProfile, character.profile = true, nil
+        S.accountProfile = addon.CharacterProfile.Apply(S.settings, character)
+        print("FQN | " .. L.ProfileCharacter)
+    end
+    addon.UI.Theme.Apply(S.settings.highContrast, S.settings.theme, S.settings.reducedColors)
+    F.ScheduleRefresh()
+end
+
+-- Bag access for the tour bag check (Classic Era 1.15 uses C_Container).
+function F.BagAPI()
+    local container = C_Container or {}
+    return {
+        free = function(bag)
+            local read = container.GetContainerNumFreeSlots or GetContainerNumFreeSlots
+            return read and (read(bag)) or 0
+        end,
+        slots = function(bag)
+            local read = container.GetContainerNumSlots or GetContainerNumSlots
+            return read and read(bag) or 0
+        end,
+        item = function(bag, slot)
+            if container.GetContainerItemInfo then
+                local info = container.GetContainerItemInfo(bag, slot)
+                return info and {quality = info.quality, link = info.hyperlink}
+            end
+            if GetContainerItemInfo then
+                local _, _, _, quality, _, _, link = GetContainerItemInfo(bag, slot)
+                return link and {quality = quality, link = link}
+            end
+        end,
+    }
+end
+
+-- "/fqn time 45": time-limited tour for the given minutes (uses the adventure budget planner).
+function F.TimeTour(text)
+    local minutes = tonumber(text and text:match("%d+"))
+    if not minutes then print("FQN | " .. L.TimeTourUsage) return end
+    S.insights.tourMinutes = math.max(5, math.min(240, math.floor(minutes)))
+    addon.OpenExcursionFromArea(nil, false)
+end
+
 -- Target-mark window: NPC names from Questie (kill targets, givers, finishers), with the
 -- objective text as fallback for kill targets.
 local function TargetMarkEntries()
     local relations = S.insights.combatMarkers or {}
     local shown = S.shownQuests and S.shownQuests[1]
-    -- Second result: the active quest's usable item and the unlooted-corpse count.
+    -- Second result: the active quest's usable item, the unlooted-corpse count and the
+    -- mobs of group members' current quests (shared marks).
     local extra = {loot = addon.NameplateMarks.LootCount()}
     if shown and not shown.readyToTurnIn and not addon.DemoMode.IsActive() then
         extra.item = addon.QuestItemHints.Read(C_QuestLog, shown.id, GetQuestLogSpecialItemInfo, GetItemCount, IsQuestLogSpecialItemInRange)
     end
-    return addon.TargetMarks.Collect({
+    if addon.GroupSync.Showing(S.settings) then
+        extra.shared = {}
+        for member, peer in pairs(addon.GroupSync.peers or {}) do
+            local target = peer.state and peer.state.target
+            if target and target ~= (shown and shown.id) then
+                S.insights.mateMobs = S.insights.mateMobs or {}
+                local names = S.insights.mateMobs[target] or integration.QuestMobNames(target)
+                S.insights.mateMobs[target] = names
+                for _, name in ipairs(names) do extra.shared[name] = extra.shared[name] or member end
+            end
+        end
+    end
+    local entries = addon.TargetMarks.Collect({
         quests = S.eligibleQuests, shownID = shown and shown.id,
         killers = function(id)
             -- Item objectives list every hostile mob that drops the item, each with the item text.
@@ -1342,14 +1474,34 @@ local function TargetMarkEntries()
                 local item = goal and goal.type == "item" and type(goal.text) == "string"
                     and goal.text:gsub("%s*:?%s*%d+%s*/%s*%d+%s*$", "") or nil
                 if name then
-                    names[#names + 1] = {name = name, item = item ~= "" and item or nil, progress = addon.TargetMarks.Progress(goal)}
+                    names[#names + 1] = {name = name, item = item ~= "" and item or nil, progress = addon.TargetMarks.Progress(goal),
+                        npcID = relation.npcID}
                 end
             end
             return names
         end,
         objectives = function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
         finisher = function(id) return integration.QuestNpcName(id, "finishedBy") end,
-    }), extra
+    })
+    -- Danger: elite mobs or mobs three or more levels above the player; told once per quest.
+    local level = UnitLevel and UnitLevel("player")
+    local warned = {}
+    for _, entry in ipairs(entries) do
+        local info = entry.npcID and type(level) == "number" and integration.NpcInfo(entry.npcID)
+        if info then
+            local above = info.level and info.level - level or 0
+            if info.elite then entry.danger = L.DangerElite
+            elseif above >= 3 then entry.danger = L.DangerLevel:format(above) end
+            if entry.danger then warned[#warned + 1] = entry.name .. " (" .. entry.danger .. ")" end
+        end
+        entry.respawn = addon.NameplateMarks.RespawnText(entry.name)
+    end
+    S.insights.dangerWarned = S.insights.dangerWarned or {}
+    if shown and #warned > 0 and not S.insights.dangerWarned[shown.id] then
+        S.insights.dangerWarned[shown.id] = true
+        print("FQN | " .. L.DangerWarning:format(table.concat(warned, ", ")))
+    end
+    return entries, extra
 end
 
 -- show: true/false, or nil to toggle. Secure buttons cannot be shown or hidden in combat.
@@ -2016,6 +2168,9 @@ local function AddonLoaded(name)
         addon.UI.Theme.Apply(S.settings.highContrast, S.settings.theme, S.settings.reducedColors)
         F.LoadSkippedQuests()
         local character = addon.SettingsDefaults.NormalizeCharacter(ForeverQuestNavigatorCharacterDB)
+        -- Own appearance per character (if chosen); account values come back at logout.
+        S.accountProfile = addon.CharacterProfile.Apply(S.settings, character)
+        if S.accountProfile then addon.UI.Theme.Apply(S.settings.highContrast, S.settings.theme, S.settings.reducedColors) end
         InitializeWorkspace(character)
         S.questNotes, S.targetCorrections = character.questNotes, character.targetCorrections
         S.insights.laterQuests, S.insights.knownVendors = character.laterQuests, character.knownVendors
@@ -2123,7 +2278,12 @@ addon.EventController.Bind(events, {
         S.session:TurnIn(arg, title, rewardXP, GetRealZoneText and GetRealZoneText() or nil, WallClock())
         S.session:Save(SessionTime(), WallClock())
     end,
-    saveSession = function() if S.session then S.session:Save(SessionTime(), WallClock()) end if S.workspace then S.workspace:Save() end end,
+    saveSession = function()
+        if S.session then S.session:Save(SessionTime(), WallClock()) end
+        if S.workspace then S.workspace:Save() end
+        addon.CharacterProfile.Store(S.settings, ForeverQuestNavigatorCharacterDB, S.accountProfile)
+    end,
+    hearthBound = function() F.RecordHearth() end,
     loaded = AddonLoaded,
     hasMeasurements = function() return S.measurableQuestIDs ~= nil end,
     visible = TrackingVisible,

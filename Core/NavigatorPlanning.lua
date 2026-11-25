@@ -197,7 +197,11 @@ function addon.NavigatorPlanning.Install(S, F)
                 local ok, reason = addon.ExcursionPlan.Start(candidate, addon.QuestLog.Read(C_QuestLog), S.nearbyOffers,
                     C_QuestLog.IsQuestFlaggedCompleted, S.questCapacity)
                 if not ok then return false, reason end
-                if not wasStarted then S.insights.offerSuppressed = {} end
+                if not wasStarted then
+                    S.insights.offerSuppressed = {}
+                    local warning = addon.BagCheck.Check(F.BagAPI(), candidate.stops, L)
+                    if warning then print("FQN | " .. warning) end
+                end
                 local previous = S.insights.excursion
                 if previous and previous.started and previous.index <= #previous.stops then candidate.journeyKey = previous.journeyKey end
                 addon.PauseExcursion()

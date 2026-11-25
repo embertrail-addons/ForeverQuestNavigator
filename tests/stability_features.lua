@@ -182,6 +182,75 @@ return function(test, addon, equal, near)
         perf.enabled = false equal(perf:Begin(), nil)
         debugprofilestop = original
     end)
+    test("Quest helpers: respawn, bags, turn-in collector, hearthstone, sounds and character profile", function()
+        local L = addon.L
+        -- Respawn: counts down from the oldest recent kill and forgets kills that are back.
+        local Respawn = addon.Respawn
+        local state = Respawn.New()
+        equal(Respawn.Remaining(state, "Wolf", 0), nil)
+        Respawn.Killed(state, "Wolf", 100) Respawn.Killed(state, "Wolf", 160)
+        equal(Respawn.Remaining(state, "Wolf", 130), 270)
+        equal(Respawn.Remaining(state, "Wolf", 410), 50)
+        equal(Respawn.Remaining(state, "Wolf", 500), nil)
+        -- Bags: free slots against non-turn-in stops, grey items as a suggestion.
+        local bags = {[0] = {free = 0, items = {{quality = 0, link = "[Junk]"}, {quality = 2, link = "[Sword]"}}}, {free = 1, items = {}}}
+        local api = {free = function(bag) return bags[bag] and bags[bag].free or 0 end,
+            slots = function(bag) return bags[bag] and #bags[bag].items or 0 end,
+            item = function(bag, slot) return bags[bag].items[slot] end}
+        local stops = {{action = "accept"}, {action = "objective"}, {action = "turnIn"}}
+        equal(addon.BagCheck.Needed(stops), 4)
+        local warning = addon.BagCheck.Check(api, stops, L)
+        assert(warning:find("1", 1, true) and warning:find("[Junk]", 1, true) and not warning:find("[Sword]", 1, true))
+        bags[1].free = 6 equal(addon.BagCheck.Check(api, stops, L), nil)
+        -- Collector: three ready turn-ins close together, told once.
+        local ranked = {{id = 1, readyToTurnIn = true}, {id = 2, readyToTurnIn = true}, {id = 3, readyToTurnIn = true}, {id = 4}}
+        local measured = {[1] = {yards = 800, marker = {x = 0}}, [2] = {yards = 820, marker = {x = 100}}, [3] = {yards = 900, marker = {x = 200}}}
+        local function Distance(a, b) return math.abs(a.x - b.x) end
+        local collector = {}
+        equal(addon.TurnInCollector.Check(collector, ranked, measured, Distance, L), L.TurnInCollector:format(3, 2))
+        equal(addon.TurnInCollector.Check(collector, ranked, measured, Distance, L), nil)
+        measured[3].marker.x = 900
+        equal(addon.TurnInCollector.Check({}, ranked, measured, Distance, L), nil, "a spread-out set is not a cluster")
+        -- Hearthstone: ready, far away and at least two turn-ins near the inn.
+        local hearth = {x = 0, name = "Goldshire"}
+        local turnIns = {{quest = {id = 1}, marker = {x = 50}}, {quest = {id = 2}, marker = {x = 120}}, {quest = {id = 3}, marker = {x = 2000}}}
+        local hint = {}
+        equal(addon.HearthHint.Suggest(hint, hearth, turnIns, 3000, true, Distance, L), L.HearthHint:format(2, "Goldshire"))
+        equal(addon.HearthHint.Suggest(hint, hearth, turnIns, 3000, true, Distance, L), nil)
+        equal(addon.HearthHint.Suggest({}, hearth, turnIns, 500, true, Distance, L), nil, "not when already close")
+        equal(addon.HearthHint.Suggest({}, hearth, turnIns, 3000, false, Distance, L), nil, "not while on cooldown")
+        -- Sounds: objective finished on the same quest, or an automatic change of quest.
+        local sound = {}
+        equal(addon.QuestSounds.Check(sound, 1, 0, false), nil)
+        equal(addon.QuestSounds.Check(sound, 1, 1, false), "objective")
+        equal(addon.QuestSounds.Check(sound, 1, 1, false), nil)
+        equal(addon.QuestSounds.Check(sound, 2, 0, false), "change")
+        equal(addon.QuestSounds.Check(sound, 3, 0, true), nil, "manual picks are silent")
+        -- Profile: own values while playing, account values restored at logout.
+        local settings, character = {theme = "graphite", fontPercent = 100}, {ownProfile = true, profile = {theme = "midnight", fontPercent = 120}}
+        local account = addon.CharacterProfile.Apply(settings, character)
+        equal(settings.theme, "midnight") equal(settings.fontPercent, 120)
+        settings.fontPercent = 130
+        addon.CharacterProfile.Store(settings, character, account)
+        equal(settings.theme, "graphite") equal(settings.fontPercent, 100) equal(character.profile.fontPercent, 130)
+        equal(addon.CharacterProfile.Apply(settings, {}), nil)
+    end)
+    test("Questie lookups give NPC danger and group members' quest mobs", function()
+        local previous = LibQuestieDB
+        local names = {[1] = "Wolf", [2] = "Bear", [3] = "Ogre"}
+        LibQuestieDB = {
+            Npc = {name = function(id) return names[id] end, maxLevel = function(id) return id == 3 and 30 or 10 end,
+                rank = function(id) return id == 3 and 1 or 0 end},
+            Quest = {objectives = function() return {{{1, "Wolves"}}, nil, {{99, "Pelt"}}} end},
+            Item = {npcDrops = function() return {2, 1} end},
+        }
+        local info = addon.QuestieIntegration.NpcInfo(3)
+        equal(info.level, 30) equal(info.elite, true)
+        equal(addon.QuestieIntegration.NpcInfo(1).elite, false)
+        equal(table.concat(addon.QuestieIntegration.QuestMobNames(5), ","), "Wolf,Bear")
+        LibQuestieDB = previous
+        equal(#addon.QuestieIntegration.QuestMobNames(5), 0)
+    end)
     test("Tooltip headings never pass wrapping as the numeric alpha argument", function()
         local previous = GameTooltip
         local observed

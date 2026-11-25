@@ -46,6 +46,8 @@ local function ShowRowTooltip(button)
     GameTooltip:SetText(entry.name)
     GameTooltip:AddLine(entry.item and L.TargetMark_loot:format(entry.item) or L["TargetMark_" .. entry.kind], 1, 1, 1, true)
     if entry.title then GameTooltip:AddLine(entry.title, .8, .8, .8, true) end
+    if entry.danger then GameTooltip:AddLine(L.DangerTooltip:format(entry.danger), 1, .35, .35, true) end
+    if entry.respawn then GameTooltip:AddLine(entry.respawn, .8, .8, .8, true) end
     GameTooltip:AddLine(L.TargetMarkClick, .6, .8, 1, true)
     GameTooltip:Show()
 end
@@ -193,8 +195,12 @@ function addon.CreateTargetMarkWindow(settings, source)
             if entry then
                 row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name))
                 row.icon:SetTexture(ICON:format(entry.icon))
-                -- Progress at a glance; the dropped item is in the tooltip.
-                row.label:SetText(entry.progress and (entry.name .. " |cff9d9d9d" .. entry.progress .. "|r") or entry.name)
+                -- Progress, danger and respawn at a glance; the dropped item is in the tooltip.
+                local text = entry.danger and ("|cffff5555" .. entry.name .. "|r") or entry.name
+                if entry.progress then text = text .. " |cff9d9d9d" .. entry.progress .. "|r" end
+                if entry.danger then text = text .. " |cffff5555" .. entry.danger .. "|r" end
+                if entry.respawn then text = text .. " |cff9d9d9d" .. entry.respawn .. "|r" end
+                row.label:SetText(text)
                 row:ClearAllPoints()
                 row:SetPoint("TOPLEFT", 3, -top) row:SetPoint("TOPRIGHT", -3, -top)
                 top = top + ROW_HEIGHT

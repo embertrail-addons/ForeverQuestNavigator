@@ -12,11 +12,14 @@ addon.NameplateMarks = Marks
 local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
 local SIZE = 22
 
+local L = addon.L
 local byName = {}     -- name -> entry from TargetMarks.Collect
+local sharedBy = {}   -- name -> group member whose current quest needs this mob
 local lootNames = {}  -- names of mobs that drop an open quest item
 local badges = {}     -- nameplate frame -> badge frame
 local units = {}      -- unit token -> nameplate frame
 local loot = addon.LootReminder.New()
+local respawn = addon.Respawn.New()
 local driver, settings
 
 local function Now() return GetTime and GetTime() or 0 end
@@ -48,12 +51,16 @@ function Marks.Update(unit)
     local plate = units[unit] or Plate(unit)
     if not plate then return end
     units[unit] = plate
-    local entry = Marks.enabled and Alive(unit) and byName[UnitName(unit) or ""]
+    local name = UnitName(unit) or ""
+    local entry = Marks.enabled and Alive(unit) and byName[name]
+    -- A group member's quest mob: faded skull with the member's name.
+    local member = Marks.enabled and not entry and Alive(unit) and sharedBy[name]
     local raidIcon = GetRaidTargetIndex and GetRaidTargetIndex(unit)
-    if entry and not raidIcon then
+    if (entry or member) and not raidIcon then
         local badge = Badge(plate)
-        badge.icon:SetTexture(ICON:format(entry.icon))
-        badge.progress:SetText(entry.progress or "")
+        badge.icon:SetTexture(ICON:format(entry and entry.icon or addon.TargetMarks.SKULL))
+        badge.icon:SetAlpha(entry and 1 or .55)
+        badge.progress:SetText(entry and entry.progress or member or "")
         badge:Show()
     elseif badges[plate] then
         badges[plate]:Hide()
@@ -75,11 +82,25 @@ function Marks.MarkUnit(unit)
 end
 
 -- entries from addon.TargetMarks.Collect; called whenever the active quest's targets change.
-function Marks.Set(entries)
+function Marks.Set(entries, shared)
     local nextByName = {}
     for _, entry in ipairs(entries or {}) do nextByName[entry.name] = entry end
-    byName, lootNames = nextByName, addon.TargetMarks.LootNames(entries)
+    byName, lootNames, sharedBy = nextByName, addon.TargetMarks.LootNames(entries), shared or {}
     Marks.UpdateAll()
+end
+
+-- Living mobs of that name on visible nameplates.
+function Marks.VisibleAlive(name)
+    local count = 0
+    for unit in pairs(units) do if UnitName(unit) == name and Alive(unit) then count = count + 1 end end
+    return count
+end
+
+-- "Respawn ~2 min" while no living mob of that name is in sight after recent kills.
+function Marks.RespawnText(name)
+    if Marks.VisibleAlive(name) > 0 then return end
+    local remaining = addon.Respawn.Remaining(respawn, name, Now())
+    if remaining then return L.RespawnIn:format(math.max(1, math.ceil(remaining / 60))) end
 end
 
 function Marks.LootCount()
@@ -89,7 +110,9 @@ end
 local function OnCombatLog()
     if not CombatLogGetCurrentEventInfo then return end
     local _, subevent, _, _, _, _, _, guid, name = CombatLogGetCurrentEventInfo()
-    if subevent == "PARTY_KILL" then addon.LootReminder.Killed(loot, guid, name, lootNames, Now()) end
+    if subevent ~= "PARTY_KILL" then return end
+    addon.LootReminder.Killed(loot, guid, name, lootNames, Now())
+    if byName[name] then addon.Respawn.Killed(respawn, name, Now()) end
 end
 
 local function OnLoot()
@@ -131,9 +154,15 @@ function Marks.Start(source, settingsTable)
         Marks.driver = driver
     end
     function driver:Refresh()
-        local entries = not addon.TargetMarks.Hidden() and source() or {}
-        local signature = addon.TargetMarks.Signature(entries)
-        if signature ~= self.signature then self.signature = signature Marks.Set(entries) end
+        local entries, extra
+        if not addon.TargetMarks.Hidden() then entries, extra = source() end
+        entries = entries or {}
+        local shared = extra and extra.shared or {}
+        local names = {}
+        for name in pairs(shared) do names[#names + 1] = name end
+        table.sort(names)
+        local signature = addon.TargetMarks.Signature(entries) .. "|shared:" .. table.concat(names, ",")
+        if signature ~= self.signature then self.signature = signature Marks.Set(entries, shared) end
     end
     driver.signature = nil
     driver:Refresh()

@@ -309,3 +309,37 @@ function Integration.QuestNpcName(id, field)
         if name then return name end
     end
 end
+
+local function Field(entity, field, id)
+    if not (entity and type(entity[field]) == "function") then return end
+    local ok, value = pcall(entity[field], id)
+    if ok then return value end
+end
+
+-- Level and elite flag of an NPC (rank 1 elite, 2 rare elite, 3 boss).
+function Integration.NpcInfo(id)
+    local db = LibQuestieDB and LibQuestieDB.Npc
+    if type(id) ~= "number" or not db then return end
+    local minimum, maximum, rank = Field(db, "minLevel", id), Field(db, "maxLevel", id), Field(db, "rank", id)
+    local level = type(maximum) == "number" and maximum or type(minimum) == "number" and minimum or nil
+    return {level = level, elite = rank == 1 or rank == 2 or rank == 3}
+end
+
+-- Mob names for any quest from the database (kill targets and item droppers), used for
+-- group members' quests where Questie's own active-quest data is not available.
+function Integration.QuestMobNames(questID, limit)
+    local db = LibQuestieDB
+    if not (db and db.Quest and db.Npc) or type(questID) ~= "number" then return {} end
+    local objectives = Field(db.Quest, "objectives", questID)
+    local names, seen = {}, {}
+    local function Add(npcID)
+        local name = #names < (limit or 6) and Integration.NpcName(npcID)
+        if name and not seen[name] then seen[name] = true names[#names + 1] = name end
+    end
+    if type(objectives) ~= "table" then return names end
+    for _, objective in ipairs(objectives[1] or {}) do Add(objective[1]) end
+    for _, objective in ipairs(objectives[3] or {}) do
+        for _, npcID in ipairs(Field(db.Item, "npcDrops", objective[1]) or {}) do Add(npcID) end
+    end
+    return names
+end

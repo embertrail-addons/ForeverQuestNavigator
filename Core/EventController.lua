@@ -36,6 +36,7 @@ local runtimeEvents = {
     "PLAYER_MOUNT_DISPLAY_CHANGED",
     "GET_ITEM_INFO_RECEIVED",
     "CHAT_MSG_ADDON",
+    "HEARTHSTONE_BOUND",
 }
 
 -- Events that only change bags, gear or mount state: the quest log and markers are
@@ -76,6 +77,7 @@ function addon.EventController.Handle(context, event, payload, rewardXP, ...)
     if event == "PLAYER_XP_UPDATE" or event == "PLAYER_ENTERING_WORLD" or event == "QUEST_TURNED_IN" then context.captureXP() end
     if event == "QUEST_TURNED_IN" then context.turnIn(payload, rewardXP) end
     if event == "PLAYER_LOGOUT" then context.saveSession() return end
+    if event == "HEARTHSTONE_BOUND" then if context.hearthBound then context.hearthBound() end return end
     if event == "ADDON_LOADED" then context.loaded(payload) return end
     if itemEvents[event] and context.refreshItems then context.refreshItems() return end
     if event == "GROUP_ROSTER_UPDATE" and context.refreshGroup then context.refreshGroup() return end

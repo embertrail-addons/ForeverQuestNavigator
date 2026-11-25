@@ -30,13 +30,13 @@ end
 function Marks.Collect(input)
     local entries, seen = {}, {}
     local limit = input.limit or Marks.LIMIT
-    local function Add(name, icon, kind, quest, item, progress)
+    local function Add(name, icon, kind, quest, item, progress, npcID)
         if type(name) ~= "string" or name == "" or #entries >= limit then return end
         local key = name .. "#" .. icon
         if seen[key] then return end
         seen[key] = true
         entries[#entries + 1] = {name = name, icon = icon, kind = kind, questID = quest.id, title = quest.title,
-            item = item, progress = progress}
+            item = item, progress = progress, npcID = npcID}
     end
     local quest
     for _, candidate in ipairs(input.quests or {}) do
@@ -50,7 +50,7 @@ function Marks.Collect(input)
         if names and #names > 0 then
             for _, source in ipairs(names) do
                 if type(source) == "table" then
-                    Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item, source.progress)
+                    Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item, source.progress, source.npcID)
                 else Add(source, Marks.SKULL, "kill", quest) end
             end
         else
@@ -96,6 +96,7 @@ function Marks.Signature(entries)
     local parts = {}
     for index, entry in ipairs(entries) do
         parts[index] = entry.icon .. ":" .. entry.name .. ":" .. tostring(entry.questID) .. ":" .. tostring(entry.progress)
+            .. ":" .. tostring(entry.respawn) .. ":" .. tostring(entry.danger)
     end
     return table.concat(parts, "|")
 end

@@ -22,7 +22,7 @@ function addon.SettingsController.Register(context)
     addon.SettingsController.catalog = catalog
     local basic = { language = true, detailMode = true, showScreenArrow = true, showQuestXP = true, opacityPercent = true,
         theme = true, navigatorView = true, repeatablePolicy = true, simpleNavigator = true, fontPercent = true,
-        showQuestieOffers = true, iconLabels = true, difficultyWords = true, allGoals = true, showTargetMarks = true, nameplateMarks = true, autoRaidMarks = true }
+        showQuestieOffers = true, iconLabels = true, difficultyWords = true, allGoals = true, showTargetMarks = true, nameplateMarks = true, autoRaidMarks = true, questSounds = true, compactBar = true }
     local logicKeys = {repeatablePolicy=true, showQuestieOffers=true, questieOfferRadius=true, useQuestieKillLocations=true,
         rememberNavigation=true}
     local ranges = { questieOfferRadius = {50, MAX_OFFER_RADIUS, 50}, opacityPercent = {0, 100, 5},
@@ -304,6 +304,13 @@ function addon.SettingsController.Register(context)
     local autoRaidMarks = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_AUTO_RAID_MARKS",
         "autoRaidMarks", settings, Settings.VarType.Boolean, L.AutoRaidMarks, true)
     Checkbox(category, autoRaidMarks, L.AutoRaidMarksHelp)
+    local questSounds = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_QUEST_SOUNDS",
+        "questSounds", settings, Settings.VarType.Boolean, L.QuestSounds, true)
+    Checkbox(category, questSounds, L.QuestSoundsHelp)
+    local compactBar = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_COMPACT_BAR",
+        "compactBar", settings, Settings.VarType.Boolean, L.CompactBar, false)
+    compactBar:SetValueChangedCallback(function() ScheduleRefresh() end)
+    Checkbox(category, compactBar, L.CompactBarHelp)
 
     local opacity = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRACKER_OPACITY",
         "opacityPercent", settings, Settings.VarType.Number, L.Opacity, DEFAULT_OPACITY)

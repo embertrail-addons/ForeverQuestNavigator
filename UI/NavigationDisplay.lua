@@ -157,13 +157,18 @@ function addon.CreateNavigationDisplay(settings)
             self.noticeDeadline, self.noticeSeconds = nil, nil
             self.notice:Hide()
         end
+        -- Compact bar: smaller arrow, one line (goal with progress + distance), no extra lines.
+        local compact = settings.compactBar == true
+        self.arrow:SetScale(compact and .65 or 1)
+        self:SetWidth(compact and 220 or 260)
+        local left = compact and 32 or 47
         self.title:SetShown(self.expanded == true)
         local hasGoal = self.goal:GetText() and self.goal:GetText() ~= ""
         -- Keep a useful action even for quests without an objective counter.
         local primary = hasGoal and self.goal or self.title
         if not hasGoal then self.title:Show() end
         primary:ClearAllPoints()
-        primary:SetPoint("TOPLEFT", self.state:IsShown() and 61 or 47, -6)
+        primary:SetPoint("TOPLEFT", self.state:IsShown() and left + 14 or left, -6)
         primary:SetPoint("TOPRIGHT", -math.max(52, (self.distance:GetStringWidth() or 0) + 20), -6)
         self.distance:ClearAllPoints()
         self.distance:SetPoint("TOPRIGHT", -9, -6)
@@ -178,6 +183,11 @@ function addon.CreateNavigationDisplay(settings)
         self.status:SetPoint("TOPLEFT", 47, -bottom)
         self.status:SetPoint("TOPRIGHT", -9, -bottom)
         local height = math.max(44, bottom + 6)
+        if compact then
+            self.status:Hide() self.notice:Hide()
+            self:SetHeight(math.max(24, 10 + primary:GetStringHeight()))
+            return
+        end
         if self.status:IsShown() then height = bottom + self.status:GetStringHeight() + 6 end
         if self.notice:IsShown() then
             self.notice:ClearAllPoints()

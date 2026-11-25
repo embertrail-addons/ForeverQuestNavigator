@@ -912,6 +912,16 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-3", "Kobold"}
     driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED") equal(nameplates.LootCount(), 1)
     clock = clock + 200 equal(nameplates.LootCount(), 0, "old corpses are forgotten")
+    -- Respawn: with no living Kobold in sight, the estimate is shown.
+    driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "target")
+    clock = 1000
+    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-9", "Kobold"}
+    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
+    clock = 1100 equal(nameplates.RespawnText("Kobold"), ui.L.RespawnIn:format(4))
+    names.dead = false equal(nameplates.RespawnText("Kobold"), nil, "a living one in sight needs no estimate")
+    -- Group members' quest mobs: faded skull with the member's name.
+    nameplates.Set(list, {Rabbit = "Anna"})
+    equal(Badge("nameplate3"):IsShown(), true) equal(Badge("nameplate3").progress.text, "Anna")
     env.GetTime = nil
 
     -- Mark window: quest item on top, progress in rows, loot line at the bottom.
@@ -1164,6 +1174,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     nameplateMarks = "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
                     quietInstances = "FOREVERQUESTNAVIGATOR_QUIET_INSTANCES",
                     autoRaidMarks = "FOREVERQUESTNAVIGATOR_AUTO_RAID_MARKS",
+                    questSounds = "FOREVERQUESTNAVIGATOR_QUEST_SOUNDS",
+                    compactBar = "FOREVERQUESTNAVIGATOR_COMPACT_BAR",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                     groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                     minimapArrow = "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
@@ -1213,6 +1225,8 @@ test("TOC startup and quest events update the tracker with or without optional a
                     nameplateMarks = "Quest marks above mobs",
                     quietInstances = "Unobtrusive in instances",
                     autoRaidMarks = "Raid mark on targeted quest mobs",
+                    questSounds = "Quest sounds",
+                    compactBar = "Compact arrow bar",
                     showRouteLine = "Connect route stops with a line",
                     groupSync = "Share quest progress with my group",
                     minimapArrow = "Arrow on the minimap edge",
@@ -1224,7 +1238,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                 if key == "reducedColors" then expectedDefault = false end
                 if key == "groupQuestHints" then expectedDefault = false end
                 if key == "groupSync" then expectedDefault = false end
-                if key == "minimapArrow" or key == "showTargetMarks" then expectedDefault = false end
+                if key == "minimapArrow" or key == "showTargetMarks" or key == "compactBar" then expectedDefault = false end
                 if key == "simpleNavigator" then expectedDefault = false end
                 if key == "opacityPercent" then expectedDefault = 80 end
                 if key == "questieOfferRadius" then expectedDefault = 350 end
@@ -4154,6 +4168,28 @@ test("TOC startup and quest events update the tracker with or without optional a
         reloadedAddon.QuestieIntegration.GetCombatMarkers = original
         env.UnitCanAttack, env.UnitIsDeadOrGhost, env.UnitGUID, env.UnitThreatSituation = nil, nil, nil, nil
         env.InCombatLockdown = previousCombat fire("PLAYER_REGEN_ENABLED") flush()
+    end)() end
+    do (function()
+        -- Hearthstone binding is recorded per character.
+        env.GetBindLocation = function() return "Goldshire" end
+        fire("HEARTHSTONE_BOUND")
+        local hearth = env.ForeverQuestNavigatorCharacterDB.hearth
+        assert(hearth and hearth.name == "Goldshire" and hearth.mapID, "hearth point stored")
+        -- /fqn time N opens the time-limited tour planner with N minutes.
+        local opened, original = nil, reloadedAddon.OpenExcursionFromArea
+        reloadedAddon.OpenExcursionFromArea = function(key, review) opened = {key = key, review = review} end
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("time 45")
+        assert(opened and opened.review == false, "time tour opened")
+        reloadedAddon.OpenExcursionFromArea = original
+        -- /fqn profile: own appearance, restored to the shared one when switched off.
+        local db, character = env.ForeverQuestNavigatorDB, env.ForeverQuestNavigatorCharacterDB
+        local font = db.fontPercent
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("profile")
+        equal(character.ownProfile, true)
+        db.fontPercent = 130
+        env.SlashCmdList.FOREVERQUESTNAVIGATOR("profile")
+        equal(character.ownProfile, false) equal(db.fontPercent, font)
+        env.GetBindLocation = nil
     end)() end
 end)
 

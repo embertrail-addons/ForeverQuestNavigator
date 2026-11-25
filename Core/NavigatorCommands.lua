@@ -76,6 +76,8 @@ function addon.NavigatorCommands.Install(S, F)
         Add("tour share", "quests", "CmdTourShare", function() addon.ShareTour() end, {advanced = true})
         Add("tour chat", "quests", "CmdTourChat", function() addon.ShowTourChatPreview() end, {advanced = true})
         Add("marks", "quests", "CmdTargetMarks", function() addon.ToggleTargetMarks() end)
+        Add("time", "quests", "CmdTimeTour", function(text) F.TimeTour(text) end, {args = true})
+        Add("profile", "settings", "CmdProfile", function() F.ToggleProfile() end, {advanced = true})
         Add("goal", "history", "CmdGoal", function(text)
             local character = ForeverQuestNavigatorCharacterDB
             if not character then return end
