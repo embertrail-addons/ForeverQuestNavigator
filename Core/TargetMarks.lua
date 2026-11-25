@@ -21,11 +21,12 @@ function Marks.KillName(text)
     if found and name ~= "" then return name end
 end
 
--- input: quests (ranked, shown first), offers (nearby pickups), shownID, and lookups:
+-- Only the quest the navigator shows (shownID) is listed, so the window never mixes in
+-- targets of other quests. input: quests, shownID, and lookups:
 --   killers(questID) -> {name or {name=, item=}, ...} from Questie (may be nil); item marks
 --     a mob that drops a quest item, so every possible dropper can be targeted
 --   objectives(questID) -> C_QuestLog-style goals for the text fallback
---   finisher(questID) / starter(questID) -> NPC name or nil
+--   finisher(questID) -> NPC name or nil
 function Marks.Collect(input)
     local entries, seen = {}, {}
     local limit = input.limit or Marks.LIMIT
@@ -36,30 +37,26 @@ function Marks.Collect(input)
         seen[key] = true
         entries[#entries + 1] = {name = name, icon = icon, kind = kind, questID = quest.id, title = quest.title, item = item}
     end
-    local quests = {}
-    for _, quest in ipairs(input.quests or {}) do
-        if quest.id == input.shownID then table.insert(quests, 1, quest) else quests[#quests + 1] = quest end
+    local quest
+    for _, candidate in ipairs(input.quests or {}) do
+        if candidate.id == input.shownID then quest = candidate break end
     end
-    for _, quest in ipairs(quests) do
-        if quest.readyToTurnIn then
-            Add(input.finisher and input.finisher(quest.id), Marks.STAR, "turnIn", quest)
-        elseif not (quest.disabled or quest.failed) then
-            local names = input.killers and input.killers(quest.id)
-            if names and #names > 0 then
-                for _, source in ipairs(names) do
-                    if type(source) == "table" then
-                        Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item)
-                    else Add(source, Marks.SKULL, "kill", quest) end
-                end
-            else
-                for _, goal in ipairs(input.objectives and input.objectives(quest.id) or {}) do
-                    if goal.type == "monster" and not goal.finished then Add(Marks.KillName(goal.text), Marks.SKULL, "kill", quest) end
-                end
+    if not quest then return entries end
+    if quest.readyToTurnIn then
+        Add(input.finisher and input.finisher(quest.id), Marks.STAR, "turnIn", quest)
+    elseif not (quest.disabled or quest.failed) then
+        local names = input.killers and input.killers(quest.id)
+        if names and #names > 0 then
+            for _, source in ipairs(names) do
+                if type(source) == "table" then
+                    Add(source.name, Marks.SKULL, source.item and "loot" or "kill", quest, source.item)
+                else Add(source, Marks.SKULL, "kill", quest) end
+            end
+        else
+            for _, goal in ipairs(input.objectives and input.objectives(quest.id) or {}) do
+                if goal.type == "monster" and not goal.finished then Add(Marks.KillName(goal.text), Marks.SKULL, "kill", quest) end
             end
         end
-    end
-    for _, offer in ipairs(input.offers or {}) do
-        if offer.id then Add(input.starter and input.starter(offer.id), Marks.STAR, "accept", {id = offer.id, title = offer.title}) end
     end
     return entries
 end

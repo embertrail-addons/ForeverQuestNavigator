@@ -1320,7 +1320,7 @@ local function TargetMarkEntries()
     local relations = S.insights.combatMarkers or {}
     local shown = S.shownQuests and S.shownQuests[1]
     return addon.TargetMarks.Collect({
-        quests = S.eligibleQuests, offers = S.nearbyOffers, shownID = shown and shown.id,
+        quests = S.eligibleQuests, shownID = shown and shown.id,
         killers = function(id)
             -- Item objectives list every hostile mob that drops the item, each with the item text.
             local names, goals = {}, nil
@@ -1336,7 +1336,6 @@ local function TargetMarkEntries()
         end,
         objectives = function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
         finisher = function(id) return integration.QuestNpcName(id, "finishedBy") end,
-        starter = function(id) return integration.QuestNpcName(id, "startedBy") end,
     })
 end
 

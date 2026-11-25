@@ -816,40 +816,44 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(Marks.KillName("Kobold Vermin slain: 3/10"), "Kobold Vermin")
     equal(Marks.KillName("Koboldungeziefer getötet: 0/10"), "Koboldungeziefer")
     equal(Marks.KillName("Gold Dust: 1/10"), nil)
-    local entries = Marks.Collect({
-        quests = {{id = 1, title = "Wolves"}, {id = 2, title = "Report", readyToTurnIn = true}, {id = 3, title = "Kobolds"}},
-        offers = {{id = 9, title = "New"}}, shownID = 3,
-        killers = function(id) return id == 1 and {"Wolf", "Wolf", "Young Wolf"} or nil end,
-        objectives = function(id) return id == 3 and {{type = "monster", text = "Kobold slain: 1/8"},
-            {type = "monster", text = "Done slain: 8/8", finished = true}} or nil end,
-        finisher = function(id) return id == 2 and "Marshal" or nil end,
-        starter = function(id) return id == 9 and "Farmer" or nil end,
-    })
-    local names = {}
-    for index, entry in ipairs(entries) do names[index] = entry.name .. "/" .. entry.icon end
-    equal(table.concat(names, ","), "Kobold/8,Wolf/8,Young Wolf/8,Marshal/1,Farmer/1")
-    equal(entries[4].kind, "turnIn") equal(entries[5].kind, "accept")
+    -- Only the quest the navigator shows is listed, never targets of other quests or offers.
+    local quests = {{id = 1, title = "Wolves"}, {id = 2, title = "Report", readyToTurnIn = true}, {id = 3, title = "Kobolds"}}
+    local function Collect(shownID)
+        local result, names = Marks.Collect({quests = quests, shownID = shownID,
+            killers = function(id) return id == 1 and {"Wolf", "Wolf", "Young Wolf"} or nil end,
+            objectives = function(id) return id == 3 and {{type = "monster", text = "Kobold slain: 1/8"},
+                {type = "monster", text = "Done slain: 8/8", finished = true}} or nil end,
+            finisher = function(id) return id == 2 and "Marshal" or nil end,
+        }), {}
+        for index, entry in ipairs(result) do names[index] = entry.name .. "/" .. entry.icon end
+        return table.concat(names, ","), result
+    end
+    equal(Collect(3), "Kobold/8")
+    equal(Collect(1), "Wolf/8,Young Wolf/8")
+    local turnIn, turnInEntries = Collect(2)
+    equal(turnIn, "Marshal/1") equal(turnInEntries[1].kind, "turnIn")
+    equal(Collect(nil), "")
     equal(Marks.Macro("Wolf"), "/targetexact Wolf")
     -- Every mob that drops the quest item is offered, each labelled with the item.
-    local loot = Marks.Collect({quests = {{id = 4, title = "Pelts"}},
+    local loot = Marks.Collect({quests = {{id = 4, title = "Pelts"}}, shownID = 4,
         killers = function() return {{name = "Wolf", item = "Pelt"}, {name = "Bear", item = "Pelt"}, {name = "Boar", item = "Pelt"}} end})
     equal(#loot, 3) equal(loot[2].name, "Bear") equal(loot[2].kind, "loot") equal(loot[3].item, "Pelt") equal(loot[3].icon, 8)
 
-    local list = entries
+    local list = {{name = "Kobold", icon = 8, kind = "kill", questID = 3}, turnInEntries[1]}
     env.InCombatLockdown = function() return false end
     local window = ui.CreateTargetMarkWindow({}, function() return list end)
     window:Show() window.scripts.OnShow(window)
     local row = window.rows[1]
     equal(row.template, "SecureActionButtonTemplate")
     equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold")
-    equal(row:IsShown(), true) equal(window.rows[6]:IsShown(), false)
+    equal(row:IsShown(), true) equal(window.rows[3]:IsShown(), false)
     local marked
     env.UnitExists = function() return true end
     env.UnitName = function() return "Kobold" end
     env.GetRaidTargetIndex = function() return marked end
     env.SetRaidTarget = function(_, icon) marked = icon end
     row.scripts.PostClick(row) equal(marked, 8)
-    window.rows[4].scripts.PostClick(window.rows[4])
+    window.rows[2].scripts.PostClick(window.rows[2])
     equal(marked, 8, "a different target name is never marked")
     assert(window.status.text:find("Marshal", 1, true))
     -- Secure buttons stay unchanged in combat and update afterwards.
