@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.1",
+        en = "• All lists scroll with the mouse wheel; automatic windows open one at a time.\n• /fqn selftest checks the game interfaces; /fqn problem includes recent FQN errors.\n• Share your tour with the group, daily level goal (/fqn goal), optional minimap arrow.\n• Compass icon in the addon list and on the minimap button.",
+        de = "• Alle Listen scrollen mit dem Mausrad; automatische Fenster öffnen nacheinander.\n• /fqn selftest prüft die Spielschnittstellen; /fqn problem enthält aktuelle FQN-Fehler.\n• Tour mit der Gruppe teilen, Tagesziel (/fqn goal), optionaler Pfeil am Minimap-Rand.\n• Kompass-Icon in der Addon-Liste und auf dem Minimap-Button."},
     {version = "0.2.0",
         en = "• Setup on first start, Simple/Expert mode and one tool window with an On the road group.\n• /fqn menu and minimap right-click list all commands; quest symbols replace action words; a distance bar shows progress to the target.\n• Route line on the world map, level forecast over several turn-ins and a session recap.\n• Optional group sync (off by default) shares quest progress with your party.",
         de = "• Einrichtung beim ersten Start, Einfach-/Expertenmodus und ein Werkzeugfenster mit der Gruppe Unterwegs.\n• /fqn menu und Rechtsklick auf den Minimap-Button zeigen alle Befehle; Questsymbole ersetzen Aktionswörter; ein Entfernungsbalken zeigt den Weg zum Ziel.\n• Routenlinie auf der Weltkarte, Stufenprognose über mehrere Abgaben und Sitzungsrückblick.\n• Optionaler Gruppenabgleich (standardmäßig aus) teilt Questfortschritt mit deiner Gruppe."},
