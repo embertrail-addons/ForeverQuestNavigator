@@ -13,11 +13,17 @@ function Arrow.Place(right, forward, facing, rotating)
     return angle, math.sin(angle), math.cos(angle)
 end
 
+-- Arrow size for a minimap of the given width: clearly visible, never oversized.
+function Arrow.Size(width)
+    return math.max(26, math.min(40, (width or 140) * 0.19))
+end
+
 local function Ensure()
     if Arrow.frame or not (Minimap and CreateFrame) then return Arrow.frame end
     local frame = CreateFrame("Frame", nil, Minimap)
-    frame:SetSize(18, 18)
-    if frame.SetFrameLevel and Minimap.GetFrameLevel then frame:SetFrameLevel(Minimap:GetFrameLevel() + 8) end
+    -- Drawn above minimap buttons (which sit on the rim) so they cannot cover it.
+    if frame.SetFrameStrata then frame:SetFrameStrata("HIGH") end
+    if frame.SetFrameLevel and Minimap.GetFrameLevel then frame:SetFrameLevel(Minimap:GetFrameLevel() + 50) end
     frame.icon = frame:CreateTexture(nil, "OVERLAY")
     frame.icon:SetAllPoints()
     frame.icon:SetTexture("Interface\\Minimap\\MiniMap-QuestArrow")
@@ -36,7 +42,11 @@ function Arrow.Update(settings, right, forward, facing)
     end
     local frame = Ensure()
     if not frame then return end
-    local radius = (Minimap.GetWidth and Minimap:GetWidth() or 140) / 2 - 8
+    -- Size follows the minimap; the arrow sits just inside the rim, clear of rim icons.
+    local width = Minimap.GetWidth and Minimap:GetWidth() or 140
+    local size = Arrow.Size(width)
+    frame:SetSize(size, size)
+    local radius = width / 2 - size * 0.75
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", Minimap, "CENTER", x * radius, y * radius)
     if frame.icon.SetRotation then frame.icon:SetRotation(-angle) end
