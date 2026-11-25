@@ -74,12 +74,46 @@ end
 function Sync.Prune(members)
     local changed = false
     for name in pairs(Sync.peers) do
-        if not members[name] then Sync.peers[name], changed = nil, true end
+        if not members[name] and not (Sync.testMode and name == Sync.TEST_NAME) then Sync.peers[name], changed = nil, true end
     end
     return changed
 end
 
-function Sync.Reset() Sync.peers, Sync.dirty, Sync.lastSent = {}, false, nil end
+function Sync.Reset() Sync.peers, Sync.dirty, Sync.lastSent, Sync.testMode = {}, false, nil, false end
+
+-- Local test mode: a simulated member shows how shared quests look without a group.
+-- Nothing is sent; the simulated data goes through the same parser as real messages.
+Sync.TEST_NAME = "FQN-Test"
+function Sync.Showing(settings) return (settings and settings.groupSync) or Sync.testMode == true end
+
+-- Builds the simulated member's state from the own quests: one step behind on each.
+function Sync.TestState(quests, questLog)
+    local chosen = {}
+    for _, quest in ipairs(quests or {}) do
+        if #chosen >= 3 then break end
+        chosen[#chosen + 1] = quest
+    end
+    local state = Sync.Collect(chosen, questLog, chosen[1] and chosen[1].id)
+    for _, quest in ipairs(state.quests) do
+        if quest.total > 0 then quest.done = math.max(0, math.min(quest.done, quest.total - 1)) end
+    end
+    return state, chosen
+end
+
+function Sync.StartTest(quests, questLog, now)
+    local state, chosen = Sync.TestState(quests, questLog)
+    if #chosen == 0 then return false end
+    Sync.testMode = true
+    Sync.Receive(Sync.TEST_NAME, Sync.Encode(state), {[Sync.TEST_NAME] = true}, now)
+    local stops = {}
+    for _, quest in ipairs(chosen) do stops[#stops + 1] = {id = quest.id, stage = quest.readyToTurnIn and "turnIn" or "objective"} end
+    return true, Sync.DecodeTour(Sync.EncodeTour(stops))
+end
+
+function Sync.StopTest()
+    Sync.testMode = false
+    Sync.peers[Sync.TEST_NAME] = nil
+end
 
 -- {[questID] = number of synced members who still work on it}
 function Sync.Counts()

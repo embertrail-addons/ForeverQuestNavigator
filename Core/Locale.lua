@@ -1077,6 +1077,11 @@ local english = {
     CmdGoal = "Level goal for today (level or off)",
     MinimapArrow = "Arrow on the minimap edge",
     MinimapArrowHelp = "Shows a small arrow on the edge of the minimap pointing to the current target. Works with a rotating or north-up minimap. Hidden on arrival, in instances and on flights.",
+    GroupTestStarted = "Group test: %s is a simulated member who is one step behind on your first quests. Nothing is sent. End it with /fqn selftest group off.",
+    GroupTestStopped = "Group test ended.",
+    GroupTestNoQuests = "The group test needs at least one quest in your log.",
+    CmdGroupTest = "Simulate a group member (nothing is sent)",
+    CmdGroupTestOff = "End the group test",
 }
 
 local german = setmetatable({
@@ -2157,6 +2162,11 @@ local german = setmetatable({
     CmdGoal = "Tagesziel (Stufe oder aus)",
     MinimapArrow = "Pfeil am Minimap-Rand",
     MinimapArrowHelp = "Zeigt am Rand der Minimap einen kleinen Pfeil zum aktuellen Ziel. Funktioniert mit drehender und genordeter Minimap. Bei Ankunft, in Instanzen und im Flug ausgeblendet.",
+    GroupTestStarted = "Gruppentest: %s ist ein simulierter Mitspieler, der bei deinen ersten Quests einen Schritt zurückliegt. Es wird nichts gesendet. Beenden mit /fqn selftest group off.",
+    GroupTestStopped = "Gruppentest beendet.",
+    GroupTestNoQuests = "Für den Gruppentest brauchst du mindestens eine Quest im Questlog.",
+    CmdGroupTest = "Mitspieler simulieren (nichts wird gesendet)",
+    CmdGroupTestOff = "Gruppentest beenden",
 }, { __index = english })
 
 addon.L = {}

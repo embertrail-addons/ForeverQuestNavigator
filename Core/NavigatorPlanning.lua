@@ -281,7 +281,7 @@ function addon.NavigatorPlanning.Install(S, F)
                     for _, e in ipairs(cached.rows) do
                         local m = snapshot.measurements and snapshot.measurements[e.quest.id]
                         local short = L.AdventureShared:format(e.count, e.unknown)
-                        local mates = S.settings.groupSync and addon.GroupSync.Describe(e.quest.id)
+                        local mates = addon.GroupSync.Showing(S.settings) and addon.GroupSync.Describe(e.quest.id)
                         if mates then short = short .. " · " .. L.GroupSyncMates:format(mates) end
                         result.rows[#result.rows + 1] = {quest = e.quest, target = m and m.marker,
                             short = short, detail = short .. "\n" .. L.AdventureGroupHelp}

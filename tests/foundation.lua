@@ -247,6 +247,22 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Group test mode simulates a member one step behind and sends nothing", function()
+        local Sync = addon.GroupSync
+        Sync.Reset()
+        local questLog = {GetQuestObjectives = function(id) return {{finished = true}, {finished = id == 2}} end}
+        local quests = {{id = 1}, {id = 2, readyToTurnIn = true}, {id = 3}, {id = 4}}
+        equal(Sync.Showing({groupSync = false}), false)
+        local ok, stops = Sync.StartTest(quests, questLog, 5)
+        equal(ok, true) equal(Sync.Showing({groupSync = false}), true)
+        equal(Sync.Describe(1), "FQN-Test 1/2") equal(Sync.Describe(2), "FQN-Test 1/2") equal(Sync.Describe(4), nil)
+        equal(#stops, 3) equal(stops[2].stage, "turnIn")
+        Sync.Prune({}) equal(Sync.Describe(1), "FQN-Test 1/2")
+        Sync.StopTest() equal(Sync.Describe(1), nil) equal(Sync.Showing({}), false)
+        equal(Sync.StartTest({}, questLog, 5), false)
+        Sync.Reset()
+    end)
+
     test("Shared tours encode compactly and reject malformed messages", function()
         local Sync = addon.GroupSync
         local text = Sync.EncodeTour({{id = 12, stage = "objective"}, {id = 40, stage = "turnIn"}, {id = 0}})

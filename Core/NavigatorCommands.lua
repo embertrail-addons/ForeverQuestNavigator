@@ -61,6 +61,8 @@ function addon.NavigatorCommands.Install(S, F)
         Add("debug", "debug", "CmdDebug", function() F.ShowDiagnostics() end, {advanced = true})
         Add("problem", "debug", "CmdProblem", function() addon.OpenProblemReport() end)
         Add("selftest", "debug", "CmdSelfTest", function() F.RunSelfTest() end)
+        Add("selftest group", "debug", "CmdGroupTest", function() F.GroupTest(true) end, {advanced = true})
+        Add("selftest group off", "debug", "CmdGroupTestOff", function() F.GroupTest(false) end, {advanced = true, menu = false})
         Add("tour share", "quests", "CmdTourShare", function() addon.ShareTour() end, {advanced = true})
         Add("goal", "history", "CmdGoal", function(text)
             local character = ForeverQuestNavigatorCharacterDB

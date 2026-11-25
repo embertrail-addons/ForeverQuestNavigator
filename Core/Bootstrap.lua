@@ -554,7 +554,7 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     end
     local feedback = S.navigationSnapshot.feedback and S.navigationSnapshot.feedback[quest.id]
     if feedback then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.FeedbackActive summaryImportant = true end
-    local mates = S.settings.groupSync and addon.GroupSync.Describe(quest.id)
+    local mates = addon.GroupSync.Showing(S.settings) and addon.GroupSync.Describe(quest.id)
     if mates then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.GroupSyncMates:format(mates) end
     if quest.readyToTurnIn and S.navigationSnapshot.capacity and (S.navigationSnapshot.capacity.full or S.navigationSnapshot.capacity.reserveNeeded) then
         routeNote = (routeNote and (routeNote .. " · ") or "") .. (S.navigationSnapshot.capacity.full and L.FreeQuestSlot or L.ReserveQuestSlot)
@@ -1011,7 +1011,7 @@ local function UpdateDistances(force)
             flying = flight.active or S.combatQuestID ~= nil, manual = S.manualQuestID ~= nil or addon.ExcursionPlan.Current(S.insights.excursion) ~= nil, routeChains = S.routeChains,
             onTaxi = flight.active, detour = S.temporaryDetour ~= nil,
             feedback = S.temporaryFeedback, now = SessionTime(),
-            groupCounts = S.settings.groupSync and addon.GroupSync.Counts() or nil,
+            groupCounts = addon.GroupSync.Showing(S.settings) and addon.GroupSync.Counts() or nil,
             campAvoidance = S.campAvoidance,
             previousCamps = S.insights.previousCamps,
             previousPresence = S.insights.presence,
@@ -1264,6 +1264,24 @@ local function ShareTour()
     return ok
 end
 addon.ShareTour = ShareTour
+
+-- Local group test: simulated member plus a shared-tour offer; nothing is sent.
+local function GroupTest(enable)
+    local Sync = addon.GroupSync
+    if not enable then
+        Sync.StopTest()
+        print("FQN | " .. L.GroupTestStopped)
+    else
+        local ok, stops = Sync.StartTest(addon.QuestLog.Read(C_QuestLog), C_QuestLog, SessionTime())
+        if not ok then print("FQN | " .. L.GroupTestNoQuests) return end
+        print("FQN | " .. L.GroupTestStarted:format(Sync.TEST_NAME))
+        if stops then addon.NoticeQueue.Push("tourOffer", 35, function() return addon.ShowTourOffer(Sync.TEST_NAME, stops, AdoptTour) end) end
+    end
+    S.insights.groupAdvice = nil
+    if S.measurableQuestIDs and TrackingVisible() then UpdateDistances() end
+    ScheduleRefresh()
+end
+F.GroupTest = GroupTest
 
 -- Adds shared stops for quests in the own log to the end of the own tour; nothing is removed.
 function AdoptTour(stops)
