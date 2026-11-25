@@ -85,6 +85,7 @@ return function(test, addon, equal, near)
             local line = {shown = true}
             function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
             function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
+            function line:SetThickness(value) self.thickness = value end
             function line:Show() self.shown = true end
             function line:Hide() self.shown = false end
             lines[#lines + 1] = line
@@ -94,6 +95,7 @@ return function(test, addon, equal, near)
         render:Set(a, nil, {{target = a, quest = {id = 1}}, {target = b, quest = {id = 2}}, {target = b, quest = {id = 3}},
             {target = c, quest = {id = 4}}})
         equal(render.lineCount, 2) near(lines[1].x1, 100) near(lines[1].y1, -100) near(lines[1].x2, 400) near(lines[2].x2, 800)
+        assert(lines[1].thickness > lines[2].thickness, "the next leg is thicker, not only gold")
         render:Set(a, nil, {{target = a, quest = {id = 1}, single = true}})
         equal(render.lineCount, 0) equal(lines[1].shown, false)
         addon.CanvasMarkers.showLine = false

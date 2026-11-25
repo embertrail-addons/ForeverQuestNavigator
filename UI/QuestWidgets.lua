@@ -158,7 +158,8 @@ local function FormatQuestTitle(quest, colored, playerLevel, omitState)
         local r, g, b = addon.UI.Theme.Color("difficulty_" .. (difficulty or "gray"))
         result = ("|cff%02x%02x%02x[%d]|r %s"):format(math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), level, title)
     end
-    if (quest.elite or quest.group) and not colored then result = result .. " |cffffc447+|r" end
+    -- Elite/group is marked by a symbol in every variant, not by colour alone.
+    if quest.elite or quest.group then result = result .. " |cffffc447+|r" end
     if settings and settings.difficultyWords and difficulty and not (omitState and quest.readyToTurnIn) then
         result = result .. " · " .. (quest.readyToTurnIn and L.TurnInAction or L["DifficultyShort_" .. difficulty])
     end

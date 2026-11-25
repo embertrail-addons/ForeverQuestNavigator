@@ -70,7 +70,8 @@ function Canvas.New(map, api, create)
                 line = canvas:CreateLine(nil, "OVERLAY", nil, 7)
                 self.lines[index - 1] = line
             end
-            if line.SetThickness then line:SetThickness(4 * scale) end
+            -- The next leg is thicker as well as gold, so it stands out without colour vision.
+            if line.SetThickness then line:SetThickness((index == 2 and 6 or 3) * scale) end
             if line.SetColorTexture then
                 if index == 2 then line:SetColorTexture(1, .82, .34, .9) else line:SetColorTexture(.55, .8, 1, .75) end
             end

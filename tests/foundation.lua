@@ -247,6 +247,14 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Elite marker and difficulty word do not depend on colour", function()
+        local title = addon.UI.FormatQuestTitle({id = 1, title = "Big", level = 30, elite = true}, true, 30)
+        assert(title:find("+", 1, true), "colored titles keep the elite marker")
+        assert(title:find("|cff", 1, true))
+        local plain = addon.UI.FormatQuestTitle({id = 2, title = "Small", level = 30}, true, 30)
+        assert(not plain:find("+", 1, true))
+    end)
+
     test("Tour chat messages stay under the chat limit and keep the order", function()
         local stops = {}
         for index = 1, 12 do stops[index] = {id = index, stage = index % 3 == 0 and "turnIn" or "objective"} end
