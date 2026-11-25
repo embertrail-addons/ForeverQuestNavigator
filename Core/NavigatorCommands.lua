@@ -37,11 +37,21 @@ function addon.NavigatorCommands.Install(S, F)
         end, {advanced = true})
         Add("session", "history", "CmdSession", function() F.ShowSession() end)
         Add("session reset", "history", "CmdSessionReset", function()
+            local character = ForeverQuestNavigatorCharacterDB
+            if character then
+                character.sessionHistory = type(character.sessionHistory) == "table" and character.sessionHistory or {}
+                addon.Session.Archive(character.sessionHistory, S.session, F.SessionTime(), GetServerTime and GetServerTime())
+            end
             S.session = addon.Session.New(nil, F.SessionTime())
             ForeverQuestNavigatorCharacterDB.session = S.session.data
             F.CaptureSessionXP()
             F.ShowSession()
         end, {advanced = true})
+        Add("session history", "history", "CmdSessionHistory", function()
+            local character = ForeverQuestNavigatorCharacterDB
+            addon.ShowTextWindow("sessionHistory", addon.Session.DescribeHistory(character and character.sessionHistory),
+                addon.L.HistoryTitle, addon.L.HistoryHelp)
+        end)
         Add("undo", "history", "CmdUndo", function() addon.UndoLastChange() end)
         Add("history", "history", "CmdHistory", function() addon.ShowUndoHistory(addon.Undo) end, {advanced = true})
         Add("levels", "history", "CmdLevels", function() F.ShowLevelChanges() end, {advanced = true})

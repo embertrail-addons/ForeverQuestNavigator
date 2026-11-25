@@ -1084,6 +1084,13 @@ local english = {
     CmdGroupTestOff = "End the group test",
     TourPreviewSaved = "About %d yards shorter than the current order.",
     FlightCompare = "With flight ~%d min · on foot ~%d min (straight-line estimate)",
+    HistoryTitle = "Earlier sessions",
+    HistoryHelp = "The last 10 finished sessions of this character. A session ends with 'Start a new session'.",
+    HistoryEmpty = "No finished sessions yet. A session is archived when you start a new one.",
+    HistoryDuration = "%d h %d min",
+    HistoryQuests = "%d quests",
+    HistoryRate = "~%d XP/h",
+    CmdSessionHistory = "Earlier sessions",
 }
 
 local german = setmetatable({
@@ -2171,6 +2178,13 @@ local german = setmetatable({
     CmdGroupTestOff = "Gruppentest beenden",
     TourPreviewSaved = "Etwa %d Yards kürzer als die bisherige Reihenfolge.",
     FlightCompare = "Mit Flug ~%d Min. · zu Fuß ~%d Min. (Luftlinien-Schätzung)",
+    HistoryTitle = "Frühere Sitzungen",
+    HistoryHelp = "Die letzten 10 beendeten Sitzungen dieses Charakters. Eine Sitzung endet mit „Neue Sitzung beginnen“.",
+    HistoryEmpty = "Noch keine beendeten Sitzungen. Eine Sitzung wird gespeichert, wenn du eine neue beginnst.",
+    HistoryDuration = "%d Std. %d Min.",
+    HistoryQuests = "%d Quests",
+    HistoryRate = "~%d EP/Std.",
+    CmdSessionHistory = "Frühere Sitzungen",
 }, { __index = english })
 
 addon.L = {}

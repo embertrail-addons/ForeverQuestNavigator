@@ -247,6 +247,23 @@ return function(test, addon, equal, near)
         equal(missing, 8)
     end)
 
+    test("Finished sessions are archived newest first and limited to ten", function()
+        local Session, history = addon.Session, {}
+        equal(Session.DescribeHistory(history), addon.L.HistoryEmpty)
+        Session.Archive(history, Session.New({}, 0), 600, 1000)
+        equal(#history, 0)
+        for index = 1, 12 do
+            local session = Session.New({}, 0)
+            session:TurnIn(index, "Q", 100, "Zone " .. index, 10)
+            session:CaptureXP(10, 0, 1000) session:CaptureXP(10, index * 100, 1000)
+            Session.Archive(history, session, 3600, 86400 * index)
+        end
+        equal(#history, 10) equal(history[1].zone, "Zone 12") equal(history[1].xpPerHour, 1200)
+        local text = Session.DescribeHistory(history)
+        assert(text:find("Zone 12", 1, true)) assert(text:find(addon.L.HistoryRate:format(1200), 1, true))
+        assert(not text:find("Zone 2 ", 1, true))
+    end)
+
     test("Flight hints compare flying and walking time", function()
         local location = addon.QuestLocation
         local saved = location.GetFlightPlan

@@ -128,6 +128,34 @@ function Session:ShouldOfferRecap(clock, gap)
     return Valid(clock) and last ~= nil and clock - last >= (gap or 1800) and self.data.completed > 0
 end
 
+-- Keeps the key figures of finished sessions (newest first, at most `limit`).
+function Session.Archive(history, session, now, clock, limit)
+    if type(history) ~= "table" or not session then return history end
+    local summary = session:Summary(now)
+    if summary.quests == 0 and summary.xp == 0 then return history end
+    table.insert(history, 1, {ended = Valid(clock) and clock or nil, seconds = summary.seconds, quests = summary.quests,
+        xp = summary.xp, xpPerHour = summary.xpPerHour, levels = summary.levels, zone = summary.topZone})
+    while #history > (limit or 10) do table.remove(history) end
+    return history
+end
+
+-- One line per archived session, e.g. "24.11. · 2 h 15 min · 18 quests · ~9800 XP/h · Westfall".
+function Session.DescribeHistory(history)
+    local L, lines = addon.L, {}
+    for _, entry in ipairs(type(history) == "table" and history or {}) do
+        if type(entry) == "table" and Valid(entry.seconds) then
+            local day = entry.ended and date and date("%d.%m.", entry.ended) or "?"
+            local parts = {day, L.HistoryDuration:format(math.floor(entry.seconds / 3600), math.floor(entry.seconds / 60) % 60),
+                L.HistoryQuests:format(entry.quests or 0)}
+            if Valid(entry.xpPerHour) then parts[#parts + 1] = L.HistoryRate:format(entry.xpPerHour) end
+            if type(entry.zone) == "string" then parts[#parts + 1] = entry.zone end
+            lines[#lines + 1] = table.concat(parts, " · ")
+        end
+    end
+    if #lines == 0 then return L.HistoryEmpty end
+    return table.concat(lines, "\n")
+end
+
 function Session:Elapsed(now)
     return math.floor(self.data.seconds + math.max(0, (now or self.started) - self.started))
 end
