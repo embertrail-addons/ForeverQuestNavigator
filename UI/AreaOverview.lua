@@ -4,6 +4,7 @@ local L = addon.L
 function addon.CreateAreaOverview(parent, settings, actions)
     local frame = CreateFrame("Frame", nil, parent)
     local header = addon.UI.MakeButton(frame)
+    frame.header = header
     header:SetPoint("TOPLEFT")
     header:SetPoint("TOPRIGHT")
     local label = header:GetFontString()

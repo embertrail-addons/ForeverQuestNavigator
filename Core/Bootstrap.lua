@@ -10,6 +10,8 @@ local S = {
     temporaryFeedback = {}, campAvoidance = {},
     insights = {sharedItems = {}, laterQuests = {}, knownVendors = {}, hiddenOffers = {}, offerSuppressed = {}},
 }
+-- Named frames (event frame, tracker, minimap and quest log buttons) for callers and tests.
+addon.Frames = setmetatable({events = events}, {__index = function(_, key) return S[key] end})
 -- Functions shared with extracted modules; filled where they are defined.
 local F = {}
 local integration = addon.QuestieIntegration

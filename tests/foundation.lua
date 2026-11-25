@@ -424,6 +424,15 @@ return function(test, addon, equal, near)
         end
     end)
 
+    test("UI tests find frames by name, not by creation order", function()
+        -- frames[3] or frames[firstNewFrame + 5] break whenever a widget is added; use named fields instead.
+        for _, path in ipairs({"tests/run.lua", "tests/navigator_ui.lua", "tests/stability_features.lua"}) do
+            local file = assert(io.open(path)) local source = file:read("*a") file:close()
+            assert(not source:find("frames%[%d"), path .. " indexes frames by number")
+            assert(not source:find("frames%[firstNewFrame"), path .. " indexes frames by creation offset")
+        end
+    end)
+
     test("Flight hints use measured distance and the step text follows the selected objective", function()
         local FP = addon.FlightPoints
         equal(FP.Hint({}, {measurement = {yards = 100}, minimum = 1500}, {}), nil)

@@ -787,7 +787,7 @@ test("Area groups expand into individual quests while single targets remain dire
         { key = 1, place = "Camp", entries = { entry(1), entry(2) } },
         { key = 3, place = "Road", entries = { entry(3) } },
     } })
-    frames[2]:Click()
+    area.header:Click()
     local group, single
     for _, frame in ipairs(frames) do
         if frame.group then group = frame end
@@ -827,7 +827,7 @@ test("German UI uses the client locale and preserves quest text", function()
         IsOwned = function() return false end,
     }
     local tracker = localized.CreateQuestTracker({ x = 0, y = 0, opacityPercent = 80, environmentExpanded = true }, {}, "0.1.54")
-    local content = frames[5]
+    local content = tracker.content
     tracker:Render({ id = 42, title = "Test der Lehre", level = 30 }, "Räuber getötet: 0/8", {},
         {}, false, nil, "Questziel", nil, nil, nil, { localized.L.QuestXPLevelUp:format(250, 31) })
     tracker:RenderNearbyOffers({ { title = "Frostrache", yards = 60 } })
@@ -835,8 +835,8 @@ test("German UI uses the client locale and preserves quest text", function()
     equal(content.labels[2].text, "Räuber getötet: 0/8")
     equal(content.labels[5].text, "−  Zum Annehmen (1)")
     equal(content.labels[9].text, "~250 EP · Stufe 31 bei Abgabe möglich")
-    equal(frames[3].width, 20)
-    frames[3].scripts.OnEnter(frames[3])
+    equal(tracker.settingsButton.width, 20)
+    tracker.settingsButton.scripts.OnEnter(tracker.settingsButton)
     equal(tooltipText, "Einstellungen")
     equal(tracker.routeMap.text, "Karte")
     env.GetLocale = function() return "frFR" end
@@ -1203,8 +1203,8 @@ test("TOC startup and quest events update the tracker with or without optional a
         print = function(message) messages[#messages + 1] = message end,
     }, { __index = getfenv() })
 
-    loadAddon(env, true)
-    local eventFrame = frames[1]
+    local firstAddon = loadAddon(env, true)
+    local eventFrame = firstAddon.Frames.events
     local function fire(event, ...)
         assert(eventFrame.events[event], "Unregistered event " .. event)
         eventFrame.scripts.OnEvent(eventFrame, event, ...)
@@ -1257,17 +1257,17 @@ test("TOC startup and quest events update the tracker with or without optional a
     function env.Minimap:GetSize() return 198, 198 end
     function env.Minimap:GetEffectiveScale() return 0.5 end
     env.GetCursorPosition = function() return 250, 250 end
-    local minimapButtonIndex = #frames + 1
     fire("PLAYER_ENTERING_WORLD")
-    local minimapButton = frames[minimapButtonIndex]
+    local minimapButton = firstAddon.Frames.minimapButton
     local frameCount = #frames
     fire("PLAYER_ENTERING_WORLD")
     equal(#frames, frameCount)
     fire("QUEST_LOG_UPDATE")
     flush()
-    local tracker, header, openSettings, close = frames[2], frames[3], frames[4], frames[5]
-    local history, skip = frames[7], frames[9]
-    local content = frames[6]
+    local tracker = firstAddon.Frames.tracker
+    local header, openSettings, close = tracker.header, tracker.settingsButton, tracker.closeButton
+    local history, skip = tracker.historyButton, tracker.skipButton
+    local content = tracker.content
     local title, objective = content.labels[1], content.labels[2]
     equal(reads, 1)
     equal(header.labels[2], nil) equal(tracker.version, "0.1.54")
@@ -1514,22 +1514,21 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(settingsByKey.navigatorView:GetValue(), "goal")
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("")
 
-    local firstNewFrame = #frames + 1
     env.GetLocale = function() return "deDE" end
     local reloadedAddon = loadAddon(env, true)
-    eventFrame = frames[firstNewFrame]
+    local named = reloadedAddon.Frames
+    eventFrame = named.events
     fire("ADDON_LOADED", addonName)
-    local reloadedButtonIndex = #frames + 1
     fire("PLAYER_ENTERING_WORLD")
-    near(frames[reloadedButtonIndex].point[4], 0)
-    near(frames[reloadedButtonIndex].point[5], 104)
+    near(named.minimapButton.point[4], 0)
+    near(named.minimapButton.point[5], 104)
     flush()
     equal(env.ForeverQuestNavigatorDB.includeElite, nil)
-    equal(frames[firstNewFrame + 5].labels[1].text, "No matching outdoor quests on the available maps.")
-    equal(frames[firstNewFrame + 6].enabled, true)
+    local updatedTracker = named.tracker
+    local updatedContent = updatedTracker.content
+    equal(updatedContent.labels[1].text, "No matching outdoor quests on the available maps.")
+    equal(updatedTracker.historyButton.enabled, true)
 
-    local updatedTracker = frames[firstNewFrame + 1]
-    local updatedContent = frames[firstNewFrame + 5]
     local reloadedCollapse = FindTrackerButton(updatedTracker, "+")
     equal(reloadedCollapse.text, "+")
     equal(updatedContent:IsShown(), true)
@@ -1538,7 +1537,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(env.ForeverQuestNavigatorDB.allowTrackerResize, false)
     equal(updatedTracker.backdropAlpha, 0)
     equal(env.ForeverQuestNavigatorDB.showQuestieOffers, false)
-    local history = frames[firstNewFrame + 6]
+    local history = updatedTracker.historyButton
     updatedTracker:Show()
     reloadedCollapse:Click()
     equal(reloadedCollapse.text, "−")
@@ -1555,11 +1554,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(updatedContent.labels[1].text, "[9] Supplies")
     equal(env.ForeverQuestNavigatorCharacterDB.skippedQuests[1], nil)
     env.SlashCmdList.FOREVERQUESTNAVIGATOR("")
-    local auto = frames[firstNewFrame + 7]
-    local activeCheckbox = frames[firstNewFrame + 8]
-    local rowOne = frames[firstNewFrame + 9]
-    local rowTwo = frames[firstNewFrame + 11]
-    local arrow = frames[firstNewFrame + 13]
+    local auto = updatedTracker.autoButton
+    local activeCheckbox = updatedTracker.skipButton
+    local rowOne, rowTwo = updatedTracker.acceptedRows[1], updatedTracker.acceptedRows[2]
+    local arrow = updatedTracker.activeArrow
     local activeDistance = updatedContent.labels[3]
     title, objective = updatedContent.labels[1], updatedContent.labels[2]
     currentMapID = 10
@@ -1626,7 +1624,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(navigation.startedMoving, moveCount)
     settingsByKey.lockNavigationPosition:SetValue(false)
     settingsByKey.lockTrackerPosition:SetValue(true)
-    local reloadedHeader = frames[firstNewFrame + 2]
+    local reloadedHeader = updatedTracker.header
     local trackerMoves = updatedTracker.startedMoving
     reloadedHeader.scripts.OnDragStart()
     equal(updatedTracker.startedMoving, trackerMoves)
@@ -1672,7 +1670,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(navigation:IsShown(), true)
     equal(arrow:IsShown(), false)
     equal(reads, readsBeforeTick)
-    local reloadedMinimap = frames[reloadedButtonIndex]
+    local reloadedMinimap = named.minimapButton
     settingsByKey.showScreenArrow:SetValue(false)
     reloadedMinimap:Click()
     equal(updatedTracker:IsShown(), false)
@@ -1998,8 +1996,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     flush()
     equal(offer.text, "−  Pickups nearby / near destination (3)")
     equal(offer:IsShown(), true)
-    local firstOffer = frames[firstNewFrame + 16]
-    local secondOffer = frames[firstNewFrame + 18]
+    local firstOffer, secondOffer = updatedTracker.offerRows[1], updatedTracker.offerRows[2]
     equal(firstOffer.label.text, "[10] Other nearby quest")
     equal(secondOffer.label.text, "[8] Near quest")
     equal(firstOffer.distance.text, "Pickup ~60 yd")
@@ -2096,7 +2093,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(secondOffer.recommendation:IsShown(), true)
     equal(secondOffer.measurement.beforeDeparture, true)
     equal(firstOffer.distance.text, "Pickup ~60 yd")
-    equal(frames[firstNewFrame + 20].label.text, "Distant quest")
+    equal(updatedTracker.offerRows[3].label.text, "Distant quest")
     reloadedCollapse:Click()
     equal(firstOffer:IsShown(), false)
     equal(secondOffer:IsShown(), false)
@@ -2254,7 +2251,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("QUEST_LOG_UPDATE")
     flush()
     equal(title.text, "[17] Over the border")
-    local questMapButton = frames[firstNewFrame + 23]
+    local questMapButton = updatedTracker.questMap
     questMapButton:Click()
     equal(openedMap, 20)
     equal(selectedQuest, 72)
@@ -2823,7 +2820,7 @@ test("TOC startup and quest events update the tracker with or without optional a
         owner[name] = function(...) original(...); callback(...) end
     end
     fire("ADDON_LOADED", "Blizzard_WorldMap")
-    local pinButton = frames[#frames]
+    local pinButton = named.questLogButton
     equal(pinButton:IsShown(), false)
     rowOne:Click()
     equal(detailsPanel.questID, 803)
@@ -2916,7 +2913,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     updatedTracker.moreEntries.offers:Click()
     equal(updatedTracker.offerRows[6].label.text, "Offer 6")
     settingsByKey.offerRows:SetValue(3)
-    local mainMapButton = frames[firstNewFrame + 23]
+    local mainMapButton = updatedTracker.questMap
     mainMapButton.scripts.OnEnter(mainMapButton)
     assert(tooltip.text:find("Scrollable quest 1", 1, true))
     assert(tooltip.lines[1]:find("Why this quest?", 1, true))

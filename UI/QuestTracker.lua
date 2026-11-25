@@ -1578,6 +1578,9 @@ function addon.CreateQuestTracker(settings, actions, version)
     body = viewport.body
     frame.viewport, frame.scrollBody = viewport, body
     frame.questTitle, frame.header, frame.questMap = title, header, questMap
+    -- Named handles for the remaining parts, so callers and tests never depend on creation order.
+    frame.settingsButton, frame.closeButton, frame.content = settingsButton, close, content
+    frame.historyButton, frame.skipButton, frame.activeArrow = history, activeCheckbox, arrow
     content.scrollBody = body
     pinnedBackdrop = content:CreateTexture(nil, "BACKGROUND")
     addon.UI.Theme.Bind(pinnedBackdrop, "active", .32)
