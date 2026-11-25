@@ -80,7 +80,7 @@ function Marks.Start(source, enabled)
     end
     function driver:Refresh()
         if not Marks.enabled then return end
-        local entries = source() or {}
+        local entries = not addon.TargetMarks.Hidden() and source() or {}
         local signature = addon.TargetMarks.Signature(entries)
         if signature ~= self.signature then self.signature = signature Marks.Set(entries) end
     end

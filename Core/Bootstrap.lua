@@ -902,6 +902,7 @@ local function UpdateFlightState()
     end
     if not fighting then S.combatQuestID = nil end
     S.tracker:SetCombatView(fighting == true and S.settings.quietNavigation ~= false)
+    S.tracker:SetInstanceView(S.settings.quietInstances ~= false and IsInInstance and IsInInstance() == true)
     if fighting or flying then addon.HideLevelNotice() end
 end
 
@@ -1340,12 +1341,13 @@ local function TargetMarkEntries()
 end
 
 -- show: true/false, or nil to toggle. Secure buttons cannot be shown or hidden in combat.
+-- The window then appears by itself whenever the active quest has targets (outside instances).
 function addon.ToggleTargetMarks(show)
     if InCombatLockdown and InCombatLockdown() then print("FQN | " .. L.TargetMarkCombat) return end
-    if show == nil then show = not (S.targetMarks and S.targetMarks:IsShown()) end
+    if show == nil then show = not S.settings.showTargetMarks end
     if show and not S.targetMarks then S.targetMarks = addon.CreateTargetMarkWindow(S.settings, TargetMarkEntries) end
     S.settings.showTargetMarks = show == true
-    if S.targetMarks then S.targetMarks:SetShown(show) end
+    if S.targetMarks then S.targetMarks:SetEnabled(show == true) end
 end
 
 -- Local group test: simulated member plus a shared-tour offer; nothing is sent.

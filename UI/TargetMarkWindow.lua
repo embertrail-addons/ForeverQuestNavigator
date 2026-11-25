@@ -78,30 +78,28 @@ function addon.CreateTargetMarkWindow(settings, source)
 
     frame.heading = addon.UI.CreateLabel(frame, "GameFontNormalSmall")
     frame.heading:SetPoint("TOPLEFT", 6, -4)
-    frame.heading:SetPoint("TOPRIGHT", -20, -4)
+    frame.heading:SetPoint("TOPRIGHT", -6, -4)
     frame.heading:SetJustifyH("LEFT")
     frame.heading:SetMaxLines(1)
     frame.heading:SetText(L.TargetMarkTitle)
     -- Status shares the title line, so the window does not grow for it.
     frame.status = addon.UI.CreateLabel(frame, "GameFontRedSmall")
     frame.status:SetPoint("TOPLEFT", 6, -4)
-    frame.status:SetPoint("TOPRIGHT", -20, -4)
+    frame.status:SetPoint("TOPRIGHT", -6, -4)
     frame.status:SetJustifyH("LEFT")
     frame.status:SetMaxLines(1)
     frame.status:Hide()
-    local close = addon.UI.MakeButton(frame)
-    close:SetSize(16, 15)
-    close:SetPoint("TOPRIGHT", -2, -2)
-    close:SetText("×")
-    close:SetScript("OnClick", function() addon.ToggleTargetMarks(false) end)
-    frame.closeButton = close
+    -- No close button: the window hides itself when nothing is relevant and is switched
+    -- off in the settings (or with /fqn marks / the key binding).
+    frame:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L.TargetMarkTitle)
+        GameTooltip:AddLine(L.TargetMarkHideHint, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
-    frame.empty = addon.UI.CreateLabel(frame, "GameFontDisableSmall")
-    frame.empty:SetPoint("TOPLEFT", 6, -HEADER)
-    frame.empty:SetPoint("TOPRIGHT", -6, -HEADER)
-    frame.empty:SetJustifyH("LEFT")
-    frame.empty:SetMaxLines(1)
-    frame.empty:SetText(L.TargetMarkEmpty)
 
     frame.rows = {}
     for index = 1, addon.TargetMarks.LIMIT do
@@ -134,7 +132,9 @@ function addon.CreateTargetMarkWindow(settings, source)
         -- An unanswered click ends after a moment; its "not in range" note goes with it.
         if self.pending and Now() - self.pending.at > PENDING_SECONDS + 1 then self.pending = nil SetStatus(self, nil) end
         if InCombat() then return end
-        local entries = source() or {}
+        local entries = (self.enabled and not addon.TargetMarks.Hidden()) and source() or {}
+        -- Only there while the active quest has targets; secure frames change only out of combat.
+        self:SetShown(#entries > 0)
         local signature = addon.TargetMarks.Signature(entries)
         if signature == self.signature then return end
         self.signature, self.entries = signature, entries
@@ -148,13 +148,20 @@ function addon.CreateTargetMarkWindow(settings, source)
             end
             row:SetShown(entry ~= nil)
         end
-        self.empty:SetShown(#entries == 0)
         self:SetHeight(HEADER + math.max(1, #entries) * ROW_HEIGHT + 4)
     end
-    addon.UI.RefreshWhileShown(frame, 1)
+    -- A separate ticker keeps checking while the window itself is hidden.
+    frame.ticker = CreateFrame("Frame")
+    frame.ticker.Refresh = function() frame:Refresh() end
+    addon.UI.RefreshWhileShown(frame.ticker, 1)
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:SetScript("OnEvent", function(self) TryMark(self) end)
-    frame:SetScript("OnShow", function(self) self.signature = nil self:Refresh() end)
+    function frame:SetEnabled(value)
+        self.enabled = value == true
+        self.ticker:SetShown(self.enabled)
+        self.signature = nil
+        self:Refresh()
+    end
     frame:Hide()
     return frame
 end

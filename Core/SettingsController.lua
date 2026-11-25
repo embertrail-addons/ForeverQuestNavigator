@@ -180,6 +180,10 @@ function addon.SettingsController.Register(context)
         "quietNavigation", settings, Settings.VarType.Boolean, L.QuietNavigation, true)
     quiet:SetValueChangedCallback(function() UpdateDirectionTicker() ScheduleRefresh() end)
     Checkbox(category, quiet, L.QuietNavigationHelp)
+    local quietInstances = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_QUIET_INSTANCES",
+        "quietInstances", settings, Settings.VarType.Boolean, L.QuietInstances, true)
+    quietInstances:SetValueChangedCallback(function() ScheduleRefresh() end)
+    Checkbox(category, quietInstances, L.QuietInstancesHelp)
     local preparation = RegisterSetting(category, "FOREVERQUESTNAVIGATOR_TRAVEL_PREPARATION",
         "showTravelPreparation", settings, Settings.VarType.Boolean, L.TravelPreparation, true)
     preparation:SetValueChangedCallback(ScheduleRefresh)

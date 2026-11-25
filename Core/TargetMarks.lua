@@ -61,6 +61,11 @@ function Marks.Collect(input)
     return entries
 end
 
+-- No marks in dungeons, raids, battlegrounds and arenas.
+function Marks.Hidden()
+    return IsInInstance and IsInInstance() == true
+end
+
 -- Stable text for "did anything change" checks, so secure buttons are only rebuilt when needed.
 function Marks.Signature(entries)
     local parts = {}

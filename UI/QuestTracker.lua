@@ -146,7 +146,8 @@ function addon.CreateQuestTracker(settings, actions, version)
     local recommendationReason
     local flightMode, flightStatus = false, nil
     local combatMode = false
-    local function IsQuiet() return flightMode or combatMode end
+    local instanceMode = false
+    local function IsQuiet() return flightMode or combatMode or instanceMode end
     local function IsNarrow() return settings.adaptiveLayout ~= false and frame:GetWidth() / ((settings.fontPercent or 100) / 100) < 340 end
     local function IsCompact() return settings.simpleNavigator or settings.detailMode == "compact" or IsQuiet() or IsNarrow() end
     local function FormatDistance(value) return addon.UI.FormatDistance(value, IsNarrow()) end
@@ -1240,7 +1241,7 @@ function addon.CreateQuestTracker(settings, actions, version)
             navigation.distance:SetText(FormatDistance(self.detourMeasurement))
         elseif quest then navigation.title:SetText(FormatQuestTitle(quest))
         else navigation.title:SetText("") navigation.goal:SetText("") navigation.distance:SetText("") end
-        local showNavigation = separate and hasQuest and (right ~= nil or status ~= nil)
+        local showNavigation = separate and hasQuest and not instanceMode and (right ~= nil or status ~= nil)
         navigation.arrow:SetDirection(right, forward)
         if self.arranging then
             showNavigation = true
@@ -1430,6 +1431,16 @@ function addon.CreateQuestTracker(settings, actions, version)
         flightStatus = status
         if flightMode == flying then return end
         flightMode = flying
+        if lastRender then self:Render(unpack(lastRender, 1, 17)) end
+        self:RenderNearbyOffers(lastOffers, lastOfferXP)
+    end
+    -- Dungeons, raids and battlegrounds: one quiet line, faded, no separate screen arrow.
+    function frame:SetInstanceView(inside)
+        inside = inside == true
+        if instanceMode == inside then return end
+        instanceMode = inside
+        self:SetAlpha(inside and .45 or 1)
+        if inside then navigation:Hide() end
         if lastRender then self:Render(unpack(lastRender, 1, 17)) end
         self:RenderNearbyOffers(lastOffers, lastOfferXP)
     end

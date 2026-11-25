@@ -842,7 +842,9 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     local list = {{name = "Kobold", icon = 8, kind = "kill", questID = 3}, turnInEntries[1]}
     env.InCombatLockdown = function() return false end
     local window = ui.CreateTargetMarkWindow({}, function() return list end)
-    window:Show() window.scripts.OnShow(window)
+    equal(window.closeButton, nil, "only the settings switch the window off")
+    window:SetEnabled(true)
+    equal(window:IsShown(), true) equal(window.ticker:IsShown(), true)
     local row = window.rows[1]
     equal(row.template, "SecureActionButtonTemplate")
     equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold")
@@ -884,6 +886,14 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     window:Refresh() equal(row.attributes.macrotext, "/targetexact Kobold")
     env.InCombatLockdown = function() return false end
     window:Refresh() equal(row.attributes.macrotext, "/targetexact Other") equal(window.rows[2]:IsShown(), false)
+    -- Only there while the active quest has targets, and never inside instances.
+    list = {} window:Refresh() equal(window:IsShown(), false) equal(window.ticker:IsShown(), true)
+    list = {{name = "Other", icon = 1, kind = "turnIn", questID = 5}} window:Refresh() equal(window:IsShown(), true)
+    env.IsInInstance = function() return true end
+    window:Refresh() equal(window:IsShown(), false)
+    env.IsInInstance = function() return false end
+    window:Refresh() equal(window:IsShown(), true)
+    window:SetEnabled(false) equal(window:IsShown(), false) equal(window.ticker:IsShown(), false)
 end)
 
 test("German UI uses the client locale and preserves quest text", function()
@@ -1087,6 +1097,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     allGoals = "FOREVERQUESTNAVIGATOR_ALL_GOALS",
                     showTargetMarks = "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
                     nameplateMarks = "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
+                    quietInstances = "FOREVERQUESTNAVIGATOR_QUIET_INSTANCES",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
                     groupSync = "FOREVERQUESTNAVIGATOR_GROUP_SYNC",
                     minimapArrow = "FOREVERQUESTNAVIGATOR_MINIMAP_ARROW",
@@ -1134,6 +1145,7 @@ test("TOC startup and quest events update the tracker with or without optional a
                     allGoals = "Show all open objectives",
                     showTargetMarks = "Mark targets",
                     nameplateMarks = "Quest marks above mobs",
+                    quietInstances = "Unobtrusive in instances",
                     showRouteLine = "Connect route stops with a line",
                     groupSync = "Share quest progress with my group",
                     minimapArrow = "Arrow on the minimap edge",
