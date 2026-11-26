@@ -3225,6 +3225,10 @@ test("TOC startup and quest events update the tracker with or without optional a
         error("Missing menu entry: " .. label)
     end
     mainMapButton:Click("RightButton")
+    -- Skipping is offered directly in the quest menu, not only in the details panel.
+    local skipEntry
+    for _, entry in ipairs(historyMenu.entries) do if entry.label == reloadedAddon.L.SkipQuest then skipEntry = entry end end
+    assert(skipEntry, "skip entry in the quest menu")
     MenuAction("When visiting this area")
     flush()
     equal(env.ForeverQuestNavigatorCharacterDB.laterQuests[1002].when, "visit")
@@ -3749,7 +3753,7 @@ test("TOC startup and quest events update the tracker with or without optional a
         assert(entry.label ~= "Report an unsuitable target position")
         if entry.label == "More actions" then secondary = entry end
     end
-    assert(secondary and #historyMenu.entries <= 6)
+    assert(secondary and #historyMenu.entries <= 7) -- compact top level; "skip" is a main action
     for _, entry in ipairs(secondary.entries) do
         if entry.label == "Recommendation feedback" then feedbackGroup = entry end
         if entry.label == "Diagnostics" then diagnosticGroup = entry end

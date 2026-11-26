@@ -68,6 +68,10 @@ function addon.NavigatorQuestMenu.Install(S, F)
                 end
                 priorityMenu:CreateButton(L.PriorityUntilTurnIn, function() F.ApplyQuestAction("prioritize", {id = questID, turnIn = true}) end)
             end
+            -- Skipping an accepted quest is a top-level action, not hidden in the details panel.
+            if not isOffer and chosen then
+                menu:CreateButton(L.SkipQuest, function() F.SkipQuest(chosen) end)
+            end
             local more = Submenu(menu, L.MoreActions)
             if chosen then
                 local later = Submenu(more, L.JourneyLaterMenu)
