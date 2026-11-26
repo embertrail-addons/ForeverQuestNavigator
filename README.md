@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.2.3.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current release: 0.2.4.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.4 fixes the "only available to the Blizzard UI" message (raid marks are set only by click or key) and reduces background work while the navigator is shown. [0.2.4 changes](release/curseforge-changelog-0.2.4.md).
 
 0.2.3 makes recommendations weigh XP per minute, the way to the turn-in, the next step, follow-ups and nearly finished quests (explained in the tooltip), learns your travel speed, kill pace and preferred kind of quest per character (`/fqn learn`), marks targets with `/tm` so marking works on restricted clients, cycles through living quest mobs per click, adds key bindings for the next quest mob and the turn-in NPC and shows mobs that count for several quests. [0.2.3 changes and manual checks](release/curseforge-changelog-0.2.3.md).
 

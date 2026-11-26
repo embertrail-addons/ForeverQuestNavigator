@@ -4,6 +4,10 @@
 
 Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Forever 1.60.1**. It compares your accepted quests across zone borders, shows where to go next and guides you there. You stay in control: FQN never accepts, completes or turns in quests for you.
 
+## New in 0.2.4
+
+*   Fixes the "only available to the Blizzard UI" message and micro stutters while the navigator is shown.
+
 ## New in 0.2.3
 
 *   **Smarter recommendations:** FQN now weighs **XP per minute**, the way to the turn-in, what comes next, follow-up quests and **nearly finished quests** – not only distance. The quest tooltip tells you why, and why it beats the runner-up.

@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.4",
+        en = "• Fixes the 'only available to the Blizzard UI' message: FQN no longer sets raid marks by itself; marks come from a click in the Mark targets window or its key bindings.\n• Smoother play: fewer calculations and less memory churn while the navigator is shown.",
+        de = "• Behebt die Meldung 'nur für die Blizzard-Oberfläche verfügbar': FQN setzt Zielmarkierungen nicht mehr selbst; markiert wird per Klick im Fenster 'Ziele markieren' oder über dessen Tasten.\n• Flüssigeres Spielen: weniger Berechnungen und weniger Speicherumwälzung bei eingeblendetem Navigator."},
     {version = "0.2.3",
         en = "• Recommendations weigh XP per minute, the way to the turn-in, the next step, follow-ups and nearly finished quests; the tooltip explains why.\n• FQN learns your travel speed, kill pace and preferred kind of quest (/fqn learn).\n• Mark targets: clicks cycle through living quest mobs and mark with /tm; key bindings for the next quest mob and the turn-in NPC.\n• Mobs that count for several quests are shown.",
         de = "• Empfehlungen berücksichtigen EP pro Minute, den Weg zur Abgabe, den nächsten Schritt, Folgequests und fast fertige Quests; der Tooltip erklärt warum.\n• FQN lernt deine Reisegeschwindigkeit, dein Kill-Tempo und deine bevorzugte Questart (/fqn learn).\n• Ziele markieren: Klicks springen durch lebende Questmobs und markieren per /tm; Tasten für den nächsten Questmob und den Abgabe-NPC.\n• Mobs, die für mehrere Quests zählen, werden angezeigt."},
