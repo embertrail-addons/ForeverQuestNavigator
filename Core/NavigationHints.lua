@@ -27,7 +27,14 @@ function Hints.Instruction(quest, marker, goal)
     if marker and marker.accessPoint then return addon.L.AccessGoal:format(marker.accessName or addon.L.SavedAccess) end
     return goal and goal.text or nil
 end
+-- Base reason plus the quest-value explanation (XP per minute, next step, follow-ups ...).
 function Hints.Why(snapshot, quest, manual)
+    local base = Hints.BaseWhy(snapshot, quest, manual)
+    if manual or quest.readyToTurnIn then return base end
+    local extra = addon.QuestValue and addon.QuestValue.Explain(snapshot.factors and snapshot.factors[quest.id], addon.L)
+    return extra and (base .. " · " .. extra) or base
+end
+function Hints.BaseWhy(snapshot, quest, manual)
     if manual then return addon.L.WhyManual end
     if snapshot.presence and snapshot.presence[quest.id] then return addon.L.QuestSpawnNeighborhood end
     if snapshot.decision == "levelReview" then return addon.L.AdventureLevelShort end

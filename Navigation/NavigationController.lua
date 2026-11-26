@@ -106,6 +106,23 @@ function addon.NavigationController.Compute(input)
         local bonus = math.min(60, (#bundle.entries - 1) * 20)
         for _, entry in ipairs(bundle.entries) do adjustments[entry.quest.id] = (adjustments[entry.quest.id] or 0) - bonus end
     end
+    -- Quest value: XP per minute, look-ahead, follow-ups, finishing the zone, learned preference.
+    local factors
+    if input.valueModel then
+        local playerMap = input.mapAPI.GetBestMapForUnit and input.mapAPI.GetBestMapForUnit("player")
+        local valueAdjustments
+        valueAdjustments, factors = addon.QuestValue.Adjustments({
+            quests = eligibleQuests, measurements = measurements, journeys = journeys, model = input.valueModel,
+            xp = addon.QuestLog.GetTurnInXP, playerMap = playerMap, chains = input.routeChains,
+            distance = function(a, b)
+                local metric = a and addon.QuestLocation.GetDistanceMetric(input.mapAPI, a)
+                return metric and metric(a, b)
+            end,
+        })
+        for id, delta in pairs(valueAdjustments) do
+            if not feedback[id] then adjustments[id] = (adjustments[id] or 0) + delta end
+        end
+    end
     local ranked, distanceOrder
     local playerLevel = input.playerLevel
     ranked, distanceOrder = addon.QuestPrioritizer.RankByDistance(eligibleQuests, measurements, input.distanceOrder, playerLevel, questJourneys, nil, adjustments)
@@ -125,7 +142,7 @@ function addon.NavigationController.Compute(input)
         playerLevel = playerLevel, rankingInputOrder = input.distanceOrder,
         routeQuest = routeQuest, route = route, levelUpQuest = levelUpQuest, nextQuest = nextQuest,
         xpNeeded = input.xpNeeded,
-        bundles = bundles, feedback = feedback, adjustments = adjustments, planningRanked = planningRanked,
+        bundles = bundles, feedback = feedback, adjustments = adjustments, planningRanked = planningRanked, factors = factors,
         capacity = capacity,
         camps = camps, previousCamps = previousCamps, finishers = turnInLocations,
         presence = presence,

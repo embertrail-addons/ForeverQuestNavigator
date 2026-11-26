@@ -28,6 +28,7 @@ Core\Dependencies.lua
 Core\QuestieIntegration.lua
 Core\QuestieRoutes.lua
 Navigation\QuestPrioritizer.lua
+Navigation\QuestValue.lua
 Navigation\Recommendation.lua
 Core\NavigationHints.lua
 Navigation\QuestRoute.lua

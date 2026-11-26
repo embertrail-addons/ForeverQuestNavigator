@@ -728,6 +728,13 @@ local function RenderQuestList(ranked, routeQuest, routeNote, routeDetails, play
     table.insert(reasonLines, S.heldQuest and 4 or 3, addon.Recommendation.Short(S.navigationSnapshot, quest, S.manualQuestID or S.objectiveLock))
     local reason = table.concat(reasonLines, "\n")
     local explanation = addon.NavigationHints.Why(S.navigationSnapshot, quest, S.manualQuestID or S.objectiveLock)
+    -- Why this quest and not the next best one (only for automatic recommendations).
+    local snapshotRanked = S.navigationSnapshot and S.navigationSnapshot.ranked
+    local runnerUp = snapshotRanked and snapshotRanked[1] and (snapshotRanked[1].id == quest.id and snapshotRanked[2] or snapshotRanked[1])
+    local valueFactors = S.navigationSnapshot and S.navigationSnapshot.factors
+    local comparison = not (S.manualQuestID or S.objectiveLock) and runnerUp and runnerUp.id ~= quest.id and valueFactors
+        and addon.QuestValue.Compare(valueFactors[quest.id], valueFactors[runnerUp.id], runnerUp.title, L)
+    if comparison then explanation = explanation .. "\n" .. comparison end
     local quality = addon.NavigationHints.TargetText(S.questMeasurements and S.questMeasurements[quest.id] and S.questMeasurements[quest.id].marker)
     reason = reason .. "\n" .. explanation .. "\n" .. quality
     routeDetails = (routeDetails and routeDetails .. "\n" or "") .. quality
@@ -1070,9 +1077,17 @@ local function UpdateDistances(force)
             passedAccessPoints = S.passedAccessPoints,
             turnInLocations = S.turnInLocations,
             questTargetMaps = S.questTargetMaps,
+            valueModel = S.valueModel,
         })
         addon.Performance:Finish("planning", performanceStart)
         S.navigationSnapshot = snapshot
+        -- Learn the real travel speed from how fast the active target comes closer.
+        local active = S.shownQuests and S.shownQuests[1]
+        local activeMeasured = active and snapshot.measurements and snapshot.measurements[active.id]
+        if S.valueModel and activeMeasured and not flight.active then
+            S.insights.speedState = S.insights.speedState or {}
+            addon.QuestValue.ObserveSpeed(S.valueModel, S.insights.speedState, active.id, activeMeasured.yards, SessionTime())
+        end
         S.insights.previousCamps = snapshot.previousCamps
         S.insights.presence = snapshot.presence
         S.questMeasurements, S.objectiveDistances = snapshot.measurements, snapshot.objectiveDistances
@@ -1352,7 +1367,8 @@ function F.QuestHints()
         return metric and metric(a, b)
     end
     S.insights.collector = S.insights.collector or {}
-    local text = addon.TurnInCollector.Check(S.insights.collector, S.eligibleQuests, S.questMeasurements, Distance, L)
+    local text = addon.TurnInCollector.Check(S.insights.collector, S.eligibleQuests, S.questMeasurements, Distance, L,
+        S.valueModel and S.valueModel.speed)
     if text then print("FQN | " .. text) end
     local hearth = ForeverQuestNavigatorCharacterDB and ForeverQuestNavigatorCharacterDB.hearth
     if not (hearth and integration.IsReady()) then return end
@@ -1429,6 +1445,14 @@ function F.BagAPI()
             end
         end,
     }
+end
+
+-- "/fqn learn": what FQN has learned for this character; "/fqn learn reset" clears it.
+function F.Learned(text)
+    if not S.valueModel then return end
+    if text and text:find("reset") then addon.QuestValue.Reset(S.valueModel) print("FQN | " .. L.LearnReset) F.ScheduleRefresh() return end
+    local p = S.valueModel.prefer
+    print("FQN | " .. L.LearnSummary:format(math.floor(S.valueModel.speed + .5), S.valueModel.unitMinutes, p.kill, p.collect, p.other))
 end
 
 -- "/fqn time 45": time-limited tour for the given minutes (uses the adventure budget planner).
@@ -1571,6 +1595,10 @@ local function Refresh()
     S.questDestinations = {}
     local quests, used = addon.QuestLog.Read(C_QuestLog)
     S.insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
+    if S.valueModel and quests then
+        S.insights.effortState = S.insights.effortState or {}
+        addon.QuestValue.ObserveEffort(S.valueModel, S.insights.effortState, quests, SessionTime())
+    end
     S.insights.newlyAccepted = {}
     if quests then
         local present = {}
@@ -1767,6 +1795,13 @@ end
 
 local function SelectQuest(questID)
     S.insights.levelHold = nil
+    -- A manual pick against the automatic recommendation teaches the preferred kind of work.
+    local recommended = not S.manualQuestID and S.shownQuests and S.shownQuests[1]
+    if questID and recommended and S.valueModel then
+        for _, quest in ipairs(S.eligibleQuests or {}) do
+            if quest.id == questID then addon.QuestValue.LearnChoice(S.valueModel, quest, recommended) break end
+        end
+    end
     if questID or addon.ExcursionPlan.Current(S.insights.excursion) then addon.PauseExcursion() end
     ApplyQuestAction("select", questID)
 end
@@ -2172,6 +2207,8 @@ local function AddonLoaded(name)
         -- Own appearance per character (if chosen); account values come back at logout.
         S.accountProfile = addon.CharacterProfile.Apply(S.settings, character)
         if S.accountProfile then addon.UI.Theme.Apply(S.settings.highContrast, S.settings.theme, S.settings.reducedColors) end
+        character.valueModel = addon.QuestValue.Model(character.valueModel)
+        S.valueModel = character.valueModel
         InitializeWorkspace(character)
         S.questNotes, S.targetCorrections = character.questNotes, character.targetCorrections
         S.insights.laterQuests, S.insights.knownVendors = character.laterQuests, character.knownVendors

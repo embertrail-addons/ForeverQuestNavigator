@@ -76,7 +76,7 @@ local Collector = {THRESHOLD = 3, RADIUS = 250, MIN_DISTANCE = 150, YARDS_PER_MI
 addon.TurnInCollector = Collector
 
 -- ranked: quests; measurements[id] = {yards, marker}; distance(a, b) -> yards or nil.
-function Collector.Check(state, ranked, measurements, distance, L)
+function Collector.Check(state, ranked, measurements, distance, L, speed)
     local ready = {}
     for _, quest in ipairs(ranked or {}) do
         local measured = quest.readyToTurnIn and measurements and measurements[quest.id]
@@ -95,7 +95,7 @@ function Collector.Check(state, ranked, measurements, distance, L)
     local key = table.concat(ids, ",")
     if state.key == key then return end
     state.key = key
-    local minutes = math.max(1, math.ceil(nearest.measured.yards / Collector.YARDS_PER_MINUTE))
+    local minutes = math.max(1, math.ceil(nearest.measured.yards / (speed or Collector.YARDS_PER_MINUTE)))
     return L.TurnInCollector:format(#cluster, minutes)
 end
 

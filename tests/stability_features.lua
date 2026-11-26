@@ -235,6 +235,84 @@ return function(test, addon, equal, near)
         equal(settings.theme, "graphite") equal(settings.fontPercent, 100) equal(character.profile.fontPercent, 130)
         equal(addon.CharacterProfile.Apply(settings, {}), nil)
     end)
+    test("Quest value ranks by XP per minute, look-ahead, follow-ups, zone and learned preference", function()
+        local Value, Prioritizer, L = addon.QuestValue, addon.QuestPrioritizer, addon.L
+        local model = Value.Model({})
+        equal(model.speed, 420) equal(model.unitMinutes, .6)
+        local function Point(x, map) return {mapID = map or 1, x = x, y = 0} end
+        local function Distance(a, b) if a.mapID ~= b.mapID then return end return math.abs(a.x - b.x) end
+        local function Rank(quests, measurements, context)
+            context.quests, context.measurements, context.model = quests, measurements, context.model or model
+            context.distance = context.distance or Distance
+            local adjustments, factors = Value.Adjustments(context)
+            local ranked = Prioritizer.RankByDistance(quests, measurements, nil, 20, nil, 5, adjustments)
+            local ids = {}
+            for index, quest in ipairs(ranked) do ids[index] = quest.id end
+            return table.concat(ids, ","), factors, adjustments
+        end
+        local function Quest(id, kills, other) return {id = id, level = 20, progress = {remaining = kills + (other or 0), monsters = kills, items = 0, other = other or 0}} end
+        -- XP per minute: the farther quest with far more XP wins; without XP data distance decides.
+        local quests = {Quest(1, 2), Quest(2, 2)}
+        local measured = {[1] = {yards = 150, marker = Point(150)}, [2] = {yards = 300, marker = Point(300)}}
+        local xp = {[1] = 200, [2] = 1500}
+        local order, factors = Rank(quests, measured, {xp = function(q) return xp[q.id] end})
+        equal(order, "2,1") assert(factors[2].xpPerMinute > factors[1].xpPerMinute)
+        equal(Rank(quests, measured, {}), "1,2")
+        -- Way to the turn-in counts: a long return trip lowers the rate.
+        local long = Value.Minutes(quests[1], measured[1], {totalYards = 1500}, model)
+        local short = Value.Minutes(quests[1], measured[1], nil, model)
+        assert(long > short)
+        -- Follow-ups: a quest that unlocks a chain moves ahead of an equal one nearby.
+        order = Rank({Quest(3, 2), Quest(4, 2)}, {[3] = {yards = 200, marker = Point(200)}, [4] = {yards = 230, marker = Point(230)}},
+            {chains = {[4] = {followUps = {{id = 9}, {id = 10}}}}})
+        equal(order, "4,3")
+        -- Finish the zone: the last quest here beats a slightly closer one on another map.
+        order = Rank({Quest(5, 2), Quest(6, 2), Quest(7, 2)},
+            {[5] = {yards = 200, marker = Point(200, 2)}, [6] = {yards = 220, marker = Point(220, 1)}, [7] = {yards = 900, marker = Point(900, 2)}},
+            {playerMap = 1})
+        equal(order:sub(1, 1), "6")
+        -- Look-ahead: the quest whose end lies next to another quest ranks earlier.
+        local _, lookFactors, lookAdjust = Rank({Quest(11, 1), Quest(12, 1), Quest(13, 1)},
+            {[11] = {yards = 100, marker = Point(100)}, [12] = {yards = 110, marker = Point(-110)}, [13] = {yards = 130, marker = Point(130)}}, {})
+        assert(lookAdjust[11] < lookAdjust[12], "end next to another quest is better")
+        equal(lookFactors[11].nextYards, 30)
+        -- Learned preference: collect quests after choosing collect over kill.
+        local learner = Value.Model({})
+        local kill, collect = Quest(20, 5), {id = 21, level = 20, progress = {remaining = 5, monsters = 0, items = 5, other = 0}}
+        equal(Value.Kind(kill), "kill") equal(Value.Kind(collect), "collect")
+        for _ = 1, 3 do Value.LearnChoice(learner, collect, kill) end
+        equal(learner.prefer.collect, 24) equal(learner.prefer.kill, -12)
+        order = Rank({kill, collect}, {[20] = {yards = 200, marker = Point(200)}, [21] = {yards = 220, marker = Point(220)}}, {model = learner})
+        equal(order, "21,20")
+        for _ = 1, 20 do Value.LearnChoice(learner, collect, kill) end
+        equal(learner.prefer.collect, Value.PREFERENCE_LIMIT, "bounded")
+        Value.Reset(learner) equal(learner.prefer.collect, 0)
+        -- Learning speed and work time from real play.
+        local speedState = {}
+        Value.ObserveSpeed(model, speedState, 1, 500, 0)
+        local before = model.speed
+        Value.ObserveSpeed(model, speedState, 1, 486, 1) -- 14 yd/s mounted
+        assert(model.speed > before)
+        Value.ObserveSpeed(model, speedState, 1, 486, 2) -- standing still is ignored
+        Value.ObserveSpeed(model, speedState, 2, 100, 3) -- another target restarts sampling
+        local effort, work = {}, Value.Model({})
+        Value.ObserveEffort(work, effort, {Quest(30, 10)}, 0)
+        Value.ObserveEffort(work, effort, {{id = 30, readyToTurnIn = true}}, 600) -- 10 kills in 10 minutes
+        assert(work.unitMinutes > .6 and work.unitMinutes < 1)
+        Value.ObserveEffort(work, effort, {Quest(31, 5)}, 0)
+        local unit = work.unitMinutes
+        Value.ObserveEffort(work, effort, {{id = 31, readyToTurnIn = true}}, 5000)
+        equal(work.unitMinutes, unit, "quests left aside for a long time teach nothing")
+        -- Explanation for the tooltip.
+        equal(Value.Explain({xpPerMinute = 650, nextYards = 80, followUps = 2}, L),
+            L.WhyXPPerMinute:format(650) .. " · " .. L.WhyNextClose .. " · " .. L.WhyFollowUps:format(2))
+        equal(Value.Compare({xpPerMinute = 650, followUps = 1}, {xpPerMinute = 300}, "Wolves", L),
+            L.CompareBefore:format("Wolves", L.CompareXP:format(650, 300) .. " · " .. L.CompareFollowUp))
+        equal(Value.Compare({xpPerMinute = 310}, {xpPerMinute = 300}, "Wolves", L), nil, "small differences are not worth a line")
+        local snapshot = {measurements = {[1] = {yards = 10}}, factors = {[1] = {xpPerMinute = 650}}}
+        equal(addon.NavigationHints.Why(snapshot, {id = 1}), L.WhyLevelDistance .. " · " .. L.WhyXPPerMinute:format(650))
+        equal(addon.NavigationHints.Why(snapshot, {id = 1}, true), L.WhyManual)
+    end)
     test("Questie lookups give NPC danger and group members' quest mobs", function()
         local previous = LibQuestieDB
         local names = {[1] = "Wolf", [2] = "Bear", [3] = "Ogre"}

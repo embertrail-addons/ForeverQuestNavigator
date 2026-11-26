@@ -326,7 +326,7 @@ function addon.CreateQuestTracker(settings, actions, version)
     end)
     questMap:SetScript("OnEnter", function(self)
         local _, state = addon.QuestState.Read(activeCheckbox.quest, false, manualSelection)
-        local detail = state .. "\n" .. addon.TrackerPresentation.Summary(recommendationReason, 3)
+        local detail = state .. "\n" .. addon.TrackerPresentation.Summary(recommendationReason, 5)
         local summary = lastRender and addon.TrackerPresentation.Information(lastRender[8] and lastRender[8][1],
             lastRender[11] and lastRender[11][1])
         if summary and summary ~= "" then detail = detail .. "\n" .. summary end
