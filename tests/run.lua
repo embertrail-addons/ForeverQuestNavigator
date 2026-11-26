@@ -2677,7 +2677,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     updatedTracker.routeMap:Click()
     equal(marker:IsShown(), true)
     routeToggle:Click()
-    playerMapOffset = 2200
+    playerMapOffset = 2200 reloadedAddon.QuestLocation.ClearWorldCache()
     distanceTicker.tick()
     assert(routeNote.text:find("Travel distance", 1, true))
     fire("TAXIMAP_OPENED")
@@ -2687,11 +2687,11 @@ test("TOC startup and quest events update the tracker with or without optional a
     assert(routeNote.text:find("Travel distance", 1, true))
     routeToggle:Click()
     assert(routeDetails.text:find("Unlocked flight point: Test flight point (~100 yd from target)", 1, true))
-    playerMapOffset = 0
+    playerMapOffset = 0 reloadedAddon.QuestLocation.ClearWorldCache()
     distanceTicker.tick()
     equal(routeDetails:IsShown(), true)
     assert(not routeDetails.text:find("Unlocked flight point", 1, true))
-    playerMapOffset = 2200
+    playerMapOffset = 2200 reloadedAddon.QuestLocation.ClearWorldCache()
     distanceTicker.tick()
     questMapButton:Click()
     equal(openedMap, 1416)
@@ -2709,7 +2709,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("TAXIMAP_CLOSED")
     flush()
 
-    playerMapOffset = 1420
+    playerMapOffset = 1420 reloadedAddon.QuestLocation.ClearWorldCache()
     quests[2] = { questID = 501, level = 10, title = "Local task" }
     api.IsOnQuest = function(id) return id == 501 or id == 503 end
     pinsByMap[10] = { { questID = 501, x = 0.85, y = 0.5 } }
@@ -2730,13 +2730,13 @@ test("TOC startup and quest events update the tracker with or without optional a
     updatedTracker.detailPanel.map:Click()
     equal(openedMap, 1416)
     equal(title.text, "[10] Local task")
-    playerMapOffset = 0
+    playerMapOffset = 0 reloadedAddon.QuestLocation.ClearWorldCache()
     distanceTicker.tick()
     equal(rowOne.routeButton:IsShown(), true)
     equal(rowOne.routeDetails:IsShown(), true)
     assert(not rowOne.routeDetails.text:find("Unlocked flight point", 1, true))
 
-    playerMapOffset = 2200
+    playerMapOffset = 2200 reloadedAddon.QuestLocation.ClearWorldCache()
     quests[2], pinsByMap[10] = nil, nil
     complete[503] = true
     fire("QUEST_LOG_UPDATE")
@@ -2745,7 +2745,7 @@ test("TOC startup and quest events update the tracker with or without optional a
     equal(openedMap, 1416)
     equal(selectedQuest, 503)
 
-    playerMapOffset = 2200
+    playerMapOffset = 2200 reloadedAddon.QuestLocation.ClearWorldCache()
     local mapProjection = env.C_Map.GetWorldPosFromMapPos
     env.C_Map.GetWorldPosFromMapPos = function(id, position)
         if id == 1 then return 1, { x = -position.y * 500, y = -position.x * 5000 } end
@@ -2778,10 +2778,10 @@ test("TOC startup and quest events update the tracker with or without optional a
     fire("TAXI_NODE_STATUS_CHANGED")
     flush()
     assert(routeDetails.text:find("Fly: Departure to Arrival", 1, true))
-    playerMapOffset = 1300
+    playerMapOffset = 1300 reloadedAddon.QuestLocation.ClearWorldCache()
     distanceTicker.tick()
     assert(not routeDetails.text:find("Fly:", 1, true))
-    playerMapOffset = 2200
+    playerMapOffset = 2200 reloadedAddon.QuestLocation.ClearWorldCache()
     taxiNodes[2].state = 2
     fire("TAXI_NODE_STATUS_CHANGED")
     flush()
@@ -2802,7 +2802,7 @@ test("TOC startup and quest events update the tracker with or without optional a
 
     -- A reachable quest on the approach saves backtracking across three stops.
     env.C_Map.GetMapPosFromWorldPos = nil
-    playerMapOffset, playerX = 0, 0.2
+    playerMapOffset, playerX = 0, 0.2 reloadedAddon.QuestLocation.ClearWorldCache()
     quests = {
         { questID = 601, level = 10, title = "Main objective" },
         { questID = 602, level = 12, title = "On the approach" },

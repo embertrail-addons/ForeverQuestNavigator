@@ -44,6 +44,9 @@ function addon.NavigationController.Compute(input)
     local measurements, objectiveDistances
     measurements, objectiveDistances = addon.QuestLocation.MeasureQuests(input.mapAPI, questMarkers, measurableQuestIDs,
         distanceMaps, previousObjectives, objectiveLock, avoidedObjectives)
+    -- Nearest point of each quest before camp choice (for skipping distant spawn-area checks).
+    local nearestYards = {}
+    for id, measured in pairs(measurements) do nearestYards[id] = measured.yards end
     addon.Performance:Finish("plan:measure", t_measure)
     local t_camps = addon.Performance:Begin()
     local camps, previousCamps = {}, {}
@@ -66,7 +69,10 @@ function addon.NavigationController.Compute(input)
     local t_presence = addon.Performance:Begin()
     local presence = {}
     for _, quest in ipairs(eligibleQuests) do
-        if not quest.readyToTurnIn then
+        -- The spawn-area check only looks at points within 260 yards: a quest whose nearest
+        -- point is farther away cannot be present (most quests in a city).
+        local nearest = nearestYards[quest.id]
+        if not quest.readyToTurnIn and not (nearest and nearest > 300) then
             presence[quest.id] = addon.ObjectivePresence.Area(input.mapAPI, questMarkers[quest.id], measurements[quest.id],
                 input.previousPresence and input.previousPresence[quest.id], avoidedObjectives[quest.id],
                 objectiveLock and objectiveLock.questID == quest.id and objectiveLock.index,

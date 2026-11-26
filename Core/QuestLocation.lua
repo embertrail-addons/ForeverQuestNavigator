@@ -121,12 +121,31 @@ local function WorldPosition(mapAPI, mapID, position)
     end
 end
 
+-- World positions per map and map position: reloaded Questie markers are new objects at the
+-- same places, so thousands of conversions are not repeated (they caused planning spikes in
+-- cities). Numeric keys avoid creating strings for every lookup.
+local worldByMap = {}
 function QuestLocation.GetMarkerWorldPosition(mapAPI, marker)
     if marker.world == nil and mapAPI.GetWorldPosFromMapPos and CreateVector2D then
-        marker.world = WorldPosition(mapAPI, marker.mapID, CreateVector2D(marker.x, marker.y)) or false
+        local mapID, x, y = marker.mapID, marker.x, marker.y
+        local known = type(mapID) == "number" and type(x) == "number" and type(y) == "number"
+        local byPosition = known and worldByMap[mapID]
+        local key = known and math.floor(x * 100000 + .5) * 100001 + math.floor(y * 100000 + .5)
+        local cached = byPosition and byPosition[key]
+        if cached == nil then
+            cached = WorldPosition(mapAPI, mapID, CreateVector2D(x, y)) or false
+            if known then
+                byPosition = byPosition or {}
+                worldByMap[mapID] = byPosition
+                byPosition[key] = cached
+            end
+        end
+        marker.world = cached
     end
     return marker.world
 end
+
+function QuestLocation.ClearWorldCache() worldByMap = {} end
 
 local function IsDestinationMap(mapAPI, mapType, id)
     if not (mapType and mapAPI.GetMapInfo and IsReadableNumber(id) and id > 0) then return false end

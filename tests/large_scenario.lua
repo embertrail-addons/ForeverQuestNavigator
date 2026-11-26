@@ -102,6 +102,21 @@ return function(test, addon, equal)
         Build(copy)
         assert(addon.CampChoices.groupings > groupings, "a changed marker set is grouped again")
     end)
+    test("Reloaded markers at the same places reuse their world positions", function()
+        local previous = CreateVector2D
+        CreateVector2D = function(x, y) return {x = x, y = y} end
+        local calls = 0
+        local api = {GetWorldPosFromMapPos = function(_, position) calls = calls + 1 return 1, {x = position.x * 1000, y = position.y * 1000} end}
+        addon.QuestLocation.ClearWorldCache()
+        local first = addon.QuestLocation.GetMarkerWorldPosition(api, {mapID = 10, x = .25, y = .5})
+        local again = addon.QuestLocation.GetMarkerWorldPosition(api, {mapID = 10, x = .25, y = .5})
+        equal(calls, 1, "a new marker object at the same place is not converted again")
+        equal(again.x, first.x)
+        addon.QuestLocation.GetMarkerWorldPosition(api, {mapID = 11, x = .25, y = .5})
+        equal(calls, 2, "another map is converted")
+        addon.QuestLocation.ClearWorldCache()
+        CreateVector2D = previous
+    end)
     test("Quest value on a full log is cheap and repeats no distance work while targets stay the same", function()
         local quests, measurements = FullLog()
         for _, quest in ipairs(quests) do quest.progress = {remaining = 4, monsters = 2, items = 2, other = 0} end
