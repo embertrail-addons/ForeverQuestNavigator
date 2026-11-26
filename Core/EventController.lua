@@ -37,6 +37,8 @@ local runtimeEvents = {
     "GET_ITEM_INFO_RECEIVED",
     "CHAT_MSG_ADDON",
     "HEARTHSTONE_BOUND",
+    "ADDON_ACTION_BLOCKED",
+    "ADDON_ACTION_FORBIDDEN",
 }
 
 -- Events that only change bags, gear or mount state: the quest log and markers are
@@ -79,6 +81,10 @@ function addon.EventController.Handle(context, event, payload, rewardXP, ...)
     if event == "PLAYER_LOGOUT" then context.saveSession() return end
     if (event == "QUEST_TURNED_IN" or event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or event == "QUEST_DATA_LOAD_RESULT")
         and context.questDataChanged then context.questDataChanged() end
+    if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+        if context.actionBlocked then context.actionBlocked(event, payload, rewardXP) end
+        return
+    end
     if event == "HEARTHSTONE_BOUND" then if context.hearthBound then context.hearthBound() end return end
     if event == "ADDON_LOADED" then context.loaded(payload) return end
     if itemEvents[event] and context.refreshItems then context.refreshItems() return end

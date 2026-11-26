@@ -4220,6 +4220,15 @@ test("TOC startup and quest events update the tracker with or without optional a
         perf.enabled = false env.debugprofilestop = oldClock
     end)() end
     do (function()
+        -- A blocked protected action that names FQN is recorded with the function and told once.
+        local before = #messages
+        fire("ADDON_ACTION_FORBIDDEN", "OtherAddon", "CastSpellByName()")
+        equal(#messages, before, "other addons are ignored")
+        fire("ADDON_ACTION_FORBIDDEN", addonName, "Button:SetPassThroughButtons()")
+        equal(#messages, before + 1) assert(messages[#messages]:find("SetPassThroughButtons", 1, true))
+        fire("ADDON_ACTION_FORBIDDEN", addonName, "Button:SetPassThroughButtons()")
+        equal(#messages, before + 1, "told only once")
+        assert(table.concat(reloadedAddon.ErrorLog.Summary(), " "):find("forbidden x2", 1, true))
         -- Hearthstone binding is recorded per character.
         env.GetBindLocation = function() return "Goldshire" end
         fire("HEARTHSTONE_BOUND")

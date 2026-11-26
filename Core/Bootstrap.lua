@@ -2430,6 +2430,13 @@ addon.EventController.Bind(events, {
         addon.CharacterProfile.Store(S.settings, ForeverQuestNavigatorCharacterDB, S.accountProfile)
     end,
     hearthBound = function() F.RecordHearth() end,
+    -- WoW blocked a protected action and blames FQN: remember the function name (shown in
+    -- /fqn problem) and name it once in chat, so the cause can be found.
+    actionBlocked = function(event, blockedAddon, action)
+        if addon.ErrorLog.Blocked(event, blockedAddon, action, addonName, GetServerTime and GetServerTime() or nil) then
+            print("FQN | " .. L.BlockedAction:format(tostring(action or "?")))
+        end
+    end,
     -- Turn-ins, accepted/removed quests and loaded quest data can change chains and Questie results.
     questDataChanged = function()
         S.insights.questDataVersion = (S.insights.questDataVersion or 0) + 1

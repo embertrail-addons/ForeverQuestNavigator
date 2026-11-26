@@ -1161,6 +1161,7 @@ local english = {
     WhySharedMobs = "mobs count for several quests",
     SharedMobs = "Also counts for: %s",
     AlsoCountsFor = "Also counts for: %s",
+    BlockedAction = "WoW blocked an action and blames FQN: %s. Please send /fqn problem (it includes this line) so it can be fixed.",
 }
 
 local german = setmetatable({
@@ -2325,6 +2326,7 @@ local german = setmetatable({
     WhySharedMobs = "Mobs zählen für mehrere Quests",
     SharedMobs = "Zählt auch für: %s",
     AlsoCountsFor = "Zählt auch für: %s",
+    BlockedAction = "WoW hat eine Aktion blockiert und nennt FQN als Ursache: %s. Bitte /fqn problem schicken (enthält diese Zeile), damit es behoben werden kann.",
 }, { __index = english })
 
 addon.L = {}

@@ -52,6 +52,23 @@ function Log.Call(where, fn, ...)
     pcall(handler, result)
 end
 
+-- ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN naming this addon: remembered with the
+-- protected function so /fqn problem shows it. Returns true the first time per function.
+function Log.Blocked(event, addonName, action, ownName, clock)
+    if addonName ~= ownName then return end
+    local where = event == "ADDON_ACTION_FORBIDDEN" and "forbidden" or "blocked"
+    local message = tostring(action or "?")
+    local entries = Entries()
+    for _, entry in ipairs(entries) do
+        if entry.where == where and entry.message == Clean(message) then
+            Log.Record(where, message, nil, Log.version, clock)
+            return false
+        end
+    end
+    Log.Record(where, message, nil, Log.version, clock)
+    return true
+end
+
 function Log.Wrap(where, fn)
     return function(...) return Log.Call(where, fn, ...) end
 end
