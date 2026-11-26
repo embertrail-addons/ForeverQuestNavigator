@@ -71,6 +71,7 @@ read_globals = {
     "InCombatLockdown",
     "GetRaidTargetIndex",
     "C_NamePlate",
+    "SecureHandlerWrapScript",
     "CombatLogGetCurrentEventInfo",
     "GetLootSourceInfo",
     "GetNumLootItems",

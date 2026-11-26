@@ -313,6 +313,35 @@ return function(test, addon, equal, near)
         equal(addon.NavigationHints.Why(snapshot, {id = 1}), L.WhyLevelDistance .. " · " .. L.WhyXPPerMinute:format(650))
         equal(addon.NavigationHints.Why(snapshot, {id = 1}, true), L.WhyManual)
     end)
+    test("Mark clicks cycle through living quest mobs instead of toggling one mark", function()
+        local Marks = addon.TargetMarks
+        local button = {attributes = {}}
+        function button:SetAttribute(key, value) self.attributes[key] = value end
+        function button:GetAttribute(key) return self.attributes[key] end
+        local alive = {nameplate2 = true, nameplate5 = true, nameplate7 = true}
+        local snippet = assert(loadstring("local self, button, down = ...\n" .. Marks.CYCLE_SNIPPET))
+        setfenv(snippet, {UnitExists = function(unit) return alive[unit] ~= nil end,
+            UnitIsDead = function(unit) return alive[unit] == false end})
+        local function Click() snippet(button, "LeftButton", true) snippet(button, "LeftButton", false) return button.attributes.macrotext end
+        Marks.SetCycle(button, "Kobold", 8, {"nameplate2", "nameplate5", "nameplate7"})
+        equal(button.attributes.macrotext, Marks.Macro("Kobold", 8))
+        equal(Click(), "/target nameplate2\n/tm 8")
+        equal(Click(), "/target nameplate5\n/tm 8", "the press does not advance, only the release")
+        alive.nameplate7 = false
+        equal(Click(), "/target nameplate2\n/tm 8", "dead mobs are skipped")
+        alive = {}
+        equal(Click(), "/targetexact Kobold\n/tm 8", "without living candidates the name is used")
+        -- Fewer candidates later: old unit attributes are cleared.
+        Marks.SetCycle(button, "Kobold", 8, {"nameplate9"})
+        equal(button.attributes["fqn-unit2"], nil) equal(button.attributes["fqn-count"], 1)
+        -- Wrapping only where the client offers secure handlers.
+        equal(Marks.WrapCycle(button, {}), false)
+        local previous = SecureHandlerWrapScript
+        local wrapped
+        SecureHandlerWrapScript = function(frame, script, handler, body) wrapped = {frame, script, body} end
+        equal(Marks.WrapCycle(button, {}), true) equal(wrapped[2], "OnClick") equal(wrapped[3], Marks.CYCLE_SNIPPET)
+        SecureHandlerWrapScript = previous
+    end)
     test("Questie lookups give NPC danger and group members' quest mobs", function()
         local previous = LibQuestieDB
         local names = {[1] = "Wolf", [2] = "Bear", [3] = "Ogre"}

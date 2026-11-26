@@ -91,6 +91,17 @@ function Marks.Set(entries, shared)
 end
 
 -- Living mobs of that name on visible nameplates.
+-- Living nameplate units with one of these names, sorted for a stable cycling order.
+function Marks.UnitsFor(names)
+    local result = {}
+    for unit in pairs(units) do
+        local name = UnitName(unit)
+        if name and names[name] and Alive(unit) then result[#result + 1] = unit end
+    end
+    table.sort(result)
+    return result
+end
+
 function Marks.VisibleAlive(name)
     local count = 0
     for unit in pairs(units) do if UnitName(unit) == name and Alive(unit) then count = count + 1 end end
@@ -184,8 +195,11 @@ local function KeyButton(name)
     if keys[name] or not CreateFrame then return keys[name] end
     local button = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
     button:RegisterForClicks("AnyUp", "AnyDown")
+    button:SetAttribute("useOnKeyDown", false)
     button:SetAttribute("type", "macro")
     button:SetAttribute("macrotext", "")
+    Marks.cycleHandler = Marks.cycleHandler or CreateFrame("Frame", nil, UIParent, "SecureHandlerBaseTemplate")
+    addon.TargetMarks.WrapCycle(button, Marks.cycleHandler)
     button:Hide()
     keys[name] = button
     return button
@@ -198,7 +212,10 @@ function Marks.UpdateKeys(entries)
         if entry.kind == "turnIn" then turnIn = turnIn or entry else mob = mob or entry end
     end
     local next, finisher = KeyButton(Marks.KEY_NEXT), KeyButton(Marks.KEY_TURN_IN)
-    if next then next:SetAttribute("macrotext", mob and addon.TargetMarks.Macro(mob.name, mob.icon) or "") end
+    -- The quest-mob key cycles through every living mob of the active quest's kill and drop targets.
+    local mobNames = {}
+    for _, entry in ipairs(entries or {}) do if entry.kind ~= "turnIn" then mobNames[entry.name] = true end end
+    if next then addon.TargetMarks.SetCycle(next, mob and mob.name, mob and mob.icon, mob and Marks.UnitsFor(mobNames)) end
     if finisher then finisher:SetAttribute("macrotext", turnIn and addon.TargetMarks.Macro(turnIn.name, turnIn.icon) or "") end
     Marks.keys = keys
 end

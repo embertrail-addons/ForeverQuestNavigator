@@ -147,7 +147,11 @@ function addon.CreateTargetMarkWindow(settings, source)
         row.window = frame
         row:SetHeight(ROW_HEIGHT)
         row:RegisterForClicks("AnyUp", "AnyDown")
+        row:SetAttribute("useOnKeyDown", false)
         row:SetAttribute("type", "macro")
+        -- Each click moves on to the next living mob of that name (see TargetMarks.CYCLE_SNIPPET).
+        frame.cycleHandler = frame.cycleHandler or CreateFrame("Frame", nil, frame, "SecureHandlerBaseTemplate")
+        row.cycles = addon.TargetMarks.WrapCycle(row, frame.cycleHandler)
         row.icon = row:CreateTexture(nil, "ARTWORK")
         row.icon:SetSize(13, 13)
         row.icon:SetPoint("LEFT", 2, 0)
@@ -171,13 +175,22 @@ function addon.CreateTargetMarkWindow(settings, source)
         if self.pending and Now() - self.pending.at > PENDING_SECONDS + 1 then self.pending = nil SetStatus(self, nil) end
         if InCombat() then return end
         local entries, extra
+        local cycleUnits = {}
         -- Hidden with everything else when the minimap icon switches all windows off.
         if self.enabled and settings.displayMode ~= "off" and not addon.TargetMarks.Hidden() then entries, extra = source() end
         entries, extra = entries or {}, extra or {}
         local hint, lootCount = extra.item, extra.loot or 0
         -- Only there while the active quest has targets or an item; secure frames change only out of combat.
         self:SetShown(#entries > 0 or hint ~= nil)
-        local signature = addon.TargetMarks.Signature(entries) .. "|item:" .. tostring(hint and hint.id)
+        -- Candidate units per mob row (living nameplates with that name) for click cycling.
+        local unitKey = {}
+        for index, entry in ipairs(entries) do
+            if entry.kind ~= "turnIn" and addon.NameplateMarks and addon.NameplateMarks.UnitsFor then
+                cycleUnits[index] = addon.NameplateMarks.UnitsFor({[entry.name] = true})
+                unitKey[#unitKey + 1] = table.concat(cycleUnits[index], ",")
+            end
+        end
+        local signature = addon.TargetMarks.Signature(entries) .. "|units:" .. table.concat(unitKey, ";") .. "|item:" .. tostring(hint and hint.id)
             .. ":" .. tostring(hint and hint.count) .. "|loot:" .. lootCount
         if signature == self.signature then return end
         self.signature, self.entries = signature, entries
@@ -198,7 +211,7 @@ function addon.CreateTargetMarkWindow(settings, source)
             local entry = entries[index]
             row.entry = entry
             if entry then
-                row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name, entry.icon))
+                addon.TargetMarks.SetCycle(row, entry.name, entry.icon, cycleUnits[index])
                 row.icon:SetTexture(ICON:format(entry.icon))
                 -- Progress, danger and respawn at a glance; the dropped item is in the tooltip.
                 local text = entry.danger and ("|cffff5555" .. entry.name .. "|r") or entry.name

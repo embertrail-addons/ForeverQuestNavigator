@@ -109,6 +109,47 @@ function Marks.Macro(name, icon)
     return text
 end
 
+-- Secure click snippet (runs in WoW's restricted environment, also in combat): each click
+-- moves on to the next living candidate unit (nameplate tokens with the quest mob's name,
+-- set out of combat) and marks it with /tm; without candidates it targets by exact name.
+-- Attributes: fqn-name, fqn-icon, fqn-count, fqn-unit1..n, fqn-index.
+Marks.CYCLE_SNIPPET = [[
+if down then return end
+local name, icon = self:GetAttribute("fqn-name"), self:GetAttribute("fqn-icon")
+if not name then return end
+local text = "/targetexact " .. name
+local count = self:GetAttribute("fqn-count") or 0
+local index = self:GetAttribute("fqn-index") or 0
+for step = 1, count do
+    index = index % count + 1
+    local unit = self:GetAttribute("fqn-unit" .. index)
+    if unit and UnitExists(unit) and not (UnitIsDead and UnitIsDead(unit)) then text = "/target " .. unit break end
+end
+self:SetAttribute("fqn-index", index)
+if icon then text = text .. "\n/tm " .. icon end
+self:SetAttribute("macrotext", text)
+]]
+
+-- Out of combat: store name, icon and candidate units on a cycling button.
+function Marks.SetCycle(button, name, icon, units)
+    button:SetAttribute("fqn-name", name)
+    button:SetAttribute("fqn-icon", icon)
+    local previous = button.fqnCount or 0
+    units = units or {}
+    for index, unit in ipairs(units) do button:SetAttribute("fqn-unit" .. index, unit) end
+    for index = #units + 1, previous do button:SetAttribute("fqn-unit" .. index, nil) end
+    button.fqnCount = #units
+    button:SetAttribute("fqn-count", #units)
+    button:SetAttribute("macrotext", name and Marks.Macro(name, icon) or "")
+end
+
+-- Wraps the button's click with the cycling snippet when the client offers secure handlers.
+function Marks.WrapCycle(button, handler)
+    if not (SecureHandlerWrapScript and handler) then return false end
+    SecureHandlerWrapScript(button, "OnClick", handler, Marks.CYCLE_SNIPPET)
+    return true
+end
+
 -- Marking from addon code (without a click) is only used where the client allows it:
 -- not on clients with secret values (12.0+), and never again once WoW reported it blocked.
 function Marks.ScriptMarkAllowed()

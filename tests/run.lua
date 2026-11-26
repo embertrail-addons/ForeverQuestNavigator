@@ -913,6 +913,9 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(nameplates.keys[nameplates.KEY_NEXT].attributes.macrotext, ui.TargetMarks.Macro("Kobold", 8))
     equal(nameplates.keys[nameplates.KEY_TURN_IN].attributes.macrotext, ui.TargetMarks.Macro("Marshal", 1))
     equal(nameplates.keys[nameplates.KEY_NEXT].template, "SecureActionButtonTemplate")
+    -- The quest-mob key cycles through living nameplate units with a quest mob's name.
+    assert(nameplates.keys[nameplates.KEY_NEXT].attributes["fqn-count"] >= 1)
+    equal(nameplates.keys[nameplates.KEY_NEXT].attributes["fqn-name"], "Kobold")
     nameplates.UpdateKeys({})
     equal(nameplates.keys[nameplates.KEY_TURN_IN].attributes.macrotext, "")
     raid.nameplate1 = nil
@@ -957,6 +960,8 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(itemWindow.itemButton.attributes.type, "item") equal(itemWindow.itemButton.attributes.item, "item:77")
     equal(itemWindow.itemButton.label.text, "Torch ×2")
     assert(itemWindow.rows[1].label.text:find("3/8", 1, true))
+    -- Rows cycle through the living mobs of that name shown on nameplates.
+    equal(itemWindow.rows[1].attributes["fqn-unit1"], "nameplate2") equal(itemWindow.rows[1].attributes["fqn-icon"], 8)
     assert(itemWindow.loot:IsShown()) assert(itemWindow.loot.text:find("2", 1, true))
     list = {} extra = {item = {id = 77, name = "Torch", count = 1}}
     itemWindow:Refresh() equal(itemWindow:IsShown(), true, "a usable quest item alone keeps the window")
