@@ -350,6 +350,12 @@ return function(test, addon, equal, near)
         assert(Integration.StateKey({{id = 1}}, api, "maps") ~= key, "a quest leaving the log changes it")
         assert(Integration.StateKey(quests, api, "other maps") ~= key, "other maps change it")
         equal(Integration.MapKey({[20] = true, [3] = true}), "3,20")
+        -- Short lifetime while Questie may still be loading, long once settled.
+        local started = 1000
+        local first = Integration.CacheLifetime(started)
+        local early = Integration.CacheLifetime(started + 10)
+        local settled = Integration.CacheLifetime(started + Integration.LOADING_SECONDS + 1)
+        assert(early <= first and early < settled, "longer lifetime after the loading phase")
     end)
     test("Mobs that count for two quests are recognized and explained", function()
         -- Reported case: kill murlocs and collect murloc eyes from the same mobs.

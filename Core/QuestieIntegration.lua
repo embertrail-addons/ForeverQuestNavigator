@@ -28,12 +28,19 @@ end
 
 -- Results are kept while the key stays the same, for at most a minute (Questie may still be
 -- filling its data after login); empty results are never kept.
-Integration.CACHE_SECONDS = 60
+-- Short lifetime while Questie may still be filling its data after login, long afterwards:
+-- a reload creates new marker objects and costs a camp regrouping (spikes in cities).
+Integration.CACHE_SECONDS, Integration.SETTLED_CACHE_SECONDS, Integration.LOADING_SECONDS = 60, 600, 300
 local resultCache = {}
 local function Now() return GetTime and GetTime() or 0 end
+local startedAt
+function Integration.CacheLifetime(now)
+    startedAt = startedAt or now
+    return now - startedAt < Integration.LOADING_SECONDS and Integration.CACHE_SECONDS or Integration.SETTLED_CACHE_SECONDS
+end
 local function Cached(name, key)
-    local entry = resultCache[name]
-    if entry and entry.key == key and Now() - entry.at < Integration.CACHE_SECONDS then return entry end
+    local entry, now = resultCache[name], Now()
+    if entry and entry.key == key and now - entry.at < Integration.CacheLifetime(now) then return entry end
 end
 local function Remember(name, key, first, second)
     if first and next(first) then resultCache[name] = {key = key, at = Now(), first = first, second = second} end
