@@ -4,7 +4,9 @@ local _, addon = ...
 --    TargetMarks): addon code calling SetRaidTarget is forbidden on WoW Forever clients.
 --  * nameplate badges with progress ("3/8") above every other visible quest mob, so a
 --    whole pack is visible at once (setting nameplateMarks; needs nameplates, key V).
---  * loot reminder: killed quest-item droppers that were not looted yet.
+--  * loot reminder and respawn estimate: quest mobs seen dying on a nameplate or as the
+--    target. The combat log is not used: registering it is forbidden for addons on newer
+--    clients and makes WoW block FQN ("Frame:RegisterEvent()").
 local Marks = {}
 addon.NameplateMarks = Marks
 
@@ -107,10 +109,18 @@ function Marks.LootCount()
     return addon.LootReminder.Count(loot, lootNames, Now())
 end
 
-local function OnCombatLog()
-    if not CombatLogGetCurrentEventInfo then return end
-    local _, subevent, _, _, _, _, _, guid, name = CombatLogGetCurrentEventInfo()
-    if subevent ~= "PARTY_KILL" then return end
+-- A quest mob died in sight: dead now, not tagged by someone else (so it is ours or the
+-- group's), each one counted once.
+local seenDead, seenCount = {}, 0
+local function Public(value) return value ~= nil and not (issecretvalue and issecretvalue(value)) end
+local function NoteDeath(unit)
+    if not (UnitIsDead and UnitIsDead(unit)) then return end
+    local guid, name = UnitGUID and UnitGUID(unit), UnitName(unit)
+    if not (Public(guid) and Public(name)) or seenDead[guid] then return end
+    if not (byName[name] or lootNames[name]) then return end
+    if UnitIsTapDenied and UnitIsTapDenied(unit) then return end
+    seenDead[guid], seenCount = true, seenCount + 1
+    if seenCount > 200 then seenDead, seenCount = {[guid] = true}, 1 end
     addon.LootReminder.Killed(loot, guid, name, lootNames, Now())
     if byName[name] then addon.Respawn.Killed(respawn, name, Now()) end
 end
@@ -134,19 +144,22 @@ function Marks.Start(source, settingsTable)
     if not driver then
         driver = CreateFrame("Frame")
         for _, event in ipairs({"NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "UNIT_HEALTH",
-            "RAID_TARGET_UPDATE", "COMBAT_LOG_EVENT_UNFILTERED", "LOOT_OPENED", "PLAYER_REGEN_ENABLED"}) do
+            "RAID_TARGET_UPDATE", "LOOT_OPENED", "PLAYER_REGEN_ENABLED"}) do
             driver:RegisterEvent(event)
         end
         driver:SetScript("OnEvent", function(_, event, unit)
             if event == "PLAYER_REGEN_ENABLED" then driver.signature = nil
-            elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then OnCombatLog()
             elseif event == "LOOT_OPENED" then OnLoot()
             elseif event == "RAID_TARGET_UPDATE" then Marks.UpdateAll()
             elseif event == "NAME_PLATE_UNIT_REMOVED" then
+                NoteDeath(unit) -- the plate of a dying mob may go away before its last health update
                 local plate = units[unit]
                 if plate and badges[plate] then badges[plate]:Hide() end
                 units[unit] = nil
+            elseif event == "UNIT_HEALTH" and unit == "target" then
+                NoteDeath(unit)
             elseif event == "NAME_PLATE_UNIT_ADDED" or units[unit] then
+                if event == "UNIT_HEALTH" then NoteDeath(unit) end
                 Marks.Update(unit)
             end
         end)

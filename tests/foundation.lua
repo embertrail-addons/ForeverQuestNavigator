@@ -429,6 +429,20 @@ return function(test, addon, equal, near)
         end
     end)
 
+    test("No restricted events or protected calls that newer clients forbid for addons", function()
+        -- Registering the combat log or calling SetRaidTarget made WoW Forever block FQN
+        -- ("Frame:RegisterEvent()", "only available to the Blizzard UI").
+        for line in io.lines("ForeverQuestNavigator.toc") do
+            if line:match("%.lua$") then
+                local path = line:gsub("\\", "/")
+                local file = assert(io.open(path)) local source = file:read("*a") file:close()
+                local code = source:gsub("%-%-[^\n]*", "")
+                assert(not code:find("COMBAT_LOG_EVENT", 1, true), path .. " registers the combat log")
+                assert(not code:find("SetRaidTarget%s*%("), path .. " calls SetRaidTarget")
+            end
+        end
+    end)
+
     test("UI tests find frames by name, not by creation order", function()
         -- frames[3] or frames[firstNewFrame + 5] break whenever a widget is added; use named fields instead.
         for _, path in ipairs({"tests/run.lua", "tests/navigator_ui.lua", "tests/stability_features.lua"}) do

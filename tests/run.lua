@@ -902,28 +902,37 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(nameplates.keys[nameplates.KEY_TURN_IN].attributes.macrotext, "")
     raid.nameplate1 = nil
     driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate1") equal(Badge("nameplate1"):IsShown(), false)
-    -- Loot reminder: killed droppers count until looted.
+    -- Loot reminder without the combat log (forbidden for addons on newer clients): a quest mob seen
+    -- dying on a nameplate or as the target, not tagged by someone else, counts as a kill.
     local clock = 100
     env.GetTime = function() return clock end
-    local event = {}
-    env.CombatLogGetCurrentEventInfo = function() return unpack(event) end
-    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-1", "Kobold"}
-    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
-    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-2", "Rabbit"}
-    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
+    local dead, guids, tapDenied = {nameplate2 = true}, {}, {}
+    for unit, info in pairs({nameplate4 = {"Kobold", "Creature-1"}, nameplate5 = {"Rabbit", "Creature-2"},
+        nameplate6 = {"Kobold", "Creature-3"}, nameplate7 = {"Kobold", "Creature-4"}, nameplate8 = {"Kobold", "Creature-9"}}) do
+        names[unit], guids[unit], plates[unit] = info[1], info[2], createFrame("Frame")
+        driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_ADDED", unit)
+    end
+    env.UnitIsDead = function(unit) return dead[unit] == true end
+    env.UnitGUID = function(unit) return guids[unit] end
+    env.UnitIsTapDenied = function(unit) return tapDenied[unit] == true end
+    dead.nameplate4 = true driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate4")
+    dead.nameplate5 = true driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate5") -- not a quest mob
     equal(nameplates.LootCount(), 1)
+    driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate4") equal(nameplates.LootCount(), 1, "one death counts once")
+    tapDenied.nameplate7, dead.nameplate7 = true, true
+    driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate7")
+    equal(nameplates.LootCount(), 1, "mobs tagged by someone else do not count")
     env.GetNumLootItems = function() return 1 end env.GetLootSourceInfo = function() return "Creature-1" end
     driver.scripts.OnEvent(driver, "LOOT_OPENED") equal(nameplates.LootCount(), 0)
-    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-3", "Kobold"}
-    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED") equal(nameplates.LootCount(), 1)
+    dead.nameplate6 = true driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate6")
+    equal(nameplates.LootCount(), 1, "a death is noticed when the plate goes away")
     clock = clock + 200 equal(nameplates.LootCount(), 0, "old corpses are forgotten")
     -- Respawn: with no living Kobold in sight, the estimate is shown.
     driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "target")
     clock = 1000
-    event = {0, "PARTY_KILL", false, "player", "Me", 0, 0, "Creature-9", "Kobold"}
-    driver.scripts.OnEvent(driver, "COMBAT_LOG_EVENT_UNFILTERED")
+    dead.nameplate8 = true driver.scripts.OnEvent(driver, "UNIT_HEALTH", "nameplate8")
     clock = 1100 equal(nameplates.RespawnText("Kobold"), ui.L.RespawnIn:format(4))
-    names.dead = false equal(nameplates.RespawnText("Kobold"), nil, "a living one in sight needs no estimate")
+    dead.nameplate2 = false equal(nameplates.RespawnText("Kobold"), nil, "a living one in sight needs no estimate")
     -- Group members' quest mobs: faded skull with the member's name.
     nameplates.Set(list, {Rabbit = "Anna"})
     equal(Badge("nameplate3"):IsShown(), true) equal(Badge("nameplate3").progress.text, "Anna")

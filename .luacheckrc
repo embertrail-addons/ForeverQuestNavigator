@@ -74,6 +74,7 @@ read_globals = {
     "SecureHandlerWrapScript",
     "CombatLogGetCurrentEventInfo",
     "GetLootSourceInfo",
+    "UnitIsTapDenied",
     "GetNumLootItems",
     "GetInstanceInfo",
     "UnitIsGroupAssistant",
