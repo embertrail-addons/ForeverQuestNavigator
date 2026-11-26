@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.6",
+        en = "• Fixes the blocked-action message at login: FQN no longer registers the combat log, which newer clients forbid for addons. Loot reminder and respawn estimate now notice kills on nameplates and the target.\n• 'Skip this quest in FQN' is now in the quest menu ('...' or right-click on the quest title).\n• Blocked actions that name FQN are recorded in /fqn problem.",
+        de = "• Behebt die Blockiert-Meldung beim Einloggen: FQN meldet sich nicht mehr beim Kampflog an, das neuere Clients Addons verbieten. Plünder-Erinnerung und Respawn-Schätzung erkennen Kills jetzt an Namensplaketten und am Ziel.\n• 'Diese Quest in FQN überspringen' ist jetzt im Questmenü ('...' oder Rechtsklick auf den Questtitel).\n• Blockierte Aktionen, die FQN nennen, stehen in /fqn problem."},
     {version = "0.2.5",
         en = "• Much smoother: route planning is about 300 times faster and quest log updates take about half the time, by remembering Questie lookups that do not change on every kill.\n• /fqn perf shows each step of the planning and of quest log updates.",
         de = "• Deutlich flüssiger: Die Routenplanung ist etwa 300-mal schneller und Questlog-Aktualisierungen brauchen etwa halb so lange, weil Questie-Abfragen gemerkt werden, die sich nicht bei jedem Kill ändern.\n• /fqn perf zeigt jeden Schritt der Planung und der Questlog-Aktualisierung."},

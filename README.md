@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.2.5.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current release: 0.2.6.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.6 fixes the blocked-action message at login (FQN no longer registers the combat log) and adds "Skip this quest in FQN" to the quest menu. [0.2.6 changes](release/curseforge-changelog-0.2.6.md).
 
 0.2.5 makes route planning about 300 times faster and quest log updates about twice as fast by remembering Questie lookups; `/fqn perf` shows every step. [0.2.5 changes](release/curseforge-changelog-0.2.5.md).
 
