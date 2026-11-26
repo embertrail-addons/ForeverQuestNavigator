@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.7",
+        en = "• Smooth in cities: route planning in Undercity went from about 93 ms to 10 ms per update, quest log updates from about 330 ms to 30 ms.\n• Fewer background scans for nearby quest givers while standing still.",
+        de = "• Flüssig in Städten: Die Routenplanung in Undercity sank von etwa 93 ms auf 10 ms pro Aktualisierung, Questlog-Aktualisierungen von etwa 330 ms auf 30 ms.\n• Weniger Hintergrundsuchen nach Questgebern in der Nähe, wenn du stillstehst."},
     {version = "0.2.6",
         en = "• Fixes the blocked-action message at login: FQN no longer registers the combat log, which newer clients forbid for addons. Loot reminder and respawn estimate now notice kills on nameplates and the target.\n• 'Skip this quest in FQN' is now in the quest menu ('...' or right-click on the quest title).\n• Blocked actions that name FQN are recorded in /fqn problem.",
         de = "• Behebt die Blockiert-Meldung beim Einloggen: FQN meldet sich nicht mehr beim Kampflog an, das neuere Clients Addons verbieten. Plünder-Erinnerung und Respawn-Schätzung erkennen Kills jetzt an Namensplaketten und am Ziel.\n• 'Diese Quest in FQN überspringen' ist jetzt im Questmenü ('...' oder Rechtsklick auf den Questtitel).\n• Blockierte Aktionen, die FQN nennen, stehen in /fqn problem."},

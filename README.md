@@ -2,7 +2,9 @@
 
 FQN helps you choose and navigate outdoor quests in World of Warcraft Forever. It compares known distance, level suitability, possible XP and supported follow-ups, including targets across zone borders.
 
-**Current release: 0.2.6.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+**Current release: 0.2.7.** FQN publishes regular releases only. Beta, alpha and release-candidate uploads are disabled in the publication pipeline.
+
+0.2.7 makes FQN smooth in cities: route planning in Undercity dropped from about 93 ms to 10 ms per update. [0.2.7 changes](release/curseforge-changelog-0.2.7.md).
 
 0.2.6 fixes the blocked-action message at login (FQN no longer registers the combat log) and adds "Skip this quest in FQN" to the quest menu. [0.2.6 changes](release/curseforge-changelog-0.2.6.md).
 
