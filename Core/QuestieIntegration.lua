@@ -6,6 +6,53 @@ function Integration.IsReady()
     return Questie and Questie.API and Questie.API.isReady and QuestieLoader and QuestieLoader.ImportModule
 end
 
+-- Key of what Questie results depend on: quests, which objectives are finished (not the exact
+-- counts), and extra parts such as the shown maps. A kill that does not finish an objective keeps it.
+function Integration.StateKey(quests, questAPI, extra)
+    local parts = {extra or ""}
+    for _, quest in ipairs(quests or {}) do
+        local goals = not quest.readyToTurnIn and questAPI and questAPI.GetQuestObjectives and questAPI.GetQuestObjectives(quest.id)
+        local bits = {}
+        for index, goal in ipairs(type(goals) == "table" and goals or {}) do bits[index] = goal.finished and "1" or "0" end
+        parts[#parts + 1] = quest.id .. (quest.readyToTurnIn and "r" or (quest.disabled or quest.failed) and "x" or "") .. table.concat(bits)
+    end
+    return table.concat(parts, ";")
+end
+
+function Integration.MapKey(maps)
+    local ids = {}
+    for id in pairs(maps or {}) do ids[#ids + 1] = id end
+    table.sort(ids)
+    return table.concat(ids, ",")
+end
+
+-- Results are kept while the key stays the same, for at most a minute (Questie may still be
+-- filling its data after login); empty results are never kept.
+Integration.CACHE_SECONDS = 60
+local resultCache = {}
+local function Now() return GetTime and GetTime() or 0 end
+local function Cached(name, key)
+    local entry = resultCache[name]
+    if entry and entry.key == key and Now() - entry.at < Integration.CACHE_SECONDS then return entry end
+end
+local function Remember(name, key, first, second)
+    if first and next(first) then resultCache[name] = {key = key, at = Now(), first = first, second = second} end
+end
+function Integration.ClearResultCache() resultCache = {} end
+
+-- New lists around the same marker objects: callers append corrections to the lists.
+local function CopyLists(byQuest)
+    if not byQuest then return end
+    local copy = {}
+    for id, list in pairs(byQuest) do
+        local entries = {}
+        for index, marker in ipairs(list) do entries[index] = marker end
+        copy[id] = entries
+    end
+    return copy
+end
+
+
 local function GetCorrectedTagID(id)
     local db = QuestieLoader:ImportModule("QuestieDB")
     return db.GetQuestTagInfo(id)
@@ -36,8 +83,17 @@ function Integration.GetObjectiveItemID(id, index)
     if ok then return itemID end
 end
 
+local CollectCombatMarkers
 function Integration.GetCombatMarkers(quests, api)
     if not Integration.IsReady() then return {} end
+    local key = Integration.StateKey(quests, api)
+    local entry = Cached("combat", key)
+    if entry then return entry.first end
+    local result = CollectCombatMarkers(quests, api)
+    Remember("combat", key, result)
+    return result
+end
+CollectCombatMarkers = function(quests, api)
     local ok, result = pcall(function()
         local active, relations = QuestieLoader:ImportModule("ActiveQuests"), {}
         for _, quest in ipairs(quests or {}) do
@@ -240,8 +296,14 @@ local function FindNearbyOffers(mapAPI, questAPI, localMaps, targetMaps, mapType
 end
 
 function Integration.GetObjectiveMarkers(quests, questAPI, localMaps, useKillLocations)
+    local key = Integration.StateKey(quests, questAPI, Integration.MapKey(localMaps) .. ":" .. tostring(useKillLocations))
+    local entry = Cached("objectives", key)
+    if entry then return CopyLists(entry.first), CopyLists(entry.second) end
     local ok, markers, kills = pcall(CollectObjectiveMarkers, quests, questAPI, localMaps, useKillLocations)
-    if ok then return markers, kills end
+    if ok then
+        Remember("objectives", key, markers, kills)
+        return CopyLists(markers), CopyLists(kills)
+    end
 end
 
 -- Quest givers on the shown maps that unlock at the next level (only when Questie draws them).

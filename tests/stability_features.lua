@@ -337,6 +337,20 @@ return function(test, addon, equal, near)
         local unknown = Value.Minutes(buzzards, {yards = 350}, nil, model)
         near(known, unknown)
     end)
+    test("Questie results are kept while only kill counts change", function()
+        local Integration = addon.QuestieIntegration
+        local goals = {[1] = {{finished = false, numFulfilled = 3}, {finished = true}}, [2] = {{finished = false}}}
+        local api = {GetQuestObjectives = function(id) return goals[id] end}
+        local quests = {{id = 1}, {id = 2}}
+        local key = Integration.StateKey(quests, api, "maps")
+        goals[1][1].numFulfilled = 4
+        equal(Integration.StateKey(quests, api, "maps"), key, "a kill that finishes nothing keeps the key")
+        goals[1][1].finished = true
+        assert(Integration.StateKey(quests, api, "maps") ~= key, "a finished objective changes it")
+        assert(Integration.StateKey({{id = 1}}, api, "maps") ~= key, "a quest leaving the log changes it")
+        assert(Integration.StateKey(quests, api, "other maps") ~= key, "other maps change it")
+        equal(Integration.MapKey({[20] = true, [3] = true}), "3,20")
+    end)
     test("Mobs that count for two quests are recognized and explained", function()
         -- Reported case: kill murlocs and collect murloc eyes from the same mobs.
         local Marks = addon.TargetMarks

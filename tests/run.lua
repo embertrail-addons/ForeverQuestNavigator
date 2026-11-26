@@ -4008,6 +4008,7 @@ test("TOC startup and quest events update the tracker with or without optional a
             return {[1002] = {finisher = {mapID = 10, x = .5, y = .5}, followUps = {"Next patrol"},
                 stops = {{mapID = 10, x = .51, y = .5, action = "objective", depth = 1, questID = 2100, title = "Next patrol"}}}}
         end
+        reloadedAddon.ClearQuestieCaches() -- the chain source was replaced in this test
         fire("QUEST_LOG_UPDATE") flush()
         local shared = reloadedAddon.GetNavigationSnapshot().sharedItems
         equal(#shared, 1) equal(shared[1].required, 18) equal(shared[1].remaining, 13)
@@ -4197,13 +4198,25 @@ test("TOC startup and quest events update the tracker with or without optional a
         fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
         for id, count in pairs(lookups) do equal(count, before[id] or 0, "no repeated turn-in lookup for quest " .. id) end
         reloadedAddon.QuestieRoutes.GetOutdoorTurnInMarker = original
+        -- Quest chains are not rebuilt on a quest-log update that finishes nothing.
+        local chainCalls, originalChains = 0, reloadedAddon.QuestieRoutes.GetChains
+        reloadedAddon.QuestieRoutes.GetChains = function(...) chainCalls = chainCalls + 1 return originalChains(...) end
+        reloadedAddon.ClearQuestieCaches()
+        fire("QUEST_LOG_UPDATE") flush()
+        local afterFirst = chainCalls
+        fire("QUEST_LOG_UPDATE") flush()
+        fire("QUEST_LOG_UPDATE") flush()
+        assert(afterFirst >= 1) equal(chainCalls, afterFirst, "chains reused while nothing finished")
+        fire("QUEST_DATA_LOAD_RESULT", 1001) flush()
+        assert(chainCalls > afterFirst, "new quest data rebuilds the chains")
+        reloadedAddon.QuestieRoutes.GetChains = originalChains
         -- /fqn perf breaks planning into its steps.
         local perf = reloadedAddon.Performance
         local oldClock = env.debugprofilestop
         env.debugprofilestop = function() return 0 end
         perf:Start() fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
         local report = perf:Report()
-        assert(report:find("plan:measure", 1, true) and report:find("refresh", 1, true), report)
+        assert(report:find("plan:measure", 1, true) and report:find("refresh:objectives", 1, true), report)
         perf.enabled = false env.debugprofilestop = oldClock
     end)() end
     do (function()

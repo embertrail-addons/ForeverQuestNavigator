@@ -1631,7 +1631,10 @@ local function Refresh()
     S.questMeasurements = nil
     S.objectiveDistances = nil
     S.questDestinations = {}
+    local perf = addon.Performance
+    local step = perf:Begin()
     local quests, used = addon.QuestLog.Read(C_QuestLog)
+    perf:Finish("refresh:read", step)
     -- Questie turn-in lookups are expensive and never change for a quest: keep them, but only
     -- for quests still in the log (also the per-map turn-in markers below).
     local inLog = {}
@@ -1642,8 +1645,10 @@ local function Refresh()
     end
     S.insights.turnInMarkers = S.insights.turnInMarkers or {}
     for key in pairs(S.insights.turnInMarkers) do if not inLog[tonumber(key:match("^(%d+)"))] then S.insights.turnInMarkers[key] = nil end end
+    step = perf:Begin()
     S.insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
     S.insights.sharedCounts = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, quests)
+    perf:Finish("refresh:combat", step)
     if S.valueModel and quests then
         S.insights.effortState = S.insights.effortState or {}
         addon.QuestValue.ObserveEffort(S.valueModel, S.insights.effortState, quests, SessionTime())
@@ -1695,7 +1700,9 @@ local function Refresh()
 
     local _, localMaps, targetMaps
     local mapType = Enum and Enum.UIMapType
+    step = perf:Begin()
     S.questMarkers, _, localMaps, targetMaps, S.playerZoneID = addon.QuestLocation.GetLocalQuestMarkers(C_Map, C_QuestLog, mapType, true)
+    perf:Finish("refresh:poi", step)
     S.questTargetMaps = targetMaps
     S.distanceMaps = localMaps
     if not S.questMarkers or (IsInInstance and IsInInstance()) then
@@ -1705,6 +1712,7 @@ local function Refresh()
         return
     end
     S.objectiveMarkers, S.killMarkers = nil, nil
+    step = perf:Begin()
     if localMaps and integration.IsReady() then
         S.objectiveMarkers, S.killMarkers = integration.GetObjectiveMarkers(quests, C_QuestLog, targetMaps,
             S.settings.useQuestieKillLocations)
@@ -1712,7 +1720,10 @@ local function Refresh()
             S.questMarkers[id] = markers
         end
     end
+    perf:Finish("refresh:objectives", step)
+    step = perf:Begin()
     SetTurnInMarkers(quests, mapType, targetMaps)
+    perf:Finish("refresh:turnins", step)
     addon.AdventureSupport.ApplyCorrections(S.questMarkers, quests, S.targetCorrections, C_QuestLog.GetQuestObjectives)
     local explicitID = S.manualQuestID or (S.workspace and S.workspace:Current())
     if explicitID then
@@ -1766,25 +1777,45 @@ local function Refresh()
     for _, quest in ipairs(S.eligibleQuests) do
         if not seenMeasurements[quest.id] and S.questMarkers[quest.id] and #S.questMarkers[quest.id] > 0 then measured[#measured + 1] = quest.id end
     end
+    step = perf:Begin()
     if #S.eligibleQuests > 0 and integration.IsReady() then
-        S.routeChains = addon.QuestieRoutes.GetChains(C_Map, C_QuestLog, S.eligibleQuests, S.questMarkers,
-            S.killMarkers, S.skippedQuestIDs, targetMaps)
+        -- Chains change with quests, finished objectives, level, skips and maps - not with every kill.
+        local skipped = {}
+        for id in pairs(S.skippedQuestIDs or {}) do skipped[#skipped + 1] = id end
+        table.sort(skipped)
+        local chainKey = integration.StateKey(S.eligibleQuests, C_QuestLog, integration.MapKey(targetMaps) .. ":"
+            .. tostring(UnitLevel and UnitLevel("player")) .. ":" .. table.concat(skipped, ",") .. ":" .. (S.insights.questDataVersion or 0))
+        local cachedChains = S.insights.chainCache
+        if cachedChains and cachedChains.key == chainKey and SessionTime() - cachedChains.at < 60 then
+            S.routeChains = cachedChains.chains
+        else
+            S.routeChains = addon.QuestieRoutes.GetChains(C_Map, C_QuestLog, S.eligibleQuests, S.questMarkers,
+                S.killMarkers, S.skippedQuestIDs, targetMaps)
+            S.insights.chainCache = S.routeChains and {key = chainKey, at = SessionTime(), chains = S.routeChains} or nil
+        end
     end
+    perf:Finish("refresh:chains", step)
     S.measurableQuestIDs = #measured > 0 and measured or nil
     if not S.measurableQuestIDs then S.objectiveLock = nil end
     if not S.measurableQuestIDs or not TrackingVisible() then
         local level = UnitLevel and UnitLevel("player")
         local ranked = addon.QuestPrioritizer.RankByDistance(S.eligibleQuests, {}, nil, level)
+        step = perf:Begin()
         RenderQuestList(ranked, nil, nil, nil, level, addon.QuestLog.GetXPToNextLevel())
         UpdateMapMarker()
+        perf:Finish("refresh:render", step)
     end
     UpdateDistanceTicker()
+    step = perf:Begin()
     RefreshNearbyOffers(localMaps, targetMaps, mapType)
+    perf:Finish("refresh:offers", step)
     addon.RefreshQuestNotepad()
     if S.settings.groupSync then addon.GroupSync.MarkDirty() SyncGroup() end
 end
 -- Forget remembered Questie lookups (turn-in positions, NPC data), e.g. after its data changed.
 function addon.ClearQuestieCaches()
+    integration.ClearResultCache()
+    S.insights.chainCache = nil
     S.turnInLocations = {}
     S.insights.turnInMarkers = {}
     integration.ClearNpcCache()
@@ -2387,6 +2418,11 @@ addon.EventController.Bind(events, {
         addon.CharacterProfile.Store(S.settings, ForeverQuestNavigatorCharacterDB, S.accountProfile)
     end,
     hearthBound = function() F.RecordHearth() end,
+    -- Turn-ins, accepted/removed quests and loaded quest data can change chains and Questie results.
+    questDataChanged = function()
+        S.insights.questDataVersion = (S.insights.questDataVersion or 0) + 1
+        integration.ClearResultCache()
+    end,
     loaded = AddonLoaded,
     hasMeasurements = function() return S.measurableQuestIDs ~= nil end,
     visible = TrackingVisible,
