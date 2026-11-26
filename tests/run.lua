@@ -3407,6 +3407,7 @@ test("TOC startup and quest events update the tracker with or without optional a
 
     -- The actual taxi state freezes the current target, then restores normal UI/ranking.
     env.LibQuestieDB.Npc.spawns = function() return { [100] = { {68, 50} } } end
+    reloadedAddon.ClearQuestieCaches() -- the simulated database changed; real NPC positions never do
     env.ForeverQuestNavigator_HandleBinding("hold")
     flush()
     env.ForeverQuestNavigator_HandleBinding("hold")
@@ -4178,6 +4179,32 @@ test("TOC startup and quest events update the tracker with or without optional a
         reloadedAddon.QuestieIntegration.GetCombatMarkers = original
         env.UnitCanAttack, env.UnitIsDeadOrGhost, env.UnitGUID, env.UnitThreatSituation = nil, nil, nil, nil
         env.InCombatLockdown = previousCombat fire("PLAYER_REGEN_ENABLED") flush()
+    end)() end
+    do (function()
+        -- Found turn-in positions survive quest-log updates (Questie lookups are expensive).
+        local original, lookups = reloadedAddon.QuestieRoutes.GetOutdoorTurnInMarker, {}
+        reloadedAddon.QuestieRoutes.GetOutdoorTurnInMarker = function(api, mapType, maps, id, ...)
+            local marker, known, name = original(api, mapType, maps, id, ...)
+            if marker then lookups[id] = (lookups[id] or 0) + 1 end
+            return marker, known, name
+        end
+        reloadedAddon.ClearQuestieCaches()
+        fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
+        local before = {}
+        for id, count in pairs(lookups) do before[id] = count end
+        assert(next(before), "at least one turn-in was looked up")
+        fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
+        fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
+        for id, count in pairs(lookups) do equal(count, before[id] or 0, "no repeated turn-in lookup for quest " .. id) end
+        reloadedAddon.QuestieRoutes.GetOutdoorTurnInMarker = original
+        -- /fqn perf breaks planning into its steps.
+        local perf = reloadedAddon.Performance
+        local oldClock = env.debugprofilestop
+        env.debugprofilestop = function() return 0 end
+        perf:Start() fire("QUEST_LOG_UPDATE") flush() directionTicker.tick()
+        local report = perf:Report()
+        assert(report:find("plan:measure", 1, true) and report:find("refresh", 1, true), report)
+        perf.enabled = false env.debugprofilestop = oldClock
     end)() end
     do (function()
         -- Hearthstone binding is recorded per character.

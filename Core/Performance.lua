@@ -22,7 +22,13 @@ end
 function Performance:Report()
     local lines = {addon.L.PerformanceTitle, self.enabled and addon.L.PerformanceEnabled or addon.L.PerformanceDisabled,
         addon.L.PerformanceHelp, addon.L.PerformanceSkipped:format(self.skipped)}
-    for _, name in ipairs({"planning", "direction", "map"}) do
+    -- Main sections first, then the planning steps and the quest-log refresh.
+    local names = {"planning", "direction", "map", "refresh"}
+    local extra = {}
+    for name in pairs(self.sections) do if name:find("^plan:") then extra[#extra + 1] = name end end
+    table.sort(extra)
+    for _, name in ipairs(extra) do names[#names + 1] = name end
+    for _, name in ipairs(names) do
         local section = self.sections[name]
         if section then
             local samples = {}

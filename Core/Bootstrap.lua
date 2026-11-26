@@ -1199,9 +1199,20 @@ local function SetTurnInMarkers(quests, mapType, targetMaps)
         local marker, known
         if quest.readyToTurnIn then
             if integration.IsReady() then
-                local name
-                marker, known, name = addon.QuestieRoutes.GetOutdoorTurnInMarker(C_Map, mapType, targetMaps, quest.id)
-                if marker then marker.turnInName = name end
+                -- Cached per quest and set of shown maps (see Refresh).
+                local maps = {}
+                for id in pairs(targetMaps or {}) do maps[#maps + 1] = id end
+                table.sort(maps)
+                local key = quest.id .. ":" .. table.concat(maps, ",")
+                local cached = S.insights.turnInMarkers and S.insights.turnInMarkers[key]
+                if not cached then
+                    local name
+                    marker, known, name = addon.QuestieRoutes.GetOutdoorTurnInMarker(C_Map, mapType, targetMaps, quest.id)
+                    if marker then marker.turnInName = name end
+                    cached = {marker = marker or false, known = known or false}
+                    if S.insights.turnInMarkers and marker then S.insights.turnInMarkers[key] = cached end
+                end
+                marker, known = cached.marker or nil, cached.known or nil
             end
             if not known and (quest.special or not S.questMarkers[quest.id] or #S.questMarkers[quest.id] == 0) then
                 marker = addon.QuestLocation.GetOutdoorWaypoint(C_Map, C_QuestLog, mapType, targetMaps, quest.id)
@@ -1616,11 +1627,21 @@ local function Refresh()
     addon.QuestRewards.Clear()
     S.navigationSnapshot = nil
     S.routeChains = nil
-    S.turnInLocations, S.questJourneys = {}, nil
+    S.turnInLocations, S.questJourneys = S.turnInLocations or {}, nil
     S.questMeasurements = nil
     S.objectiveDistances = nil
     S.questDestinations = {}
     local quests, used = addon.QuestLog.Read(C_QuestLog)
+    -- Questie turn-in lookups are expensive and never change for a quest: keep them, but only
+    -- for quests still in the log (also the per-map turn-in markers below).
+    local inLog = {}
+    for _, quest in ipairs(quests or {}) do inLog[quest.id] = true end
+    -- Unknown results are retried (Questie data can arrive after the first lookup).
+    for id, location in pairs(S.turnInLocations) do
+        if not inLog[id] or location == false then S.turnInLocations[id] = nil end
+    end
+    S.insights.turnInMarkers = S.insights.turnInMarkers or {}
+    for key in pairs(S.insights.turnInMarkers) do if not inLog[tonumber(key:match("^(%d+)"))] then S.insights.turnInMarkers[key] = nil end end
     S.insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
     S.insights.sharedCounts = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, quests)
     if S.valueModel and quests then
@@ -1761,6 +1782,20 @@ local function Refresh()
     RefreshNearbyOffers(localMaps, targetMaps, mapType)
     addon.RefreshQuestNotepad()
     if S.settings.groupSync then addon.GroupSync.MarkDirty() SyncGroup() end
+end
+-- Forget remembered Questie lookups (turn-in positions, NPC data), e.g. after its data changed.
+function addon.ClearQuestieCaches()
+    S.turnInLocations = {}
+    S.insights.turnInMarkers = {}
+    integration.ClearNpcCache()
+end
+
+-- Timed for /fqn perf ("refresh"); every caller uses this wrapped version.
+local UntimedRefresh = Refresh
+Refresh = function()
+    local started = addon.Performance:Begin()
+    UntimedRefresh()
+    addon.Performance:Finish("refresh", started)
 end
 
 ScheduleRefresh = function()
