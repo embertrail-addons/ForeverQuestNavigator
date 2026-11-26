@@ -325,12 +325,12 @@ return function(test, addon, equal, near)
         local function Click() snippet(button, "LeftButton", true) snippet(button, "LeftButton", false) return button.attributes.macrotext end
         Marks.SetCycle(button, "Kobold", 8, {"nameplate2", "nameplate5", "nameplate7"})
         equal(button.attributes.macrotext, Marks.Macro("Kobold", 8))
-        equal(Click(), "/target nameplate2\n/tm 8")
-        equal(Click(), "/target nameplate5\n/tm 8", "the press does not advance, only the release")
+        equal(Click(), "/target nameplate2\n/tm [exists] 8")
+        equal(Click(), "/target nameplate5\n/tm [exists] 8", "the press does not advance, only the release")
         alive.nameplate7 = false
-        equal(Click(), "/target nameplate2\n/tm 8", "dead mobs are skipped")
+        equal(Click(), "/target nameplate2\n/tm [exists] 8", "dead mobs are skipped")
         alive = {}
-        equal(Click(), "/targetexact Kobold\n/tm 8", "without living candidates the name is used")
+        equal(Click(), "/cleartarget\n/targetexact Kobold\n/tm [exists] 8", "without living candidates the name is used")
         -- Fewer candidates later: old unit attributes are cleared.
         Marks.SetCycle(button, "Kobold", 8, {"nameplate9"})
         equal(button.attributes["fqn-unit2"], nil) equal(button.attributes["fqn-count"], 1)

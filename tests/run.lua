@@ -833,7 +833,7 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     local turnIn, turnInEntries = Collect(2)
     equal(turnIn, "Marshal/1") equal(turnInEntries[1].kind, "turnIn")
     equal(Collect(nil), "")
-    equal(Marks.Macro("Wolf"), "/targetexact Wolf")
+    equal(Marks.Macro("Wolf"), "/cleartarget\n/targetexact Wolf")
     -- Every mob that drops the quest item is offered, each labelled with the item.
     local loot = Marks.Collect({quests = {{id = 4, title = "Pelts"}}, shownID = 4,
         killers = function() return {{name = "Wolf", item = "Pelt"}, {name = "Bear", item = "Pelt"}, {name = "Boar", item = "Pelt"}} end})
@@ -848,8 +848,8 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     local row = window.rows[1]
     equal(row.template, "SecureActionButtonTemplate")
     -- Target by exact name and mark with /tm in the same secure macro (works where SetRaidTarget is restricted).
-    equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold\n/tm 8")
-    equal(window.rows[2].attributes.macrotext, "/targetexact Marshal\n/tm 1")
+    equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/cleartarget\n/targetexact Kobold\n/tm [exists] 8")
+    equal(window.rows[2].attributes.macrotext, "/cleartarget\n/targetexact Marshal\n/tm [exists] 1")
     equal(row:IsShown(), true) equal(window.rows[3]:IsShown(), false)
     local marked
     env.UnitExists = function() return true end
@@ -989,9 +989,9 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     -- Secure buttons stay unchanged in combat and update afterwards.
     env.InCombatLockdown = function() return true end
     list = {{name = "Other", icon = 1, kind = "accept", questID = 5}}
-    window:Refresh() equal(row.attributes.macrotext, "/targetexact Kobold\n/tm 8")
+    window:Refresh() equal(row.attributes.macrotext, "/cleartarget\n/targetexact Kobold\n/tm [exists] 8")
     env.InCombatLockdown = function() return false end
-    window:Refresh() equal(row.attributes.macrotext, "/targetexact Other\n/tm 1") equal(window.rows[2]:IsShown(), false)
+    window:Refresh() equal(row.attributes.macrotext, "/cleartarget\n/targetexact Other\n/tm [exists] 1") equal(window.rows[2]:IsShown(), false)
     -- Only there while the active quest has targets, and never inside instances.
     list = {} window:Refresh() equal(window:IsShown(), false) equal(window.ticker:IsShown(), true)
     list = {{name = "Other", icon = 1, kind = "turnIn", questID = 5}} window:Refresh() equal(window:IsShown(), true)

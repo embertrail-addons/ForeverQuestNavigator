@@ -103,9 +103,13 @@ end
 
 -- Targets by exact name, then marks with /tm inside the same secure click. /tm works on
 -- clients where calling SetRaidTarget from addon code is restricted (retail 12.0 and later).
+-- The target is cleared first and /tm only runs with a target ([exists]): when the NPC is
+-- not nearby, nothing is marked (no "can't do that" error, no wrong mark on an old target).
+Marks.NAME_PREFIX = "/cleartarget\n/targetexact "
+function Marks.MarkLine(icon) return "\n/tm [exists] " .. icon end
 function Marks.Macro(name, icon)
-    local text = "/targetexact " .. name
-    if icon then text = text .. "\n/tm " .. icon end
+    local text = Marks.NAME_PREFIX .. name
+    if icon then text = text .. Marks.MarkLine(icon) end
     return text
 end
 
@@ -117,7 +121,7 @@ Marks.CYCLE_SNIPPET = [[
 if down then return end
 local name, icon = self:GetAttribute("fqn-name"), self:GetAttribute("fqn-icon")
 if not name then return end
-local text = "/targetexact " .. name
+local text = "/cleartarget\n/targetexact " .. name
 local count = self:GetAttribute("fqn-count") or 0
 local index = self:GetAttribute("fqn-index") or 0
 for step = 1, count do
@@ -126,7 +130,7 @@ for step = 1, count do
     if unit and UnitExists(unit) and not (UnitIsDead and UnitIsDead(unit)) then text = "/target " .. unit break end
 end
 self:SetAttribute("fqn-index", index)
-if icon then text = text .. "\n/tm " .. icon end
+if icon then text = text .. "\n/tm [exists] " .. icon end
 self:SetAttribute("macrotext", text)
 ]]
 
