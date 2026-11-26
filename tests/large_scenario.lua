@@ -58,6 +58,41 @@ return function(test, addon, equal)
         end)
         assert(encode < 2, ("Group sync encoding took %.2f ms"):format(encode))
     end)
+    test("Camp choice stays fast with city-sized spawn sets and matches the plain grouping", function()
+        -- Reported: Undercity spent up to 300 ms per planning pass choosing camps.
+        local player = {x = .5, y = .5}
+        local api = {GetMapWorldSize = function() return 1000, 1000 end, GetPlayerMapPosition = function() return player end}
+        local function Points(count, withWorld)
+            local points, seed = {}, 7
+            for index = 1, count do
+                seed = (seed * 1103515245 + 12345) % 2147483648
+                local x = (seed % 10000) / 10000
+                seed = (seed * 1103515245 + 12345) % 2147483648
+                local y = (seed % 10000) / 10000
+                local point = {mapID = 10, x = x, y = y, objectiveIndex = index % 2 + 1}
+                -- World position as the client would report it (yards); without it the plain path runs.
+                point.world = withWorld and {x = x * 1000, y = y * 1000, continent = 1} or false
+                points[index] = point
+            end
+            return points
+        end
+        local quest = {id = 1, level = 30}
+        local function Build(points)
+            local target = points[1]
+            return addon.CampChoices.Build(api, quest, {marker = target, yards = 50}, points, {quest}, {}, nil, nil, 30)
+        end
+        -- Same camps with and without the grid (small set).
+        local gridded, plain = Build(Points(400, true)), Build(Points(400, false))
+        equal(#gridded, #plain)
+        for index = 1, #plain do equal(gridded[index].target.x, plain[index].target.x) end
+        assert(#gridded <= addon.CampChoices.NEAREST, "only the nearest camps are measured")
+        -- City-sized set: first pass groups, later passes reuse the camps.
+        local city = Points(4000, true)
+        local first = Average(1, function() Build(city) end)
+        local later = Average(20, function() Build(city) end)
+        assert(first < 400, ("Grouping 4000 spawn points took %.1f ms"):format(first))
+        assert(later < 40, ("A later camp choice took %.1f ms"):format(later))
+    end)
     test("Quest value on a full log is cheap and repeats no distance work while targets stay the same", function()
         local quests, measurements = FullLog()
         for _, quest in ipairs(quests) do quest.progress = {remaining = 4, monsters = 2, items = 2, other = 0} end

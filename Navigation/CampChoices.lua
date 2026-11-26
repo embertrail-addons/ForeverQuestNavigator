@@ -1,28 +1,82 @@
 local _, addon = ...
 local Choices = {}
 addon.CampChoices = Choices
+-- markers list -> {api, byObjective = {[index] = groups}}; weak keys drop replaced lists.
 local cache = setmetatable({}, {__mode = "k"})
+Choices.CELL, Choices.NEAREST = 100, 8
+
+-- Camps: spawn points within 100 yards of a camp's first point join that camp (the earliest
+-- such camp). With world positions a 100-yard grid limits each check to neighbouring cells,
+-- so cities with thousands of spawn points stay fast; otherwise every camp is compared.
+local function Group(api, markers, index, metric)
+    local groups, grid = {}, {}
+    local cell = Choices.CELL
+    for _, point in ipairs(markers or {}) do
+        if point.objectiveIndex == index then
+            local world = addon.QuestLocation.GetMarkerWorldPosition(api, point)
+            local group
+            if world then
+                local cx, cy = math.floor(world.x / cell), math.floor(world.y / cell)
+                for dx = -1, 1 do
+                    for dy = -1, 1 do
+                        for _, candidate in ipairs(grid[world.continent .. ":" .. (cx + dx) .. ":" .. (cy + dy)] or {}) do
+                            if not group or candidate.order < group.order then
+                                local gap = metric(point, candidate.anchor)
+                                if gap and gap <= 100 then group = candidate end
+                            end
+                        end
+                    end
+                end
+            else
+                for _, candidate in ipairs(groups) do local gap = metric(point, candidate.anchor) if gap and gap <= 100 then group = candidate break end end
+            end
+            if not group then
+                group = {anchor = point, points = {}, order = #groups + 1}
+                groups[#groups + 1] = group
+                if world then
+                    local key = world.continent .. ":" .. math.floor(world.x / cell) .. ":" .. math.floor(world.y / cell)
+                    grid[key] = grid[key] or {}
+                    table.insert(grid[key], group)
+                end
+            end
+            group.points[#group.points + 1] = point
+        end
+    end
+    return groups
+end
 
 function Choices.Build(api, quest, measurement, markers, quests, measurements, maps, previous, level, blocked)
     local target = measurement and measurement.marker
     if not target or quest.readyToTurnIn or not target.objectiveIndex then return {} end
     local metric = addon.QuestLocation.GetDistanceMetric(api, target)
     if not metric then return {} end
-    local cached = markers and cache[markers]
-    local groups, ids, points = {}, {}, {}
-    if cached and cached.api == api and cached.objectiveIndex == target.objectiveIndex then groups = cached.groups
-    else
-    for _, point in ipairs(markers or {}) do
-        if point.objectiveIndex == target.objectiveIndex then
-            local group
-            for _, candidate in ipairs(groups) do local gap = metric(point, candidate.anchor) if gap and gap <= 100 then group = candidate break end end
-            if not group then group = {anchor = point, points = {}} groups[#groups + 1] = group end
-            group.points[#group.points + 1] = point
+    local entry = markers and cache[markers]
+    if not (entry and entry.api == api) then
+        entry = {api = api, byObjective = {}}
+        if markers then cache[markers] = entry end
+    end
+    local groups = entry.byObjective[target.objectiveIndex]
+    if not groups then
+        groups = Group(api, markers, target.objectiveIndex, metric)
+        entry.byObjective[target.objectiveIndex] = groups
+    end
+    -- Only the nearest camps (and the previously chosen one) are measured on each pass.
+    local candidates = groups
+    if #groups > Choices.NEAREST then
+        local ranked = {}
+        for _, group in ipairs(groups) do
+            local gap = metric(target, group.anchor)
+            local kept = previous and previous.objectiveIndex == target.objectiveIndex and metric(previous, group.anchor)
+            ranked[#ranked + 1] = {group = group, gap = (kept and kept <= 100) and -1 or gap or math.huge}
         end
+        table.sort(ranked, function(a, b) if a.gap ~= b.gap then return a.gap < b.gap end return a.group.order < b.group.order end)
+        candidates = {}
+        for index = 1, Choices.NEAREST do candidates[index] = ranked[index].group end
+        table.sort(candidates, function(a, b) return a.order < b.order end)
     end
-    if markers then cache[markers] = {api = api, objectiveIndex = target.objectiveIndex, groups = groups} end
-    end
-    for index, group in ipairs(groups) do ids[index], points[index] = index, group.points end
+    local ids, points = {}, {}
+    for index, group in ipairs(candidates) do ids[index], points[index] = index, group.points end
+    groups = candidates
     local measured = addon.QuestLocation.MeasureQuests(api, points, ids, maps)
     local result = {}
     for index, group in ipairs(groups) do
