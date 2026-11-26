@@ -1240,8 +1240,10 @@ RefreshNearbyOffers = function(localMaps, targetMaps, mapType)
             local stop = plan.stops[index]
             if stop.action == "accept" and not stop.done and #offerAnchors < 3 then offerAnchors[#offerAnchors + 1] = stop.target end
         end
+        local scan = addon.Performance:Begin()
         offers = integration.GetNearbyOffers(C_Map, C_QuestLog, localMaps, targetMaps, mapType,
             level, S.settings.questieOfferRadius, active and active.target, true, offerAnchors)
+        addon.Performance:Finish("offers:scan", scan)
     end
     offers = offers and addon.MixedQuestPlan.Filter(offers, S.insights.hiddenOffers,
         S.insights.excursion and S.insights.excursion.excludedOffers, S.insights.offerSuppressed)
@@ -1251,6 +1253,7 @@ RefreshNearbyOffers = function(localMaps, targetMaps, mapType)
         addon.PlanningInsights.AnnotateOffers(C_Map, offers, S.eligibleQuests, S.questMeasurements or {}, S.shownQuests and S.shownQuests[1],
             S.questCapacity)
     end
+    local planStart = addon.Performance:Begin()
     local pickupPlan = addon.PickupPlanning.Build(C_Map, offers, S.eligibleQuests, S.questMeasurements or {},
         S.shownQuests and S.shownQuests[1], S.navigationSnapshot and S.navigationSnapshot.capacity or S.questCapacity,
         S.navigationSnapshot and S.navigationSnapshot.playerLevel or (UnitLevel and UnitLevel("player")), S.navigationSnapshot and S.navigationSnapshot.feedback,
@@ -1260,6 +1263,7 @@ RefreshNearbyOffers = function(localMaps, targetMaps, mapType)
         S.seenRecommendedOffers, fresh = addon.TrackerState.NewOffers(S.seenRecommendedOffers, offers)
         S.tracker:SetNewOffers(fresh)
     end
+    addon.Performance:Finish("offers:plan", planStart)
     if S.navigationSnapshot then S.navigationSnapshot.pickupPlanning = pickupPlan end
     S.insights.pickupPlanning = pickupPlan
     if S.navigationSnapshot then
@@ -1649,6 +1653,7 @@ local function Refresh()
     S.insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
     S.insights.sharedCounts = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, quests)
     perf:Finish("refresh:combat", step)
+    step = perf:Begin()
     if S.valueModel and quests then
         S.insights.effortState = S.insights.effortState or {}
         addon.QuestValue.ObserveEffort(S.valueModel, S.insights.effortState, quests, SessionTime())
@@ -1691,6 +1696,7 @@ local function Refresh()
         end
         for id in pairs(S.avoidedObjectives) do if not present[id] then S.avoidedObjectives[id] = nil end end
     end
+    perf:Finish("refresh:state", step)
     if not quests then
         S.nearbyOffers = nil
         S.tracker:RenderNearbyOffers()
@@ -1724,6 +1730,7 @@ local function Refresh()
     step = perf:Begin()
     SetTurnInMarkers(quests, mapType, targetMaps)
     perf:Finish("refresh:turnins", step)
+    step = perf:Begin()
     addon.AdventureSupport.ApplyCorrections(S.questMarkers, quests, S.targetCorrections, C_QuestLog.GetQuestObjectives)
     local explicitID = S.manualQuestID or (S.workspace and S.workspace:Current())
     if explicitID then
@@ -1777,6 +1784,7 @@ local function Refresh()
     for _, quest in ipairs(S.eligibleQuests) do
         if not seenMeasurements[quest.id] and S.questMarkers[quest.id] and #S.questMarkers[quest.id] > 0 then measured[#measured + 1] = quest.id end
     end
+    perf:Finish("refresh:eligible", step)
     step = perf:Begin()
     if #S.eligibleQuests > 0 and integration.IsReady() then
         -- Chains change with quests, finished objectives, level, skips and maps - not with every kill.
@@ -1805,12 +1813,16 @@ local function Refresh()
         UpdateMapMarker()
         perf:Finish("refresh:render", step)
     end
+    step = perf:Begin()
     UpdateDistanceTicker()
+    perf:Finish("refresh:distances", step)
     step = perf:Begin()
     RefreshNearbyOffers(localMaps, targetMaps, mapType)
     perf:Finish("refresh:offers", step)
+    step = perf:Begin()
     addon.RefreshQuestNotepad()
     if S.settings.groupSync then addon.GroupSync.MarkDirty() SyncGroup() end
+    perf:Finish("refresh:tail", step)
 end
 -- Forget remembered Questie lookups (turn-in positions, NPC data), e.g. after its data changed.
 function addon.ClearQuestieCaches()
