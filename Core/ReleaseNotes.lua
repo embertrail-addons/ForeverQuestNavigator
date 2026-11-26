@@ -4,6 +4,9 @@ addon.ReleaseNotes = Notes
 
 -- Newest first. Only the latest few versions are shown; full history lives in release/.
 Notes.history = {
+    {version = "0.2.5",
+        en = "• Much smoother: route planning is about 300 times faster and quest log updates take about half the time, by remembering Questie lookups that do not change on every kill.\n• /fqn perf shows each step of the planning and of quest log updates.",
+        de = "• Deutlich flüssiger: Die Routenplanung ist etwa 300-mal schneller und Questlog-Aktualisierungen brauchen etwa halb so lange, weil Questie-Abfragen gemerkt werden, die sich nicht bei jedem Kill ändern.\n• /fqn perf zeigt jeden Schritt der Planung und der Questlog-Aktualisierung."},
     {version = "0.2.4",
         en = "• Fixes the 'only available to the Blizzard UI' message: FQN no longer sets raid marks by itself; marks come from a click in the Mark targets window or its key bindings.\n• Smoother play: fewer calculations and less memory churn while the navigator is shown.",
         de = "• Behebt die Meldung 'nur für die Blizzard-Oberfläche verfügbar': FQN setzt Zielmarkierungen nicht mehr selbst; markiert wird per Klick im Fenster 'Ziele markieren' oder über dessen Tasten.\n• Flüssigeres Spielen: weniger Berechnungen und weniger Speicherumwälzung bei eingeblendetem Navigator."},
