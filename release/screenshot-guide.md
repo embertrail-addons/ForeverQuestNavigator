@@ -1,13 +1,31 @@
-# FQN gallery capture guide
+# FQN gallery capture guide (0.2.3)
 
-Start WoW again after installing 0.1.66, enter a quiet outdoor location and wait for Questie to finish loading. Open `/fqn demo` (or choose `barrens` / `elwynn` explicitly). No character travel is needed for the sample data. The world behind the tracker is still the real game, so choose a neutral outdoor backdrop or the matching zone for a coherent composition. Use FQN's selected language; quest text follows Questie's installed locale.
+Install the current version, start WoW, enter a quiet outdoor area and wait until Questie has loaded. Capture with WoW's screenshot key (Print); files land in `World of Warcraft\_forever_\Screenshots`. Use one language for all images (English reaches the most CurseForge visitors).
 
-1. **Main tracker:** choose Objectives. Keep the tracker and separate arrow visible. Barrens starts around a quest with several actual objectives where data supports it. Frame the tracker closely enough to read quest names and progress. Caption: “Quest navigation — demo using Questie data and a simulated character.”
-2. **Turn-ins:** choose the next scene. Show the possible-level-up hint and other ready quests. Caption: “Turn-in overview — example XP state; rewards are estimates.”
-3. **Planning:** open Quest planning from the controls. In the turn-in scene, use the Turn-in round tab. Keep the demo badge in the image. Caption: “Suggested turn-in order using known quest giver positions.”
-4. **Map:** use the Map button; capture actual FQN destination pins on the displayed zone map, with the demo notice visible. Caption: “Quest destinations and numbered preview stops — demonstration.”
-5. **Compact:** choose Compact and show the smaller tracker with the movable arrow. Caption: “Compact display — demo scene.”
+Before capturing:
 
-Arrange panels, move the mouse away from quest rows to avoid tooltips, and use **Hide controls** or `/fqn demo shot`. Capture with WoW's screenshot key. `/fqn demo` brings controls back. `/fqn demo off` restores normal navigation. The demo label is intentionally retained; do not crop it away. Avoid chat/player information in gallery images. Keep original captures and use a readable crop; do not alter values or paint features into the UI. Include an ordinary gameplay screenshot alongside the composed demo images when possible.
+- Hide personal information: turn off player names (Interface → Names) or crop them away, close chat or move it out of the frame, no whispers or guild names in view.
+- Move the mouse away unless the shot is about a tooltip.
+- Keep FQN's own values as they are: do not edit numbers or paint features into the UI. A readable crop is fine.
+- Shots from real play are best. For scenes that are hard to set up, use `/fqn demo` (`demo next`, `demo map`, `demo plan`, `demo shot` hides the controls, `demo off` ends it). Keep the demo label visible in demo images.
 
-No images are uploaded automatically. Project-gallery changes are separate from the automated version ZIP/changelog upload.
+## Shot list
+
+1. **Navigator with explanation (real play).** Several accepted quests nearby. Hover over the quest title so the tooltip shows the reason line, ideally with "XP/min" and a "Before …" comparison.
+   Caption: *"Recommendations weigh XP per minute, the way to the turn-in and what comes next — and explain why."*
+2. **Mark targets window + quest marks above a pack (real play).** At a camp of a kill or collect quest, enemy nameplates on (key V). Show the small window with skull rows and progress, and the skulls with "3/8" above the mobs.
+   Caption: *"Mark targets: click to target and mark — each click jumps to the next quest mob."*
+3. **Real raid mark on the target (real play).** Click a row or use the key binding so a mob carries the skull raid mark. A second image with the turn-in NPC carrying the star works well.
+   Caption: *"Skull for quest mobs, star for the turn-in NPC — via /tm, no friendly nameplates needed."*
+4. **Shared mobs (real play, optional).** Two quests using the same mobs (for example kill murlocs + collect murloc eyes): the navigator note "Also counts for: …" and the "+1" in the window.
+   Caption: *"One kill, two quests: FQN shows when mobs count twice."*
+5. **World map with route line (real play or `/fqn demo map`).** Numbered stops and the route line on the zone map.
+   Caption: *"Numbered stops and route line on the world map."*
+6. **Tour planning (`/fqn demo plan` or real play).** Tour preview with the yards saved by the better order.
+   Caption: *"Plan a tour — FQN orders the stops and shows the time saved."*
+7. **Compact view (real play).** Settings: display mode "Arrow only" plus "Compact arrow bar".
+   Caption: *"Compact arrow bar for a clean screen."*
+8. **Dungeon (optional).** Inside an instance: faded one-line navigator, no marks.
+   Caption: *"Unobtrusive in dungeons and raids."*
+
+Upload the images manually on the CurseForge project page (Images); nothing is uploaded automatically. Order: 1, 2, 3, 5, 6, 7, then the optional ones.

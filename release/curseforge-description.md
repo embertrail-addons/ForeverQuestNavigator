@@ -4,7 +4,14 @@
 
 Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Forever 1.60.1**. It compares your accepted quests across zone borders, shows where to go next and guides you there. You stay in control: FQN never accepts, completes or turns in quests for you.
 
-## New in 0.2.2
+## New in 0.2.3
+
+*   **Smarter recommendations:** FQN now weighs **XP per minute**, the way to the turn-in, what comes next, follow-up quests and **nearly finished quests** – not only distance. The quest tooltip tells you why, and why it beats the runner-up.
+*   **Learns how you play** (per character): your real travel speed, kill pace and preferred kind of quest. `/fqn learn` shows it, `/fqn learn reset` clears it.
+*   **Target marks that just work:** clicks mark with `/tm`, **each click jumps to the next living quest mob**, and two key bindings target and mark the next quest mob or the turn-in NPC – no friendly nameplates needed.
+*   **Shared mobs:** "Also counts for: …" when one mob counts for two of your quests.
+
+## Added in 0.2.2
 
 *   **Mark targets window:** lists the mobs of your active quest (including every mob that drops a needed item) or its turn-in NPC. One click targets and marks it: **skull** for mobs, **star** for the turn-in NPC. It shows up only when there is something to mark.
 *   **Real raid marks** when you target a quest mob, and **quest marks with progress** (for example 3/8) above every other quest mob's nameplate.
