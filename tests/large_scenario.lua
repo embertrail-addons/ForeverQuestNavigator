@@ -58,4 +58,22 @@ return function(test, addon, equal)
         end)
         assert(encode < 2, ("Group sync encoding took %.2f ms"):format(encode))
     end)
+    test("Quest value on a full log is cheap and repeats no distance work while targets stay the same", function()
+        local quests, measurements = FullLog()
+        for _, quest in ipairs(quests) do quest.progress = {remaining = 4, monsters = 2, items = 2, other = 0} end
+        local calls = 0
+        local function Distance(a, b) calls = calls + 1 return math.abs(a.x - b.x) * 1000 + math.abs(a.y - b.y) * 1000 end
+        local context = {quests = quests, measurements = measurements, model = addon.QuestValue.Model({}), distance = Distance,
+            xp = function(q) return q.xp end, playerMap = 1401}
+        addon.QuestValue.Adjustments(context)
+        assert(calls > 0 and calls <= 56, ("look-ahead needs at most 8 x 7 distances, took %d"):format(calls))
+        calls = 0
+        local value = Average(200, function() addon.QuestValue.Adjustments(context) end)
+        equal(calls, 0, "unchanged markers reuse their distances")
+        assert(value < 3, ("Quest value took %.2f ms"):format(value))
+        local relations = {}
+        for index, quest in ipairs(quests) do relations[quest.id] = {{objectiveIndex = 1, npcID = index % 7}, {objectiveIndex = 2, npcID = 50 + index}} end
+        local shared = Average(200, function() addon.TargetMarks.SharedCounts(relations, quests) end)
+        assert(shared < 3, ("Shared mob counts took %.2f ms"):format(shared))
+    end)
 end

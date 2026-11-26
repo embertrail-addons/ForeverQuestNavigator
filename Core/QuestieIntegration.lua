@@ -291,23 +291,33 @@ function Integration.GetNearbyOffers(...)
 end
 
 -- NPC names for the target-mark window. Only NPCs (not objects) can be targeted.
+-- Database lookups are remembered: the windows ask every second.
+local npcNames, npcInfo, questNpcs = {}, {}, {}
 function Integration.NpcName(id)
     local db = LibQuestieDB and LibQuestieDB.Npc
     if type(id) ~= "number" or not (db and type(db.name) == "function") then return end
+    local cached = npcNames[id]
+    if cached ~= nil then return cached or nil end
     local ok, name = pcall(db.name, id)
-    if ok and type(name) == "string" and name ~= "" then return name end
+    npcNames[id] = ok and type(name) == "string" and name ~= "" and name or false
+    return npcNames[id] or nil
 end
 
 -- field: "startedBy" (accept) or "finishedBy" (turn-in); first NPC giver only.
 function Integration.QuestNpcName(id, field)
     local db = LibQuestieDB and LibQuestieDB.Quest
     if not (db and type(db[field]) == "function") then return end
+    local key = field .. ":" .. tostring(id)
+    local cached = questNpcs[key]
+    if cached ~= nil then return cached or nil end
     local ok, givers = pcall(db[field], id)
     local npcs = ok and type(givers) == "table" and givers[1]
+    questNpcs[key] = false
     for _, npc in ipairs(type(npcs) == "table" and npcs or {}) do
         local name = Integration.NpcName(npc)
-        if name then return name end
+        if name then questNpcs[key] = name break end
     end
+    return questNpcs[key] or nil
 end
 
 local function Field(entity, field, id)
@@ -320,10 +330,15 @@ end
 function Integration.NpcInfo(id)
     local db = LibQuestieDB and LibQuestieDB.Npc
     if type(id) ~= "number" or not db then return end
+    if npcInfo[id] then return npcInfo[id] end
     local minimum, maximum, rank = Field(db, "minLevel", id), Field(db, "maxLevel", id), Field(db, "rank", id)
     local level = type(maximum) == "number" and maximum or type(minimum) == "number" and minimum or nil
-    return {level = level, elite = rank == 1 or rank == 2 or rank == 3}
+    npcInfo[id] = {level = level, elite = rank == 1 or rank == 2 or rank == 3}
+    return npcInfo[id]
 end
+
+-- Tests and /reload of Questie data.
+function Integration.ClearNpcCache() npcNames, npcInfo, questNpcs = {}, {}, {} end
 
 -- Mob names for any quest from the database (kill targets and item droppers), used for
 -- group members' quests where Questie's own active-quest data is not available.

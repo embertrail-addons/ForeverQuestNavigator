@@ -35,7 +35,7 @@ function Defaults.Normalize(settings, limits, isNew)
     for _, key in ipairs({"showTravelPreparation", "quietNavigation", "showRouteMarkers", "showQuestRewards",
         "showRewardComparison", "showTravelTime", "adaptiveLayout", "showLevelHints", "useQuestieKillLocations",
         "showQuestieOffers", "showDirectionArrow", "showScreenArrow", "showQuestXP", "difficultyWords",
-        "rememberNavigation", "showRouteLine", "iconLabels", "allGoals", "nameplateMarks", "quietInstances", "autoRaidMarks", "questSounds", "groupSync"}) do
+        "rememberNavigation", "showRouteLine", "iconLabels", "allGoals", "nameplateMarks", "quietInstances", "questSounds", "groupSync"}) do
         settings[key] = On(settings[key])
     end
     for _, key in ipairs({"areaOverviewExpanded", "allowTrackerResize", "lockTrackerPosition",

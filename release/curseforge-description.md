@@ -14,7 +14,7 @@ Forever Quest Navigator (FQN) is a quest companion for **World of Warcraft: Fore
 ## Added in 0.2.2
 
 *   **Mark targets window:** lists the mobs of your active quest (including every mob that drops a needed item) or its turn-in NPC. One click targets and marks it: **skull** for mobs, **star** for the turn-in NPC. It shows up only when there is something to mark.
-*   **Real raid marks** when you target a quest mob, and **quest marks with progress** (for example 3/8) above every other quest mob's nameplate.
+*   **Real raid marks** with one click or key, and **quest marks with progress** (for example 3/8) above every other quest mob's nameplate.
 *   **Loot reminder, respawn estimate and danger hints** for elite or much stronger quest mobs; the quest item sits in the window too.
 *   **All open objectives** at a glance, and a **quiet navigator inside dungeons and raids**.
 *   **Hints on the way:** dungeon quest summary, next turn-in after leaving, hearthstone and turn-in collector hints, bag check before a tour, `/fqn time 45` for a tour that fits your time.

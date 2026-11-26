@@ -1,8 +1,7 @@
-local ownName, addon = ...
+local _, addon = ...
 -- Quest marks in the world for the active quest:
---  * real raid target icons (the ones from the right-click menu): when you target a quest
---    mob it gets the skull, the turn-in NPC the star (setting autoRaidMarks). Each icon
---    exists only once, so the skull moves to the mob you target next.
+--  * real raid target icons are set only by a click or key (/tm in a secure macro, see
+--    TargetMarks): addon code calling SetRaidTarget is forbidden on WoW Forever clients.
 --  * nameplate badges with progress ("3/8") above every other visible quest mob, so a
 --    whole pack is visible at once (setting nameplateMarks; needs nameplates, key V).
 --  * loot reminder: killed quest-item droppers that were not looted yet.
@@ -71,17 +70,6 @@ function Marks.UpdateAll()
     for unit in pairs(units) do Marks.Update(unit) end
 end
 
--- Sets the real raid icon on a quest unit (target), never over another player's mark.
-function Marks.MarkUnit(unit)
-    if not (settings and settings.autoRaidMarks ~= false) or addon.TargetMarks.Hidden() then return end
-    if not addon.TargetMarks.ScriptMarkAllowed() then return end
-    if not (UnitExists and UnitExists(unit)) or not Alive(unit) then return end
-    local entry = byName[UnitName(unit) or ""]
-    if not entry or not addon.TargetMarks.MayMark() then return end
-    local current = GetRaidTargetIndex and GetRaidTargetIndex(unit)
-    if current == nil and SetRaidTarget then SetRaidTarget(unit, entry.icon) return true end
-end
-
 -- entries from addon.TargetMarks.Collect; called whenever the active quest's targets change.
 function Marks.Set(entries, shared)
     local nextByName = {}
@@ -146,17 +134,13 @@ function Marks.Start(source, settingsTable)
     if not driver then
         driver = CreateFrame("Frame")
         for _, event in ipairs({"NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "UNIT_HEALTH",
-            "RAID_TARGET_UPDATE", "PLAYER_TARGET_CHANGED", "COMBAT_LOG_EVENT_UNFILTERED", "LOOT_OPENED",
-            "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_ENABLED"}) do
+            "RAID_TARGET_UPDATE", "COMBAT_LOG_EVENT_UNFILTERED", "LOOT_OPENED", "PLAYER_REGEN_ENABLED"}) do
             driver:RegisterEvent(event)
         end
-        driver:SetScript("OnEvent", function(_, event, unit, action)
-            if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
-                if addon.TargetMarks.NoteBlocked(unit, action, ownName) then print("FQN | " .. L.RaidMarkBlocked) end
-            elseif event == "PLAYER_REGEN_ENABLED" then driver.signature = nil
+        driver:SetScript("OnEvent", function(_, event, unit)
+            if event == "PLAYER_REGEN_ENABLED" then driver.signature = nil
             elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then OnCombatLog()
             elseif event == "LOOT_OPENED" then OnLoot()
-            elseif event == "PLAYER_TARGET_CHANGED" then Marks.MarkUnit("target")
             elseif event == "RAID_TARGET_UPDATE" then Marks.UpdateAll()
             elseif event == "NAME_PLATE_UNIT_REMOVED" then
                 local plate = units[unit]

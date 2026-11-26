@@ -886,28 +886,10 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(Badge("nameplate2"):IsShown(), false)
     nameplates.SetEnabled(false) equal(Badge("nameplate1"):IsShown(), false)
     nameplates.SetEnabled(true) equal(Badge("nameplate1"):IsShown(), true)
-    -- Targeting a quest mob sets the real raid icon; a unit with a raid icon needs no badge.
-    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, 8)
-    raid.nameplate1 = 8 driver.scripts.OnEvent(driver, "RAID_TARGET_UPDATE") equal(Badge("nameplate1"):IsShown(), false)
-    raid.target = 2 names.target = "Kobold" driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED")
-    equal(raid.target, 2, "never replaces someone else's mark")
-    raid.target = nil settings.autoRaidMarks = false driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED")
-    equal(raid.target, nil) settings.autoRaidMarks = true
-    env.IsInRaid = function() return true end env.UnitIsGroupLeader = function() return false end
-    env.UnitIsGroupAssistant = function() return false end
-    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil, "raid marks need leader or assist")
-    env.IsInRaid = function() return false end
-    -- Clients that restrict SetRaidTarget (secret values, 12.0+): no marking from addon code.
-    env.issecretvalue = function() return false end
-    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil, "restricted client: keys and clicks mark via /tm")
-    env.issecretvalue = nil
-    -- A blocked call reported by WoW switches addon-code marking off for good (only for our own addon).
-    driver.scripts.OnEvent(driver, "ADDON_ACTION_BLOCKED", "OtherAddon", "SetRaidTarget()")
-    equal(ui.TargetMarks.ScriptMarkAllowed(), true)
-    driver.scripts.OnEvent(driver, "ADDON_ACTION_FORBIDDEN", addonName, "SetRaidTarget()")
-    equal(ui.TargetMarks.ScriptMarkAllowed(), false)
+    -- No raid marks from addon code (forbidden on WoW Forever clients); a unit with a raid icon needs no badge.
     driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil)
-    ui.TargetMarks.scriptBlocked = nil
+    raid.nameplate1 = 8 driver.scripts.OnEvent(driver, "RAID_TARGET_UPDATE") equal(Badge("nameplate1"):IsShown(), false)
+    raid.nameplate1 = nil
     -- Key bindings: secure buttons target and mark the first quest mob or the turn-in NPC with /tm.
     nameplates.UpdateKeys({{name = "Kobold", icon = 8, kind = "kill"}, {name = "Marshal", icon = 1, kind = "turnIn"}})
     equal(nameplates.keys[nameplates.KEY_NEXT].attributes.macrotext, ui.TargetMarks.Macro("Kobold", 8))
@@ -1204,7 +1186,6 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showTargetMarks = "FOREVERQUESTNAVIGATOR_TARGET_MARKS",
                     nameplateMarks = "FOREVERQUESTNAVIGATOR_NAMEPLATE_MARKS",
                     quietInstances = "FOREVERQUESTNAVIGATOR_QUIET_INSTANCES",
-                    autoRaidMarks = "FOREVERQUESTNAVIGATOR_AUTO_RAID_MARKS",
                     questSounds = "FOREVERQUESTNAVIGATOR_QUEST_SOUNDS",
                     compactBar = "FOREVERQUESTNAVIGATOR_COMPACT_BAR",
                     showRouteLine = "FOREVERQUESTNAVIGATOR_ROUTE_LINE",
@@ -1255,7 +1236,6 @@ test("TOC startup and quest events update the tracker with or without optional a
                     showTargetMarks = "Mark targets",
                     nameplateMarks = "Quest marks above mobs",
                     quietInstances = "Unobtrusive in instances",
-                    autoRaidMarks = "Raid mark on targeted quest mobs",
                     questSounds = "Quest sounds",
                     compactBar = "Compact arrow bar",
                     showRouteLine = "Connect route stops with a line",

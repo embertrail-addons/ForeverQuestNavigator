@@ -1086,7 +1086,7 @@ local function UpdateDistances(force)
             turnInLocations = S.turnInLocations,
             questTargetMaps = S.questTargetMaps,
             valueModel = S.valueModel,
-            sharedQuests = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, S.eligibleQuests),
+            sharedQuests = S.insights.sharedCounts,
         })
         addon.Performance:Finish("planning", performanceStart)
         S.navigationSnapshot = snapshot
@@ -1474,7 +1474,17 @@ end
 
 -- Target-mark window: NPC names from Questie (kill targets, givers, finishers), with the
 -- objective text as fallback for kill targets.
+local BuildTargetMarkEntries
 local function TargetMarkEntries()
+    local cache, now = S.insights.marksCache, SessionTime()
+    local shown = S.shownQuests and S.shownQuests[1]
+    local key = (shown and shown.id or 0) .. ":" .. tostring(S.insights.combatMarkers)
+    if cache and cache.key == key and now - cache.at < 1 then return cache.entries, cache.extra end
+    local entries, extra = BuildTargetMarkEntries()
+    S.insights.marksCache = {key = key, at = now, entries = entries, extra = extra}
+    return entries, extra
+end
+BuildTargetMarkEntries = function()
     local relations = S.insights.combatMarkers or {}
     local shown = S.shownQuests and S.shownQuests[1]
     -- Second result: the active quest's usable item, the unlooted-corpse count and the
@@ -1612,6 +1622,7 @@ local function Refresh()
     S.questDestinations = {}
     local quests, used = addon.QuestLog.Read(C_QuestLog)
     S.insights.combatMarkers = integration.GetCombatMarkers(quests, C_QuestLog)
+    S.insights.sharedCounts = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, quests)
     if S.valueModel and quests then
         S.insights.effortState = S.insights.effortState or {}
         addon.QuestValue.ObserveEffort(S.valueModel, S.insights.effortState, quests, SessionTime())

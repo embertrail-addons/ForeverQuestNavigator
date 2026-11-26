@@ -18,6 +18,16 @@ Value.OTHER_MINUTES = 1.5        -- minutes per remaining other objective
 Value.UNKNOWN_WORK = 3           -- minutes when progress is unknown
 Value.PREFERENCE_LIMIT = 60
 
+-- finish marker -> other marker -> yards; weak keys let replaced markers be collected.
+local pairCache = setmetatable({}, {__mode = "k"})
+local function CachedDistance(distance, from, to)
+    local row = pairCache[from]
+    if not row then row = setmetatable({}, {__mode = "k"}) pairCache[from] = row end
+    local value = row[to]
+    if value == nil then value = distance(from, to) or false row[to] = value end
+    return value or nil
+end
+
 local function Clamp(value, low, high) return math.max(low, math.min(high, value)) end
 
 local function Median(values)
@@ -106,14 +116,16 @@ function Value.Adjustments(context)
         for _, quest in ipairs(open) do nearest[#nearest + 1] = quest end
         table.sort(nearest, function(a, b) return measurements[a.id].yards < measurements[b.id].yards end)
         local next, nextValues = {}, {}
-        for index = 1, math.min(8, #nearest) do
+        local limit = math.min(8, #nearest)
+        for index = 1, limit do
             local quest = nearest[index]
             local journey = journeys[quest.id]
             local finish = journey and journey.finisher or measurements[quest.id].marker
             local best
-            for _, other in ipairs(nearest) do
+            for otherIndex = 1, limit do
+                local other = nearest[otherIndex]
                 if other ~= quest then
-                    local yards = context.distance(finish, measurements[other.id].marker)
+                    local yards = CachedDistance(context.distance, finish, measurements[other.id].marker)
                     if yards and (not best or yards < best) then best = yards end
                 end
             end

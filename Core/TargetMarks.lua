@@ -79,13 +79,6 @@ function Marks.LootNames(entries)
     return names
 end
 
--- Raid marks change for everyone in the group: solo and in a party anyone may set them,
--- in a raid only the leader or an assistant.
-function Marks.MayMark()
-    if not (IsInRaid and IsInRaid()) then return true end
-    return (UnitIsGroupLeader and UnitIsGroupLeader("player")) or (UnitIsGroupAssistant and UnitIsGroupAssistant("player")) or false
-end
-
 -- No marks in dungeons, raids, battlegrounds and arenas.
 function Marks.Hidden()
     return IsInInstance and IsInInstance() == true
@@ -188,18 +181,4 @@ function Marks.WrapCycle(button, handler)
     return true
 end
 
--- Marking from addon code (without a click) is only used where the client allows it:
--- not on clients with secret values (12.0+), and never again once WoW reported it blocked.
-function Marks.ScriptMarkAllowed()
-    if Marks.scriptBlocked then return false end
-    return issecretvalue == nil and SetRaidTarget ~= nil
-end
 
--- ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN for our own SetRaidTarget call.
-function Marks.NoteBlocked(addonName, action, ownName)
-    if addonName == ownName and type(action) == "string" and action:find("SetRaidTarget", 1, true) then
-        local first = not Marks.scriptBlocked
-        Marks.scriptBlocked = true
-        return first
-    end
-end
