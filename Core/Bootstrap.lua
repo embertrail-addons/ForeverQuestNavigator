@@ -2251,6 +2251,8 @@ local function AddonLoaded(name)
         BINDING_NAME_FOREVERQUESTNAVIGATOR_MENU = L.BindingMenu
         BINDING_NAME_FOREVERQUESTNAVIGATOR_NEXT = L.BindingNext
         BINDING_NAME_FOREVERQUESTNAVIGATOR_MARKS = L.BindingMarks
+        _G["BINDING_NAME_CLICK ForeverQuestNavigatorMarkNext:LeftButton"] = L.BindingMarkNext
+        _G["BINDING_NAME_CLICK ForeverQuestNavigatorMarkTurnIn:LeftButton"] = L.BindingMarkTurnIn
         ForeverQuestNavigator_HandleBinding = function(action)
             if action == "toggle" then ToggleTracker()
             elseif action == "map" then

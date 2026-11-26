@@ -1,8 +1,9 @@
 local _, addon = ...
 local L = addon.L
 -- Compact movable window: one secure button per NPC of the active quest. A click targets
--- the NPC by exact name ("/targetexact", a secure action, so it also works in combat) and
--- then marks it: skull for mobs to kill or that drop a quest item, star for the turn-in NPC.
+-- the NPC by exact name ("/targetexact") and marks it with "/tm" in the same secure macro, so it
+-- also works in combat and on clients that restrict SetRaidTarget: skull for mobs to kill or
+-- that drop a quest item, star for the turn-in NPC.
 -- Secure buttons cannot be changed in combat, so the list only updates out of combat.
 
 local ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_%d"
@@ -18,20 +19,19 @@ local function SetStatus(window, text)
     window.heading:SetShown(text == nil)
 end
 
--- Marks the current target if it is the requested NPC. Returns true when it matched.
+-- The macro has already marked; this only checks whether the NPC was found (for the status line).
 local function TryMark(window)
     local pending = window.pending
     if not pending or Now() - pending.at > PENDING_SECONDS then return end
     if UnitExists and UnitExists("target") and UnitName("target") == pending.name then
-        if GetRaidTargetIndex("target") ~= pending.icon then SetRaidTarget("target", pending.icon) end
         window.pending = nil
         SetStatus(window, nil)
         return true
     end
 end
 
--- PostClick runs for the press and the release; the secure targeting happens on one of them.
--- If the target arrives later, PLAYER_TARGET_CHANGED finishes the mark.
+-- PostClick runs for the press and the release; the secure macro runs on one of them.
+-- If the target arrives later, PLAYER_TARGET_CHANGED clears the "not in range" note.
 local function MarkTarget(button)
     local entry, window = button.entry, button.window
     if not entry then return end
@@ -198,7 +198,7 @@ function addon.CreateTargetMarkWindow(settings, source)
             local entry = entries[index]
             row.entry = entry
             if entry then
-                row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name))
+                row:SetAttribute("macrotext", addon.TargetMarks.Macro(entry.name, entry.icon))
                 row.icon:SetTexture(ICON:format(entry.icon))
                 -- Progress, danger and respawn at a glance; the dropped item is in the tooltip.
                 local text = entry.danger and ("|cffff5555" .. entry.name .. "|r") or entry.name

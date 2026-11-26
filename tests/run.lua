@@ -847,21 +847,23 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     equal(window:IsShown(), true) equal(window.ticker:IsShown(), true)
     local row = window.rows[1]
     equal(row.template, "SecureActionButtonTemplate")
-    equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold")
+    -- Target by exact name and mark with /tm in the same secure macro (works where SetRaidTarget is restricted).
+    equal(row.attributes.type, "macro") equal(row.attributes.macrotext, "/targetexact Kobold\n/tm 8")
+    equal(window.rows[2].attributes.macrotext, "/targetexact Marshal\n/tm 1")
     equal(row:IsShown(), true) equal(window.rows[3]:IsShown(), false)
     local marked
     env.UnitExists = function() return true end
     env.UnitName = function() return "Kobold" end
     env.GetRaidTargetIndex = function() return marked end
     env.SetRaidTarget = function(_, icon) marked = icon end
-    row.scripts.PostClick(row) equal(marked, 8)
+    row.scripts.PostClick(row) equal(marked, nil, "the macro marks, not addon code")
+    equal(window.status:IsShown(), false)
     window.rows[2].scripts.PostClick(window.rows[2])
-    equal(marked, 8, "a different target name is never marked")
     assert(window.status.text:find("Marshal", 1, true)) equal(window.heading:IsShown(), false)
-    -- The target can arrive after the click; the target-changed event finishes the mark.
+    -- The target can arrive after the click; the target-changed event clears the note.
     env.UnitName = function() return "Marshal" end
     window.scripts.OnEvent(window, "PLAYER_TARGET_CHANGED")
-    equal(marked, 1) equal(window.status:IsShown(), false) equal(window.heading:IsShown(), true)
+    equal(window.status:IsShown(), false) equal(window.heading:IsShown(), true)
 
     -- Nameplates: every visible mob of the active quest gets the badge with progress, not only the target.
     local plates, names, raid = {}, {nameplate1 = "Kobold", nameplate2 = "Kobold", nameplate3 = "Rabbit", target = "Kobold"}, {}
@@ -895,6 +897,24 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     env.UnitIsGroupAssistant = function() return false end
     driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil, "raid marks need leader or assist")
     env.IsInRaid = function() return false end
+    -- Clients that restrict SetRaidTarget (secret values, 12.0+): no marking from addon code.
+    env.issecretvalue = function() return false end
+    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil, "restricted client: keys and clicks mark via /tm")
+    env.issecretvalue = nil
+    -- A blocked call reported by WoW switches addon-code marking off for good (only for our own addon).
+    driver.scripts.OnEvent(driver, "ADDON_ACTION_BLOCKED", "OtherAddon", "SetRaidTarget()")
+    equal(ui.TargetMarks.ScriptMarkAllowed(), true)
+    driver.scripts.OnEvent(driver, "ADDON_ACTION_FORBIDDEN", addonName, "SetRaidTarget()")
+    equal(ui.TargetMarks.ScriptMarkAllowed(), false)
+    driver.scripts.OnEvent(driver, "PLAYER_TARGET_CHANGED") equal(raid.target, nil)
+    ui.TargetMarks.scriptBlocked = nil
+    -- Key bindings: secure buttons target and mark the first quest mob or the turn-in NPC with /tm.
+    nameplates.UpdateKeys({{name = "Kobold", icon = 8, kind = "kill"}, {name = "Marshal", icon = 1, kind = "turnIn"}})
+    equal(nameplates.keys[nameplates.KEY_NEXT].attributes.macrotext, ui.TargetMarks.Macro("Kobold", 8))
+    equal(nameplates.keys[nameplates.KEY_TURN_IN].attributes.macrotext, ui.TargetMarks.Macro("Marshal", 1))
+    equal(nameplates.keys[nameplates.KEY_NEXT].template, "SecureActionButtonTemplate")
+    nameplates.UpdateKeys({})
+    equal(nameplates.keys[nameplates.KEY_TURN_IN].attributes.macrotext, "")
     raid.nameplate1 = nil
     driver.scripts.OnEvent(driver, "NAME_PLATE_UNIT_REMOVED", "nameplate1") equal(Badge("nameplate1"):IsShown(), false)
     -- Loot reminder: killed droppers count until looted.
@@ -964,9 +984,9 @@ test("Target marks list kill targets with skull and quest NPCs with star, shown 
     -- Secure buttons stay unchanged in combat and update afterwards.
     env.InCombatLockdown = function() return true end
     list = {{name = "Other", icon = 1, kind = "accept", questID = 5}}
-    window:Refresh() equal(row.attributes.macrotext, "/targetexact Kobold")
+    window:Refresh() equal(row.attributes.macrotext, "/targetexact Kobold\n/tm 8")
     env.InCombatLockdown = function() return false end
-    window:Refresh() equal(row.attributes.macrotext, "/targetexact Other") equal(window.rows[2]:IsShown(), false)
+    window:Refresh() equal(row.attributes.macrotext, "/targetexact Other\n/tm 1") equal(window.rows[2]:IsShown(), false)
     -- Only there while the active quest has targets, and never inside instances.
     list = {} window:Refresh() equal(window:IsShown(), false) equal(window.ticker:IsShown(), true)
     list = {{name = "Other", icon = 1, kind = "turnIn", questID = 5}} window:Refresh() equal(window:IsShown(), true)

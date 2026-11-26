@@ -26,4 +26,6 @@
     <Binding name="FOREVERQUESTNAVIGATOR_MARKS" category="ADDONS">
         ForeverQuestNavigator_HandleBinding("marks")
     </Binding>
+    <Binding name="CLICK ForeverQuestNavigatorMarkNext:LeftButton" category="ADDONS"/>
+    <Binding name="CLICK ForeverQuestNavigatorMarkTurnIn:LeftButton" category="ADDONS"/>
 </Bindings>

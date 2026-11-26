@@ -101,6 +101,26 @@ function Marks.Signature(entries)
     return table.concat(parts, "|")
 end
 
-function Marks.Macro(name)
-    return "/targetexact " .. name
+-- Targets by exact name, then marks with /tm inside the same secure click. /tm works on
+-- clients where calling SetRaidTarget from addon code is restricted (retail 12.0 and later).
+function Marks.Macro(name, icon)
+    local text = "/targetexact " .. name
+    if icon then text = text .. "\n/tm " .. icon end
+    return text
+end
+
+-- Marking from addon code (without a click) is only used where the client allows it:
+-- not on clients with secret values (12.0+), and never again once WoW reported it blocked.
+function Marks.ScriptMarkAllowed()
+    if Marks.scriptBlocked then return false end
+    return issecretvalue == nil and SetRaidTarget ~= nil
+end
+
+-- ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN for our own SetRaidTarget call.
+function Marks.NoteBlocked(addonName, action, ownName)
+    if addonName == ownName and type(action) == "string" and action:find("SetRaidTarget", 1, true) then
+        local first = not Marks.scriptBlocked
+        Marks.scriptBlocked = true
+        return first
+    end
 end

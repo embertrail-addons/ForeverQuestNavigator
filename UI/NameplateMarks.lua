@@ -1,4 +1,4 @@
-local _, addon = ...
+local ownName, addon = ...
 -- Quest marks in the world for the active quest:
 --  * real raid target icons (the ones from the right-click menu): when you target a quest
 --    mob it gets the skull, the turn-in NPC the star (setting autoRaidMarks). Each icon
@@ -74,6 +74,7 @@ end
 -- Sets the real raid icon on a quest unit (target), never over another player's mark.
 function Marks.MarkUnit(unit)
     if not (settings and settings.autoRaidMarks ~= false) or addon.TargetMarks.Hidden() then return end
+    if not addon.TargetMarks.ScriptMarkAllowed() then return end
     if not (UnitExists and UnitExists(unit)) or not Alive(unit) then return end
     local entry = byName[UnitName(unit) or ""]
     if not entry or not addon.TargetMarks.MayMark() then return end
@@ -134,11 +135,15 @@ function Marks.Start(source, settingsTable)
     if not driver then
         driver = CreateFrame("Frame")
         for _, event in ipairs({"NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "UNIT_HEALTH",
-            "RAID_TARGET_UPDATE", "PLAYER_TARGET_CHANGED", "COMBAT_LOG_EVENT_UNFILTERED", "LOOT_OPENED"}) do
+            "RAID_TARGET_UPDATE", "PLAYER_TARGET_CHANGED", "COMBAT_LOG_EVENT_UNFILTERED", "LOOT_OPENED",
+            "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_ENABLED"}) do
             driver:RegisterEvent(event)
         end
-        driver:SetScript("OnEvent", function(_, event, unit)
-            if event == "COMBAT_LOG_EVENT_UNFILTERED" then OnCombatLog()
+        driver:SetScript("OnEvent", function(_, event, unit, action)
+            if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+                if addon.TargetMarks.NoteBlocked(unit, action, ownName) then print("FQN | " .. L.RaidMarkBlocked) end
+            elseif event == "PLAYER_REGEN_ENABLED" then driver.signature = nil
+            elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then OnCombatLog()
             elseif event == "LOOT_OPENED" then OnLoot()
             elseif event == "PLAYER_TARGET_CHANGED" then Marks.MarkUnit("target")
             elseif event == "RAID_TARGET_UPDATE" then Marks.UpdateAll()
@@ -162,10 +167,40 @@ function Marks.Start(source, settingsTable)
         for name in pairs(shared) do names[#names + 1] = name end
         table.sort(names)
         local signature = addon.TargetMarks.Signature(entries) .. "|shared:" .. table.concat(names, ",")
-        if signature ~= self.signature then self.signature = signature Marks.Set(entries, shared) end
+        if signature ~= self.signature then
+            -- Key buttons are secure: their macros change only out of combat (retried afterwards).
+            if not (InCombatLockdown and InCombatLockdown()) then Marks.UpdateKeys(entries) self.signature = signature end
+            Marks.Set(entries, shared)
+        end
     end
     driver.signature = nil
     driver:Refresh()
+end
+
+-- Two secure buttons for key bindings: target and mark the first quest mob, or the
+-- turn-in NPC, by exact name with /tm (works where SetRaidTarget is restricted).
+local keys = {}
+local function KeyButton(name)
+    if keys[name] or not CreateFrame then return keys[name] end
+    local button = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
+    button:RegisterForClicks("AnyUp", "AnyDown")
+    button:SetAttribute("type", "macro")
+    button:SetAttribute("macrotext", "")
+    button:Hide()
+    keys[name] = button
+    return button
+end
+Marks.KEY_NEXT, Marks.KEY_TURN_IN = "ForeverQuestNavigatorMarkNext", "ForeverQuestNavigatorMarkTurnIn"
+
+function Marks.UpdateKeys(entries)
+    local mob, turnIn
+    for _, entry in ipairs(entries or {}) do
+        if entry.kind == "turnIn" then turnIn = turnIn or entry else mob = mob or entry end
+    end
+    local next, finisher = KeyButton(Marks.KEY_NEXT), KeyButton(Marks.KEY_TURN_IN)
+    if next then next:SetAttribute("macrotext", mob and addon.TargetMarks.Macro(mob.name, mob.icon) or "") end
+    if finisher then finisher:SetAttribute("macrotext", turnIn and addon.TargetMarks.Macro(turnIn.name, turnIn.icon) or "") end
+    Marks.keys = keys
 end
 
 function Marks.SetEnabled(value)
