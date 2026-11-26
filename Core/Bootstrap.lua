@@ -1111,7 +1111,10 @@ local function UpdateDistances(force)
         local routeQuest, route = snapshot.routeQuest, snapshot.route
         local xpNeeded, levelUpQuest, nextQuest = snapshot.xpNeeded, snapshot.levelUpQuest, snapshot.nextQuest
         local note, details
+        local perf = addon.Performance
+        local step = perf:Begin()
         local trip = not (flight.active or S.combatQuestID) and UpdateOuting(snapshot.planningRanked, measurements, playerLevel, levelUpQuest or routeQuest or S.objectiveLock)
+        perf:Finish("dist:outing", step)
         if levelUpQuest then
             routeQuest, note = levelUpQuest, L.LevelUpOnTurnIn
         elseif trip then
@@ -1133,14 +1136,24 @@ local function UpdateDistances(force)
         local forecast = not (trip or levelUpQuest) and route
         snapshot.decision = levelUpQuest and "levelUp" or trip and "outing" or route and "followUp" or "ranking"
         snapshot.decisionSaving = not levelUpQuest and ((trip and trip.saving) or (route and route.saving)) or nil
+        step = perf:Begin()
         RenderQuestList(ranked, routeQuest, note, details, playerLevel, xpNeeded, nextQuest, forecast)
         S.tracker:SetFlightView(flight.active, FlightStep(S.shownQuests[1]))
+        perf:Finish("dist:render", step)
+        step = perf:Begin()
         UpdateMapMarker()
+        perf:Finish("dist:map", step)
         local activeMeasurement = snapshot.activeMeasurement
         S.activeDirection = activeMeasurement and activeMeasurement.east and activeMeasurement or nil
+        step = perf:Begin()
         S.tracker:RenderDistances(measurements)
-        if RefreshNearbyOffers and (not S.insights.offersAt or SessionTime() - S.insights.offersAt >= 5) then
+        perf:Finish("dist:tracker", step)
+        -- Nearby offers on the timer: every 5 s while moving, every 30 s while standing (scanning
+        -- Questie's quest-giver pins is expensive in cities); quest-log updates always rescan.
+        if RefreshNearbyOffers and F.OfferRescanDue() then
+            step = perf:Begin()
             RefreshNearbyOffers(S.distanceMaps, S.questTargetMaps, Enum and Enum.UIMapType)
+            perf:Finish("dist:offers", step)
         end
         UpdateDirectionTicker()
     end
@@ -1360,6 +1373,22 @@ local function ShowTourChat()
     end or nil)
 end
 addon.ShowTourChatPreview = ShowTourChat
+
+function F.OfferRescanDue()
+    local now, last = SessionTime(), S.insights.offersAt
+    if not last then return true end
+    if now - last < 5 then return false end
+    if now - last >= 30 then return true end
+    local mapID = C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local position = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+    local x, y = position and position.x, position and position.y
+    if position and position.GetXY then x, y = position:GetXY() end
+    local previous = S.insights.offersPosition
+    if not (x and y) then return true end
+    local moved = not previous or previous.mapID ~= mapID or math.abs(previous.x - x) + math.abs(previous.y - y) > .01
+    if moved then S.insights.offersPosition = {mapID = mapID, x = x, y = y} end
+    return moved
+end
 
 -- Hearthstone: the bind point is recorded where the player binds (HEARTHSTONE_BOUND).
 function F.RecordHearth()

@@ -92,6 +92,15 @@ return function(test, addon, equal)
         local later = Average(20, function() Build(city) end)
         assert(first < 400, ("Grouping 4000 spawn points took %.1f ms"):format(first))
         assert(later < 40, ("A later camp choice took %.1f ms"):format(later))
+        -- A quest-log update rebuilds the list around the same markers: no regrouping.
+        local groupings = addon.CampChoices.groupings
+        local copy = {}
+        for index, point in ipairs(city) do copy[index] = point end
+        Build(copy)
+        equal(addon.CampChoices.groupings, groupings, "same markers in a new list reuse the camps")
+        copy[#copy + 1] = {mapID = 10, x = .5, y = .5, objectiveIndex = 1, world = {x = 500, y = 500, continent = 1}}
+        Build(copy)
+        assert(addon.CampChoices.groupings > groupings, "a changed marker set is grouped again")
     end)
     test("Quest value on a full log is cheap and repeats no distance work while targets stay the same", function()
         local quests, measurements = FullLog()

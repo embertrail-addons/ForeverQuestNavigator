@@ -25,7 +25,7 @@ function Performance:Report()
     -- Main sections first, then the planning steps and the quest-log refresh.
     local names = {"planning", "direction", "map", "refresh"}
     local extra = {}
-    for name in pairs(self.sections) do if name:find("^plan:") or name:find("^refresh:") or name:find("^offers:") then extra[#extra + 1] = name end end
+    for name in pairs(self.sections) do if name:find("^plan:") or name:find("^refresh:") or name:find("^offers:") or name:find("^dist:") then extra[#extra + 1] = name end end
     table.sort(extra)
     for _, name in ipairs(extra) do names[#names + 1] = name end
     for _, name in ipairs(names) do

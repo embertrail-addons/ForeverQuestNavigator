@@ -1,7 +1,9 @@
 local _, addon = ...
 local Choices = {}
 addon.CampChoices = Choices
--- markers list -> {api, byObjective = {[index] = groups}}; weak keys drop replaced lists.
+-- first marker -> {api, count, last, byObjective = {[index] = groups}}. Marker lists are
+-- rebuilt on every quest-log update around the same marker objects, so the first marker (with
+-- count and last marker as a check) identifies the set; weak keys drop replaced markers.
 local cache = setmetatable({}, {__mode = "k"})
 Choices.CELL, Choices.NEAREST = 100, 8
 
@@ -9,6 +11,7 @@ Choices.CELL, Choices.NEAREST = 100, 8
 -- such camp). With world positions a 100-yard grid limits each check to neighbouring cells,
 -- so cities with thousands of spawn points stay fast; otherwise every camp is compared.
 local function Group(api, markers, index, metric)
+    Choices.groupings = (Choices.groupings or 0) + 1
     local groups, grid = {}, {}
     local cell = Choices.CELL
     for _, point in ipairs(markers or {}) do
@@ -50,10 +53,11 @@ function Choices.Build(api, quest, measurement, markers, quests, measurements, m
     if not target or quest.readyToTurnIn or not target.objectiveIndex then return {} end
     local metric = addon.QuestLocation.GetDistanceMetric(api, target)
     if not metric then return {} end
-    local entry = markers and cache[markers]
-    if not (entry and entry.api == api) then
-        entry = {api = api, byObjective = {}}
-        if markers then cache[markers] = entry end
+    local first = markers and markers[1]
+    local entry = first and cache[first]
+    if not (entry and entry.api == api and entry.count == #markers and entry.last == markers[#markers]) then
+        entry = {api = api, count = markers and #markers or 0, last = markers and markers[#markers], byObjective = {}}
+        if first then cache[first] = entry end
     end
     local groups = entry.byObjective[target.objectiveIndex]
     if not groups then
