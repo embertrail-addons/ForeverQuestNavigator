@@ -1160,6 +1160,10 @@ local english = {
     BindingMarkNext = "Target and mark the next quest mob",
     BindingMarkTurnIn = "Target and mark the turn-in NPC",
     RaidMarkBlocked = "This client does not allow addons to set raid marks by themselves. Marks are set with a click in the Mark targets window or with its key bindings.",
+    WhyFinishNearly = "almost done",
+    WhySharedMobs = "mobs count for several quests",
+    SharedMobs = "Also counts for: %s",
+    AlsoCountsFor = "Also counts for: %s",
 }
 
 local german = setmetatable({
@@ -2323,6 +2327,10 @@ local german = setmetatable({
     BindingMarkNext = "Nächsten Questmob anvisieren und markieren",
     BindingMarkTurnIn = "Abgabe-NPC anvisieren und markieren",
     RaidMarkBlocked = "Dieser Client erlaubt Addons nicht, Zielmarkierungen selbst zu setzen. Markiert wird per Klick im Fenster \"Ziele markieren\" oder über dessen Tasten.",
+    WhyFinishNearly = "fast fertig",
+    WhySharedMobs = "Mobs zählen für mehrere Quests",
+    SharedMobs = "Zählt auch für: %s",
+    AlsoCountsFor = "Zählt auch für: %s",
 }, { __index = english })
 
 addon.L = {}

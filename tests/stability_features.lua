@@ -313,6 +313,47 @@ return function(test, addon, equal, near)
         equal(addon.NavigationHints.Why(snapshot, {id = 1}), L.WhyLevelDistance .. " · " .. L.WhyXPPerMinute:format(650))
         equal(addon.NavigationHints.Why(snapshot, {id = 1}, true), L.WhyManual)
     end)
+    test("One kill left at the camp beats a fresh quest elsewhere despite a far turn-in", function()
+        -- Reported case: murlocs 8/8 + 7/8, camp cleared, turn-in far away; buzzards a few hundred yards off.
+        local Value, Prioritizer = addon.QuestValue, addon.QuestPrioritizer
+        local murlocs = {id = 1, title = "Murlocs", level = 20, progress = {remaining = 1, monsters = 1, items = 0, other = 0, nearly = true, bonus = 40}}
+        local buzzards = {id = 2, title = "Buzzards", level = 20, progress = {remaining = 8, monsters = 8, items = 0, other = 0}}
+        local quests = {murlocs, buzzards}
+        local function Point(x) return {mapID = 1, x = x, y = 0} end
+        local measured = {[1] = {yards = 60, marker = Point(60)}, [2] = {yards = 350, marker = Point(350)}}
+        local journeys = {[1] = {totalYards = 2660, extraYards = 2600, returnYards = 2550, goals = 1}}
+        equal(addon.TravelSupport.PlanningPenalty(murlocs, journeys[1], true), 50 * .35, "the unavoidable way back does not count")
+        local adjustments = Value.Adjustments({quests = quests, measurements = measured, journeys = journeys, model = Value.Model({}),
+            xp = function(q) return q.id == 2 and 1500 or 1000 end, distance = function(a, b) return math.abs(a.x - b.x) end})
+        adjustments[1] = adjustments[1] - 60 -- standing in the murloc spawn area (presence)
+        local ranked = Prioritizer.RankByDistance(quests, measured, nil, 20, journeys, 5, adjustments)
+        equal(ranked[1].id, 1)
+        -- Without "nearly done" the far turn-in still counts as before.
+        local fresh = {id = 3, level = 20, progress = {remaining = 8, monsters = 8, items = 0, other = 0}}
+        near(addon.TravelSupport.PlanningPenalty(fresh, journeys[1], true), 910)
+        -- Unknown turn-ins are no longer cheaper in the XP-per-minute estimate.
+        local model = Value.Model({})
+        local known = Value.Minutes(buzzards, {yards = 350}, {totalYards = 700}, model)
+        local unknown = Value.Minutes(buzzards, {yards = 350}, nil, model)
+        near(known, unknown)
+    end)
+    test("Mobs that count for two quests are recognized and explained", function()
+        -- Reported case: kill murlocs and collect murloc eyes from the same mobs.
+        local Marks = addon.TargetMarks
+        local quests = {{id = 1, title = "Murlocs"}, {id = 3, title = "Murloc Eyes"}, {id = 4, title = "Buzzards"},
+            {id = 5, title = "Done", readyToTurnIn = true}}
+        local relations = {[1] = {{objectiveIndex = 1, npcID = 101}, {objectiveIndex = 2, npcID = 102}},
+            [3] = {{objectiveIndex = 1, npcID = 102}}, [4] = {{objectiveIndex = 1, npcID = 200}}, [5] = {{objectiveIndex = 1, npcID = 101}}}
+        local others, byNpc = Marks.SharedQuests(relations, 1, quests)
+        equal(#others, 1) equal(others[1].id, 3) equal(byNpc[102][1], "Murloc Eyes") equal(byNpc[101], nil)
+        local counts = Marks.SharedCounts(relations, quests)
+        equal(counts[1], 1) equal(counts[3], 1) equal(counts[4], nil)
+        local adjustments, factors = addon.QuestValue.Adjustments({quests = {{id = 1}, {id = 4}},
+            measurements = {[1] = {yards = 100, marker = {mapID = 1, x = 0, y = 0}}, [4] = {yards = 100, marker = {mapID = 1, x = 0, y = 0}}},
+            model = addon.QuestValue.Model({}), shared = counts})
+        assert((adjustments[1] or 0) < (adjustments[4] or 0)) equal(factors[1].sharedMobs, 1)
+        assert(addon.QuestValue.Explain(factors[1], addon.L):find(addon.L.WhySharedMobs, 1, true))
+    end)
     test("Mark clicks cycle through living quest mobs instead of toggling one mark", function()
         local Marks = addon.TargetMarks
         local button = {attributes = {}}

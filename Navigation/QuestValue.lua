@@ -57,7 +57,10 @@ end
 
 -- Estimated minutes to finish and hand in: travel (with the way to the turn-in when known) plus work.
 function Value.Minutes(quest, measured, journey, model)
-    local yards = journey and journey.totalYards or addon.QuestPrioritizer.TravelDistance(measured)
+    -- Without a known turn-in the way back is assumed as long as the way there, so quests
+    -- with and without known turn-ins are compared on equal terms.
+    local approach = addon.QuestPrioritizer.TravelDistance(measured)
+    local yards = journey and journey.totalYards or (type(approach) == "number" and approach * 2)
     if type(yards) ~= "number" then return end
     local p, work = quest.progress, Value.UNKNOWN_WORK
     if p then work = ((p.monsters or 0) + (p.items or 0)) * model.unitMinutes + (p.other or 0) * Value.OTHER_MINUTES end
@@ -137,6 +140,16 @@ function Value.Adjustments(context)
             for _, quest in ipairs(here) do Add(quest.id, -40, "finishZone", #here) end
         end
     end
+    -- Finish what is nearly done: the last one to three kills or items of a quest.
+    for _, quest in ipairs(open) do
+        local p = quest.progress
+        if p and p.nearly then Add(quest.id, -120, "finishNearly", p.remaining) end
+    end
+    -- Mobs that count for several open quests at once (kill one, progress two).
+    for _, quest in ipairs(open) do
+        local count = context.shared and context.shared[quest.id]
+        if count and count > 0 then Add(quest.id, -math.min(60, 30 * count), "sharedMobs", count) end
+    end
     -- Learned preference for the kind of work.
     for _, quest in ipairs(open) do
         local preference = model.prefer[Value.Kind(quest)] or 0
@@ -209,6 +222,8 @@ function Value.Explain(factors, L)
     if factors.nextYards and factors.nextYards <= 150 then parts[#parts + 1] = L.WhyNextClose end
     if factors.followUps then parts[#parts + 1] = (factors.followUps == 1 and L.WhyFollowUp or L.WhyFollowUps:format(factors.followUps)) end
     if factors.finishZone then parts[#parts + 1] = L.WhyFinishZone end
+    if factors.finishNearly then parts[#parts + 1] = L.WhyFinishNearly end
+    if factors.sharedMobs then parts[#parts + 1] = L.WhySharedMobs end
     if factors.learned and factors.learned > 0 then parts[#parts + 1] = L.WhyLearned end
     return #parts > 0 and table.concat(parts, " · ") or nil
 end

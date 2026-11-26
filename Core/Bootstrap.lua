@@ -559,6 +559,14 @@ local function ContextNote(quest, routeNote, routeQuest, tourID, playerLevel)
     end
     local feedback = S.navigationSnapshot.feedback and S.navigationSnapshot.feedback[quest.id]
     if feedback then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.FeedbackActive summaryImportant = true end
+    -- Mobs here also count for other open quests (for example kill murlocs + collect murloc eyes).
+    local sharing = not quest.readyToTurnIn and addon.TargetMarks.SharedQuests(S.insights.combatMarkers, quest.id, S.eligibleQuests)
+    if sharing and #sharing > 0 then
+        local titles = {}
+        for index, other in ipairs(sharing) do if index <= 2 then titles[index] = other.title end end
+        routeNote = (routeNote and (routeNote .. " · ") or "") .. L.SharedMobs:format(table.concat(titles, ", "))
+        summaryImportant = true
+    end
     local mates = addon.GroupSync.Showing(S.settings) and addon.GroupSync.Describe(quest.id)
     if mates then routeNote = (routeNote and (routeNote .. " · ") or "") .. L.GroupSyncMates:format(mates) end
     if quest.readyToTurnIn and S.navigationSnapshot.capacity and (S.navigationSnapshot.capacity.full or S.navigationSnapshot.capacity.reserveNeeded) then
@@ -1078,6 +1086,7 @@ local function UpdateDistances(force)
             turnInLocations = S.turnInLocations,
             questTargetMaps = S.questTargetMaps,
             valueModel = S.valueModel,
+            sharedQuests = addon.TargetMarks.SharedCounts(S.insights.combatMarkers, S.eligibleQuests),
         })
         addon.Performance:Finish("planning", performanceStart)
         S.navigationSnapshot = snapshot
@@ -1507,6 +1516,14 @@ local function TargetMarkEntries()
         objectives = function(id) return C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) end,
         finisher = function(id) return integration.QuestNpcName(id, "finishedBy") end,
     })
+    -- Mobs that also count for other open quests: "also for: Murloc Eyes".
+    if shown then
+        local _, byNpc = addon.TargetMarks.SharedQuests(relations, shown.id, S.eligibleQuests)
+        for _, entry in ipairs(entries) do
+            local titles = entry.npcID and byNpc[entry.npcID]
+            if titles then entry.alsoFor = table.concat(titles, ", ") end
+        end
+    end
     -- Danger: elite mobs or mobs three or more levels above the player; told once per quest.
     local level = UnitLevel and UnitLevel("player")
     local warned = {}

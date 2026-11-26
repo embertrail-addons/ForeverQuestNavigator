@@ -208,7 +208,11 @@ function Travel.PlanningPenalty(quest, journey, enabled, countedAccess)
     -- A bounded travel preference keeps distance, difficulty and follow-up
     -- planning relevant; unknown return routes receive an uncertainty allowance.
     if not journey then return 200 end
-    return math.min(1000, math.max(0, journey.extraYards - math.max(0, countedAccess or 0)) * 0.35)
+    -- A nearly finished quest has to be handed in anyway: its return trip does not count
+    -- against it (otherwise a far turn-in pushes "one more kill here" behind other quests).
+    local extra = journey.extraYards
+    if quest.progress and quest.progress.nearly then extra = extra - (journey.returnYards or 0) end
+    return math.min(1000, math.max(0, extra - math.max(0, countedAccess or 0)) * 0.35)
 end
 
 function Travel.ListAccess(saved, mapAPI, titleForQuest)

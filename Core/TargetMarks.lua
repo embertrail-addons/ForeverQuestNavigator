@@ -91,12 +91,46 @@ function Marks.Hidden()
     return IsInInstance and IsInInstance() == true
 end
 
+-- relations[questID] = {{objectiveIndex, npcID}, ...} (QuestieIntegration.GetCombatMarkers).
+-- Returns, for questID: list of other open quests sharing a mob, and npcID -> {titles}.
+function Marks.SharedQuests(relations, questID, quests)
+    local mine, others, byNpc = {}, {}, {}
+    for _, relation in ipairs(relations and relations[questID] or {}) do mine[relation.npcID] = true end
+    for _, quest in ipairs(quests or {}) do
+        if quest.id ~= questID and not quest.readyToTurnIn then
+            local shared
+            for _, relation in ipairs(relations[quest.id] or {}) do
+                if mine[relation.npcID] then
+                    shared = true
+                    byNpc[relation.npcID] = byNpc[relation.npcID] or {}
+                    local list = byNpc[relation.npcID]
+                    if list[#list] ~= quest.title then list[#list + 1] = quest.title end
+                end
+            end
+            if shared then others[#others + 1] = quest end
+        end
+    end
+    return others, byNpc
+end
+
+-- Count of other open quests sharing mobs, per quest (ranking input).
+function Marks.SharedCounts(relations, quests)
+    local counts
+    for _, quest in ipairs(quests or {}) do
+        if not quest.readyToTurnIn then
+            local others = Marks.SharedQuests(relations, quest.id, quests)
+            if #others > 0 then counts = counts or {} counts[quest.id] = #others end
+        end
+    end
+    return counts
+end
+
 -- Stable text for "did anything change" checks, so secure buttons are only rebuilt when needed.
 function Marks.Signature(entries)
     local parts = {}
     for index, entry in ipairs(entries) do
         parts[index] = entry.icon .. ":" .. entry.name .. ":" .. tostring(entry.questID) .. ":" .. tostring(entry.progress)
-            .. ":" .. tostring(entry.respawn) .. ":" .. tostring(entry.danger)
+            .. ":" .. tostring(entry.respawn) .. ":" .. tostring(entry.danger) .. ":" .. tostring(entry.alsoFor)
     end
     return table.concat(parts, "|")
 end

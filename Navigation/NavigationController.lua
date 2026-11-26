@@ -113,7 +113,7 @@ function addon.NavigationController.Compute(input)
         local valueAdjustments
         valueAdjustments, factors = addon.QuestValue.Adjustments({
             quests = eligibleQuests, measurements = measurements, journeys = journeys, model = input.valueModel,
-            xp = addon.QuestLog.GetTurnInXP, playerMap = playerMap, chains = input.routeChains,
+            xp = addon.QuestLog.GetTurnInXP, playerMap = playerMap, chains = input.routeChains, shared = input.sharedQuests,
             distance = function(a, b)
                 local metric = a and addon.QuestLocation.GetDistanceMetric(input.mapAPI, a)
                 return metric and metric(a, b)

@@ -48,6 +48,7 @@ local function ShowRowTooltip(button)
     if entry.title then GameTooltip:AddLine(entry.title, .8, .8, .8, true) end
     if entry.danger then GameTooltip:AddLine(L.DangerTooltip:format(entry.danger), 1, .35, .35, true) end
     if entry.respawn then GameTooltip:AddLine(entry.respawn, .8, .8, .8, true) end
+    if entry.alsoFor then GameTooltip:AddLine(L.AlsoCountsFor:format(entry.alsoFor), .4, .8, 1, true) end
     GameTooltip:AddLine(L.TargetMarkClick, .6, .8, 1, true)
     GameTooltip:Show()
 end
@@ -218,6 +219,7 @@ function addon.CreateTargetMarkWindow(settings, source)
                 if entry.progress then text = text .. " |cff9d9d9d" .. entry.progress .. "|r" end
                 if entry.danger then text = text .. " |cffff5555" .. entry.danger .. "|r" end
                 if entry.respawn then text = text .. " |cff9d9d9d" .. entry.respawn .. "|r" end
+                if entry.alsoFor then text = text .. " |cff66ccff+1|r" end
                 row.label:SetText(text)
                 row:ClearAllPoints()
                 row:SetPoint("TOPLEFT", 3, -top) row:SetPoint("TOPRIGHT", -3, -top)
